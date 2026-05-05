@@ -1,0 +1,12 @@
+t,r,i,coolingwatertech,ctt,wst,value,notes
+2030,p48057,nuclear-SMR,nuclear-SMR_r_fsu,r,fsu,320.0,Dow and X-energy project; site moved from WA to TX in 2023; details from https://x-energy.com/seadrift
+2033,p55003,Nuclear,nuclear_r_fsu,r,fsu,1357.949074,From ReEDS case wind_40
+2036,p16009,Nuclear,nuclear_r_fsu,r,fsu,1096.650273,From ReEDS case wind_40
+2036,p17007,Nuclear,nuclear_r_fsu,r,fsu,1933.730249,From ReEDS case wind_40
+2036,p32001,Nuclear,nuclear_r_fsu,r,fsu,898.061428,From ReEDS case wind_40
+2036,p36001,Nuclear,nuclear_r_fsu,r,fsu,1371.519662,From ReEDS case wind_40
+2036,p53007,Nuclear,nuclear_r_fsu,r,fsu,306.442475,From ReEDS case wind_40
+2036,p55003,Nuclear,nuclear_r_fsu,r,fsu,196.493378,From ReEDS case wind_40
+2048,p10001,Nuclear,nuclear_r_fsu,r,fsu,182.595905,From ReEDS case wind_40
+2045,p36001,Nuclear,nuclear_r_fsu,r,fsu,376.425265,From ReEDS case wind_40
+2048,p36001,Nuclear,nuclear_r_fsu,r,fsu,306.554379,From ReEDS case wind_40

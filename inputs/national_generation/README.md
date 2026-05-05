@@ -63,7 +63,7 @@ For existing coal plants, this is the code implementation:
     For example, if the NEMS data states that a plant will retire in 2029, we maintain that assumption and that plant will retire in 2029.
     However, if the NEMS data previously stated that a plant will retire in 2040, they are now subject to the Clean Air Act regulations and may retire sooner than their previously stated retirement date.
 3. `b_inputs.gms`
-    - `numhintage` is set to 300, so that we can accommodate a large number of coal bins since they are binned at the unit level.
+    - `numhintage` is set to 300, so that we can accomodate a large number of coal bins since they are binned at the unit level.
     - Revise `m_capacity_exog` so that it matches with which coal capacity is allowed.
     - if `caa_coal_retire_year` is not in the set of years being modeled for this run, then set it to the first year that is modeled after `caa_coal_retire_year`.
     For example, if running 5 year solves, then instead of enforcing coal retirement in 2032, it will be enforced in 2035.

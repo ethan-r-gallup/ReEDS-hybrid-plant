@@ -241,7 +241,10 @@ sets
 *bannew - will remove the ability to invest in that technology
   ban(i) "ban from existing, prescribed, and new generation -- usually indicative of missing data or operational constraints"
   /
+    ice
     upv_10
+    mhkwave
+    caes
 * csp-ns is "CSP, no storage". There is ~1.3 GW existing capacity but we group it with UPV and
 * don't allow new builds of csp-ns.
     csp-ns
@@ -272,7 +275,9 @@ $endif.hydup2
     hydro
     distpv
     geothermal
+    Ocean
     cofireold
+    caes
     CoalOldScr
     CoalOldUns
     csp-ns
@@ -299,7 +304,7 @@ $endif.hydup2
     ss
   / ;
 
-alias(i,ii,iii) ;
+alias(i,ii,iii,ii) ;
 
 set i_water_nocooling(i) "technologies that use water, but are not differentiated by cooling tech and water source"
 /
@@ -442,7 +447,6 @@ set
   evmc_storage(i)      "ev flexibility as direct load control",
   evmc_shape(i)        "ev flexibility as adoptable change to load from response to pricing",
   fossil(i)            "fossil technologies"
-  fuel_cell(i)         "fuel cell technologies",
   gas_cc_ccs(i)        "techs that are gas combined cycle and have CCS",
   gas_cc(i)            "techs that are gas combined cycle",
   gas_ct(i)            "techs that are gas combustion turbine",
@@ -465,6 +469,15 @@ set
   lfill(i)             "land-fill gas technologies",
   nondispatch(i)       "technologies that are not dispatchable"
   nuclear(i)           "nuclear technologies",
+  nuclear_stor(i)      "nuclear technologies with storage",
+  nuclear_stor1(i)     "nuclear technologies with storage type 1",
+  nuclear_stor2(i)     "nuclear technologies with storage type 2",
+  nuclear_stor3(i)     "nuclear technologies with storage type 3",
+  nuclear_stor4(i)     "nuclear technologies with storage type 4",
+  nuclear_stor5(i)     "nuclear technologies with storage type 5",
+  nuclear_stor6(i)     "nuclear technologies with storage type 6",
+  nuclear_stor7(i)     "nuclear technologies with storage type 7",
+  nuclear_stor8(i)     "nuclear technologies with storage type 8",
   ofswind(i)           "offshore wind technologies",
   ogs(i)               "oil-gas-steam technologies",
   onswind(i)           "onshore wind technologies",
@@ -482,6 +495,7 @@ set
   storage_standalone(i) "stand alone storage technologies",
   storage(i)           "storage technologies",
   storage_interday(i)  "interday storage",
+  tes(i)               "thermal storage technologies",
   thermal_storage(i)   "thermal storage technologies",
   upgrade(i)           "technologies that are upgrades from other technologies",
   upv(i)               "upv generation technologies",
@@ -587,7 +601,6 @@ $include inputs_case%ds%yearafter.csv
 $onlisting
 / ;
 
-* --- Upgrade link definitions ---
 Set upgrade_to(i,ii)         "mapping set that allows for i to be upgraded to ii"
     upgrade_from(i,ii)       "mapping set that allows for i to be upgraded from ii"
     upgrade_link(i,ii,iii)   "indicates that tech i is upgradeable from ii with a delta base of iii"
@@ -618,7 +631,6 @@ $onlisting
 unitspec_upgrades(i)$[sum{ii$ctt_i_ii(i,ii), unitspec_upgrades(ii) }$Sw_WaterMain] =
   sum{ii$ctt_i_ii(i,ii), unitspec_upgrades(ii) } ;
 
-* Ban upgrades if upgrades are turned off
 ban(i)$[upgrade(i)$(not Sw_Upgrades)] = yes ;
 bannew(i)$[upgrade(i)$(not Sw_Upgrades)] = yes ;
 
@@ -752,10 +764,6 @@ if(Sw_H2Combustionupgrade = 0,
   ban(i)$[i_subsets(i,'h2_combustion')$upgrade(i)] = yes ;
 ) ;
 
-if(Sw_FuelCell = 0,
-  ban(i)$i_subsets(i,'fuel_cell') = yes ;
-) ;
-
 if(Sw_LfillGas = 0,
   ban('lfill-gas') = yes ;
 ) ;
@@ -770,6 +778,11 @@ if(Sw_Nuclear = 0,
 
 if(Sw_NuclearSMR = 0,
   ban("Nuclear-SMR") = yes ;
+) ;
+
+if(Sw_NuclearStor = 0,
+  ban(i)$i_subsets(i,'Nuclear-Stor') = yes ;
+  bannew(i)$i_subsets(i,'Nuclear-Stor') = yes ;
 ) ;
 
 if(Sw_OfsWind = 0,
@@ -840,6 +853,50 @@ $ifthen.pvb12 %GSw_PVB_Types% == '1'
     ban(i)$i_subsets(i,'pvb3') = yes ;
 $endif.pvb12
 
+* Ban NuclearStor_Types that aren't included in the model
+$ifthen.nuclear_stor1234567 %GSw_NuclearStor_Types% == '1_2_3_4_5_6_7'
+    ban(i)$i_subsets(i,'Nuclear-Stor8') = yes ;
+$endif.nuclear_stor1234567
+$ifthen.nuclear_stor123456 %GSw_NuclearStor_Types% == '1_2_3_4_5_6'
+    ban(i)$i_subsets(i,'Nuclear-Stor7') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor8') = yes ;
+$endif.nuclear_stor123456
+$ifthen.nuclear_stor12345 %GSw_NuclearStor_Types% == '1_2_3_4_5'
+    ban(i)$i_subsets(i,'Nuclear-Stor6') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor7') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor8') = yes ;
+$endif.nuclear_stor12345
+$ifthen.nuclear_stor1234 %GSw_NuclearStor_Types% == '1_2_3_4'
+    ban(i)$i_subsets(i,'Nuclear-Stor5') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor6') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor7') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor8') = yes ;
+$endif.nuclear_stor1234
+$ifthen.nuclear_stor123 %GSw_NuclearStor_Types% == '1_2_3'
+    ban(i)$i_subsets(i,'Nuclear-Stor4') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor5') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor6') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor7') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor8') = yes ;
+$endif.nuclear_stor123
+$ifthen.nuclear_stor12 %GSw_NuclearStor_Types% == '1_2'
+    ban(i)$i_subsets(i,'Nuclear-Stor3') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor4') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor5') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor6') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor7') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor8') = yes ;
+$endif.nuclear_stor12
+$ifthen.nuclear_stor1 %GSw_NuclearStor_Types% == '1'
+    ban(i)$i_subsets(i,'Nuclear-Stor2') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor3') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor4') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor5') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor6') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor7') = yes ;
+    ban(i)$i_subsets(i,'Nuclear-Stor8') = yes ;
+$endif.nuclear_stor1
+
 *** Ban storage techs based on Sw_Storage switch
 * 0: Ban all storage
 if(Sw_Storage = 0,
@@ -847,6 +904,14 @@ if(Sw_Storage = 0,
  Sw_BatteryMandate = 0 ;
 ) ;
 * 1: Keep all storage
+
+if(Sw_TES = 0,
+ ban(i)$i_subsets(i,'tes') = yes ;
+) ;
+
+* option to ban upgrades
+ban(i)$[upgrade(i)$(not Sw_Upgrades)] = yes ;
+bannew(i)$[upgrade(i)$(not Sw_Upgrades)] = yes ;
 
 if(Sw_WaterMain = 1,
 *By default, ban new builds with bannew_ctt cooling techs for all i,
@@ -858,6 +923,14 @@ bannew(i)$[sum{ctt_i_ii(i,'Nuclear'), i_ctt(i,'d') }] = YES ;
 bannew(i)$[sum{ctt_i_ii(i,'coal-CCS_mod'), i_ctt(i,'d') }] = YES ;
 bannew(i)$[sum{ctt_i_ii(i,'coal-CCS_max'), i_ctt(i,'d') }] = YES ;
 bannew(i)$[sum{ctt_i_ii(i,'Nuclear-SMR'), i_ctt(i,'d') }] = YES ;
+bannew(i)$[sum{ctt_i_ii(i,'Nuclear-Stor1'), i_ctt(i,'d') }] = YES ;
+bannew(i)$[sum{ctt_i_ii(i,'Nuclear-Stor2'), i_ctt(i,'d') }] = YES ;
+bannew(i)$[sum{ctt_i_ii(i,'Nuclear-Stor3'), i_ctt(i,'d') }] = YES ;
+bannew(i)$[sum{ctt_i_ii(i,'Nuclear-Stor4'), i_ctt(i,'d') }] = YES ;
+bannew(i)$[sum{ctt_i_ii(i,'Nuclear-Stor5'), i_ctt(i,'d') }] = YES ;
+bannew(i)$[sum{ctt_i_ii(i,'Nuclear-Stor6'), i_ctt(i,'d') }] = YES ;
+bannew(i)$[sum{ctt_i_ii(i,'Nuclear-Stor7'), i_ctt(i,'d') }] = YES ;
+bannew(i)$[sum{ctt_i_ii(i,'Nuclear-Stor8'), i_ctt(i,'d') }] = YES ;
 
 *ban and bannew all non-numeraire techs that are derived from ban numeraire techs
 ban(i)$sum{ii$ban(ii), ctt_i_ii(i,ii) } = YES ;
@@ -934,12 +1007,6 @@ $onlisting
 ;
 $offempty
 
-* --- Remove banned technologies from upgrade links ---
-upgrade_link(i,ii,iii)$[ban(i) or ban(ii) or ban(iii)] = no ;
-upgrade(i)$[not sum{(ii,iii), upgrade_link(i,ii,iii) }] = no ;
-upgrade_to(i,ii)$[not sum{iii, upgrade_link(i,iii,ii) }] = no ;
-upgrade_from(i,ii)$[not sum{iii, upgrade_link(i,ii,iii) }] = no ;
-
 * --- define technology subsets ---
 battery(i)$(not ban(i))             = yes$i_subsets(i,'battery') ;
 beccs(i)$(not ban(i))               = yes$i_subsets(i,'beccs') ;
@@ -975,7 +1042,6 @@ evmc(i)$(not ban(i))                = yes$i_subsets(i,'evmc') ;
 evmc_storage(i)$(not ban(i))        = yes$i_subsets(i,'evmc_storage') ;
 evmc_shape(i)$(not ban(i))          = yes$i_subsets(i,'evmc_shape') ;
 fossil(i)$(not ban(i))              = yes$i_subsets(i,'fossil') ;
-fuel_cell(i)$(not ban(i))           = yes$i_subsets(i,'fuel_cell') ;
 gas_cc_ccs(i)$(not ban(i))          = yes$i_subsets(i,'gas_cc_ccs') ;
 gas_cc(i)$(not ban(i))              = yes$i_subsets(i,'gas_cc') ;
 gas_ct(i)$(not ban(i))              = yes$i_subsets(i,'gas_ct') ;
@@ -997,6 +1063,15 @@ hydro(i)$(not ban(i))               = yes$i_subsets(i,'hydro') ;
 lfill(i)$(not ban(i))               = yes$i_subsets(i,'lfill') ;
 nondispatch(i)$(not ban(i))         = yes$i_subsets(i,'nondispatch') ;
 nuclear(i)$(not ban(i))             = yes$i_subsets(i,'nuclear') ;
+nuclear_stor(i)$(not ban(i))        = yes$i_subsets(i,'Nuclear-Stor') ;
+nuclear_stor1(i)$(not ban(i))       = yes$i_subsets(i,'Nuclear-Stor1') ;
+nuclear_stor2(i)$(not ban(i))       = yes$i_subsets(i,'Nuclear-Stor2') ;
+nuclear_stor3(i)$(not ban(i))       = yes$i_subsets(i,'Nuclear-Stor3') ;
+nuclear_stor4(i)$(not ban(i))       = yes$i_subsets(i,'Nuclear-Stor4') ;
+nuclear_stor5(i)$(not ban(i))       = yes$i_subsets(i,'Nuclear-Stor5') ;
+nuclear_stor6(i)$(not ban(i))       = yes$i_subsets(i,'Nuclear-Stor6') ;
+nuclear_stor7(i)$(not ban(i))       = yes$i_subsets(i,'Nuclear-Stor7') ;
+nuclear_stor8(i)$(not ban(i))       = yes$i_subsets(i,'Nuclear-Stor8') ;
 ofswind(i)$(not ban(i))             = yes$i_subsets(i,'ofswind') ;
 ogs(i)$(not ban(i))                 = yes$i_subsets(i,'ogs') ;
 onswind(i)$(not ban(i))             = yes$i_subsets(i,'onswind') ;
@@ -1014,7 +1089,7 @@ storage_hybrid(i)$(not ban(i))      = yes$i_subsets(i,'storage_hybrid') ;
 storage_interday(i)$(not ban(i))    = yes$i_subsets(i,'storage_interday') ;
 storage_standalone(i)$(not ban(i))  = yes$i_subsets(i,'storage_standalone') ;
 storage(i)$(not ban(i))             = yes$i_subsets(i,'storage') ;
-thermal_storage(i)$(not ban(i))     = yes$i_subsets(i,'thermal_storage') ;
+tes(i)$(not ban(i))                 = yes$i_subsets(i,'tes') ;
 upv(i)$(not ban(i))                 = yes$i_subsets(i,'upv') ;
 vre_distributed(i)$(not ban(i))     = yes$i_subsets(i,'vre_distributed') ;
 vre_no_csp(i)$(not ban(i))          = yes$i_subsets(i,'vre_no_csp') ;
@@ -1033,7 +1108,7 @@ tg_i('pv',i)$[(pv(i) or pvb(i))$(not distpv(i))] = yes ;
 tg_i('csp',i)$csp(i) = yes ;
 tg_i('gas',i)$gas(i) = yes ;
 tg_i('coal',i)$coal(i) = yes ;
-tg_i('nuclear',i)$nuclear(i) = yes ;
+tg_i('nuclear',i)$[(nuclear(i) or nuclear_stor(i))] = yes ;
 tg_i('battery',i)$battery(i) = yes ;
 tg_i('hydro',i)$hydro(i) = yes ;
 tg_i('h2',i)$h2_combustion(i) = yes ;
@@ -1041,6 +1116,7 @@ tg_i('geothermal',i)$geo(i) = yes ;
 tg_i('biomass',i)$bio(i) = yes ;
 tg_i('pumped-hydro',i)$psh(i) = yes ;
 tg_i('dr_shed',i)$dr_shed(i) = yes ;
+tg_i('tes',i)$tes(i) = yes ;
 
 *Hybrid pv+battery (PVB) configurations are defined by:
 *  (1) inverter loading ratio (DC/AC) and
@@ -1063,6 +1139,38 @@ $include inputs_case%ds%pvb_agg.csv
 $offdelim
 $onlisting
 / ;
+
+set nuclear_stor_config "set of hybrid pv+battery configurations"
+/
+$offlisting
+$include inputs_case%ds%nuclear_stor_config.csv
+$onlisting
+/ ;
+
+set nuclear_stor_stortech(i,ii) "storage tech used by each nuclear+storage config"
+/ 
+$offlisting
+$ondelim
+$include inputs_case%ds%nuclear_stor_storagetechs.csv
+$offdelim
+$onlisting
+/ ;
+
+set nuclear_stor_gentech(i,ii) "storage tech used by each nuclear+storage config"
+/ 
+$offlisting
+$ondelim
+$include inputs_case%ds%nuclear_stor_gentechs.csv
+$offdelim
+$onlisting
+/ ;
+
+* If storage tech used by nuclear+storage config is in i_subsets(i, 'TES'), then add it to tes and thermal_storage sets
+set nuclear_stor_with_tes(i) "hybrid nuclear+storage technologies whose storage tech is TES" ;
+nuclear_stor_with_tes(i)$(sum(ii$ (nuclear_stor_stortech(i,ii) and i_subsets(ii,'tes')),1) = 1) = yes ;
+
+tes(i)$nuclear_stor_with_tes(i) = yes ;
+thermal_storage(i)$nuclear_stor_with_tes(i) = yes ;
 
 *add non-numeraire CSPs in index i of already defined set tg_i(tg,i)
 tg_i("csp",i)$[(csp1(i) or csp2(i) or csp3(i) or csp4(i))$Sw_WaterMain] = yes ;
@@ -1902,6 +2010,17 @@ $offdelim
 $onlisting
 / ;
 
+* Written by writesupplycurves.py
+$onempty
+parameter rsc_evmc(i,r,sc_cat,rscbin,t) "--units vary-- resource supply curve data for shape-like EVMC"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%rsc_evmc.csv
+$offdelim
+$onlisting
+/ ;
+$offempty
 
 * Written by writesupplycurves.py
 $onempty
@@ -1997,6 +2116,8 @@ rscfeas(i,r,rscbin)$[psh(i)$Sw_WaterMain$sum{ii$ctt_i_ii(i,ii), rsc_dat(ii,r,"ca
 
 rscfeas(i,r,rscbin)$ban(i) = no ;
 
+*expand feasibility and supply curve data to include evmc techs
+rscfeas(i,r,rscbin)$sum{t, rsc_evmc(i,r,"cap",rscbin,t) } = yes ;
 
 * This flag will deactivate eq_rsc_INVLIM when the RHS is < 1e-6 and set INV_RSC
 * to zero for the r,i,rscbin combination. Because INV_RSC is a positive variable
@@ -2486,6 +2607,11 @@ valcap(i,newv,r,t)$[rsc_i(i)$tmodel_new(t)$(not ban(i))$(not bannew(i))
                     $sum{tt$(yeart(tt)<=yeart(t)), ivt(i,newv,tt) }
                     ]  = yes ;
 
+* Include EVMC technologies
+valcap(i,newv,r,t)
+    $[evmc(i)$tmodel_new(t)$(not ban(i))$(not bannew(i))
+    $sum{rscbin, rsc_evmc(i,r,'cap',rscbin,t) }$sum{tt$(yeart(tt)<=yeart(t)), ivt(i,newv,tt) }
+    ] = yes ;
 
 *enable capacity if there is a required prescription in that region
 *first for non-rsc techs
@@ -2593,9 +2719,10 @@ valcap(i,v,r,t)$[upgrade(i)$(yeart(t)<Sw_UpgradeYear)] = no ;
 *this is more of a failsafe for potential capacity leakage
 valcap(i,v,r,t)$[upgrade(i)$(not Sw_Upgrades)] = no ;
 
-*remove capacity from valcap that is required to retire
-* -then- remove capacity from consideration in m_capacity_exog
-valcap(i,v,r,t)$[forced_retire(i,r,t)] = no ;
+*remove capacity from valcap that is required to retire (and cannot be upgraded)
+* -then- remove m_capacity_exog from consideration
+valcap(i,v,r,t)$[forced_retire(i,r,t)
+                $(not sum{ii$(not forced_retire(ii,r,t)), upgrade_from(ii,i) })] = no ;
 
 * for any technologies that are forced to retire and cannot upgrade, remove m_capacity_exog
 m_capacity_exog(i,v,r,t)$[forced_retire(i,r,t)
@@ -2632,6 +2759,9 @@ $endif.hydEDban
 
 * Drop vintages in non-modeled future years
 valcap(i,v,r,t)$[(not sum{tt$[tmodel_new(tt)], ivt(i,v,tt) })$newv(v)] = no ;
+
+* remove considerations for upgrades if the upgrade-from tech is invalid
+valcap(i,v,r,t)$[upgrade(i)$(not sum{ii$upgrade_from(i,ii),valcap(ii,v,r,t) })] = no ;
 
 * Remove non-offshore resources from offshore zones
 valcap(i,v,r,t)$[offshore(r)$(not ofswind(i))] = no ;
@@ -2833,6 +2963,46 @@ m_watsc_dat(wst,"cost",r,t)$tmodel_new(t) = wat_supply_new(wst,"cost",r) ;
 
 *not allowed to invest in upgrade techs since they are a product of upgrades
 inv_cond(i,v,r,t,tt)$upgrade(i) = no ;
+
+
+*===============================================
+* --- Climate change impacts: Cooling water ---
+*===============================================
+
+$ifthen.climatewater %GSw_ClimateWater% == 1
+
+* Indicate which cooling techs are affected by climate change
+set wst_climate(wst) "water sources affected by climate change"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%wst_climate.csv
+$offdelim
+$onlisting
+/ ;
+
+
+* Update seasonal distribution factors for fsu; other water types are unchanged
+* declared over allt to allow for external data files that extend beyond end_year
+
+* Update water supply curve with annually-varying water supply. Multiplier is applied to (wat_supply_new + wat_supply_init).
+* NOTE: Only the capacity changes, not the cost
+* Written by climateprep.py
+table wat_supply_climate(wst,r,allt)  "time-varying annual water supply"
+$offlisting
+$ondelim
+$include inputs_case%ds%climate_UnappWaterMultAnn.csv
+$offdelim
+$onlisting
+;
+m_watsc_dat(wst,"cap",r,t)$[wst_climate(wst)$r_country(r,"USA")$tmodel_new(t)$(yeart(t)>=Sw_ClimateStartYear)] $=
+  sum{allt$att(allt,t), m_watsc_dat(wst,"cap",r,t) * wat_supply_climate(wst,r,allt) } ;
+* If wst is in wst_climate but does not have data in input file, assign its multiplier to the fsu multiplier
+m_watsc_dat(wst,"cap",r,t)$[wst_climate(wst)$r_country(r,"USA")$tmodel_new(t)
+                           $(yeart(t)>=Sw_ClimateStartYear)$sum{allt$att(allt,t), (not wat_supply_climate(wst,r,allt)) }] $=
+  sum{allt$att(allt,t), m_watsc_dat(wst,"cap",r,t) * wat_supply_climate('fsu',r,allt) } ;
+
+$endif.climatewater
 
 
 *=====================================
@@ -3522,12 +3692,11 @@ $offempty
 $onempty
 parameter trancap_init_itlgrp(itlgrp,itlgrpp,trtype) "--MW-- initial upper limit on interface flows between itlgrps"
 /
-*** TEMPORARY 20260402: Skip itlgrp functionality until we fix it
-* $offlisting
-* $ondelim
-* $include inputs_case%ds%trancap_init_itlgrp.csv
-* $offdelim
-* $onlisting
+$offlisting
+$ondelim
+$include inputs_case%ds%trancap_init_itlgrp.csv
+$offdelim
+$onlisting
 / ;
 $offempty
 
@@ -3818,6 +3987,16 @@ $offdelim
 $onlisting
 / ;
 
+
+parameter heater_char(i,allt,plantcat) "--units vary-- input plant characteristics"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%heaterchar.csv
+$offdelim
+$onlisting
+/ ;
+
 parameter
   winter_cap_ratio(i,v,r) "--scalar-- ratio of winter capacity to summer capacity"
   winter_cap_frac_delta(i,v,r) "--scalar-- fractional change in winter compared to summer capacity"
@@ -4030,7 +4209,7 @@ prod_conversion_rate(i,v,r,t)$[consume(i)$valcap(i,v,r,t)] =
     h2_conversion_rate(i,v,r,t)$h2(i) + dac_conversion_rate(i,t)$dac(i) ;
 
 * H2 energy intensity is either 52,217 btu / lb
-* (LHV, based on https://www.nlr.gov/docs/gen/fy08/43061.pdf)
+* (LHV, based on https://www.nrel.gov/docs/gen/fy08/43061.pdf)
 * or 60,920 btu / lb (HHV, based on
 * https://www.engineeringtoolbox.com/fuels-higher-calorific-values-d_169.html)
 * DOE H2 office recommends using the HHV value
@@ -4278,6 +4457,33 @@ parameter bcr(i) "--unitless-- ratio of the battery capacity to the PV DC capaci
 bcr(pvb) = sum{pvb_config$pvb_agg(pvb_config,pvb), bir_pvb_config(pvb_config) / ilr_pvb_config(pvb_config) } ;
 bcr(i)$[storage_standalone(i) or csp_storage(i) or hyd_add_pump(i)] = 1 ;
 
+*==================================
+* --- Nuclear+Storage Configurations ---
+*==================================
+
+parameter bcr_nuclear_stor_config(i) "--unitless-- battery capacity ratio for each hybrid nuclear+storage configuration"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%nuclear_stor_bcr.csv
+$offdelim
+$onlisting
+/ ;
+
+bcr(i)$nuclear_stor(i) = bcr_nuclear_stor_config(i) ;
+
+parameter gridcharge_nuclear_stor_config(i) "--unitless-- ratio of grid charging capacity to nuclear capacity for each hybrid nuclear+storage configuration"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%nuclear_stor_gridcharging.csv
+$offdelim
+$onlisting
+/ ;
+
+parameter gridcharge_ratio(i) "--unitless-- ratio of grid charging capacity to nuclear capacity for each hybrid nuclear+storage configuration" ;
+gridcharge_ratio(i)$nuclear_stor(i) = gridcharge_nuclear_stor_config(i) ;
+
 *=========================================
 * --- Capital costs ---
 *=========================================
@@ -4289,7 +4495,7 @@ parameter cost_cap(i,t)           "--2004$/MW-- overnight capital costs",
 ;
 
 cost_cap(i,t) = plant_char0(i,t,"capcost") ;
-cost_cap_energy(i,t)$battery(i) = plant_char0(i,t,"capcost_energy") ;
+cost_cap_energy(i,t)$(battery(i) or tes(i)) = plant_char0(i,t,"capcost_energy") ;
 
 * apply user-defined cost reduction to Flexible CCS uniformly in all years
 cost_cap(i,t)$ccsflex(i) = cost_cap(i,t) * %GSw_CCSFLEX_cost_mult% ;
@@ -4304,6 +4510,17 @@ cost_cap_pvb_p(i,t)$pvb(i) =  sum{ii$[upv(ii)$rsc_agg(ii,i)], cost_cap(ii,t) } ;
 * Assign hybrid PV+battery to have the same value as battery_li
 parameter cost_cap_pvb_b(i,t) "--2004$/MW-- overnight capital costs for battery portion of hybrid PV+battery" ;
 cost_cap_pvb_b(i,t)$pvb(i) = cost_cap("battery_li",t) + %GSw_PVB_Dur% * cost_cap_energy("battery_li",t) ;
+
+* Assign hybrid nuclear+storage plant to have the same value as nuclear
+parameter cost_cap_nuclear_stor_p(i,t) "--2004$/MW-- overnight capital costs for nuclear portion of hybrid nuclear+storage" ;
+cost_cap_nuclear_stor_p(i,t)$nuclear_stor(i) = sum{ii$ nuclear_stor_gentech(i,ii), plant_char0(ii,t,'capcost') } ;
+
+* Assign hybrid nuclear+storage storage to have the same value as the storage technology in stortech_nuclear_stor_config
+parameter cost_cap_nuclear_stor_s(i,t) "--2004$/MW-- overnight capital costs for storage portion of hybrid nuclear+storage" ;
+cost_cap_nuclear_stor_s(i,t)$nuclear_stor(i) = sum{ii$ nuclear_stor_stortech(i,ii), plant_char0(ii,t,'capcost') } ;
+
+* Assign hybrid nuclear+storage storage to have the same value as the storage technology in stortech_nuclear_stor_config
+cost_cap_energy(i,t)$nuclear_stor(i) = sum{ii$ nuclear_stor_stortech(i,ii), plant_char0(ii,t,'capcost_energy') } ;
 
 * Written by plantcostprep.py
 table hydrocapmult(allt,i) "--unitless-- hydropower capital cost multipliers over time"
@@ -4420,6 +4637,15 @@ cost_vom_hybrid_plant(i,v,r,t)$[storage_hybrid(i)$(not csp(i))] =  sum{ii$[upv(i
 parameter cost_vom_hybrid_storage(i,v,r,t) "--2004$/MWh-- variable OM for the storage portion of hybrid" ;
 cost_vom_hybrid_storage(i,v,r,t)$[storage_hybrid(i)$(not csp(i))] = cost_vom("battery_li",v,r,t) ;
 
+* Assign hybrid nuclear+storage plant to have the same value as nuclear
+* parameter cost_vom_nuclear_stor_p(i,v,r,t) "--2004$/MWh-- variable OM for the nuclear portion of hybrid nuclear+storage" ;
+cost_vom(i,v,r,t)$nuclear_stor(i) = sum{ii$nuclear_stor_gentech(i,ii), plant_char(ii,v,t,'vom')} ;
+
+* Assign hybrid nuclear+storage storage to have the same value as the storage technology in stortech_nuclear_stor_config
+parameter cost_vom_nuclear_stor_s(i,v,r,t) "--2004$/MWh-- variable OM for storage portion of hybrid nuclear+storage" ;
+cost_vom_nuclear_stor_s(i,v,r,t)$nuclear_stor(i) = sum{ii$nuclear_stor_stortech(i,ii), plant_char(ii,v,t,'vom')} ;
+cost_vom_nuclear_stor_s(i,v,r,t)$[nuclear_stor(i)$(not cost_vom_nuclear_stor_s(i,v,r,t))] = storage_vom_min ;
+
 *upgrade vom costs for initial classes are the vom costs for that tech
 *plus the delta between upgrade_to and upgrade_from for the initial year
 cost_vom(i,initv,r,t)$[upgrade(i)$Sw_Upgrades$valcap(i,initv,r,t)] =
@@ -4451,7 +4677,7 @@ parameter cost_fom(i,v,r,t)           "--2004$/MW-yr-- fixed O&M",
 
 *previous calculation (without tech binning)
 cost_fom(i,v,r,t)$[(not Sw_binOM)$valcap(i,v,r,t)] = plant_char(i,v,t,'fom') ;
-cost_fom_energy(i,v,r,t)$[(battery(i))$valcap(i,v,r,t)] = plant_char(i,v,t,'fom_energy') ;
+cost_fom_energy(i,v,r,t)$[(battery(i) or tes(i))$valcap(i,v,r,t)] = plant_char(i,v,t,'fom_energy') ;
 
 *if using binned costs, still need to assign default values to cost_fom for new plants
 cost_fom(i,newv,r,t)$[(Sw_binOM)$valcap(i,newv,r,t)] = plant_char(i,newv,t,'fom') ;
@@ -4480,6 +4706,19 @@ parameter cost_fom_pvb_b(i,v,r,t) "--2004$/MW-yr-- fixed OM for the battery port
 cost_fom_pvb_b(i,v,r,t)$pvb(i) =  cost_fom("battery_li",v,r,t) + %GSw_PVB_Dur% * cost_fom_energy("battery_li",v,r,t) ;
 
 cost_fom(i,v,r,t)$[valcap(i,v,r,t)$pvb(i)] = cost_fom_pvb_p(i,v,r,t) + bcr(i) * cost_fom_pvb_b(i,v,r,t) ;
+
+* Assign hybrid nuclear+storage plant to have the same value as nuclear
+parameter cost_fom_nuclear_stor_p(i,v,r,t) "--2004$/MW-- fixed OM for nuclear portion of hybrid nuclear+storage" ;
+cost_fom_nuclear_stor_p(i,v,r,t)$nuclear_stor(i) = sum{ii$ nuclear_stor_gentech(i,ii), plant_char(ii,v,t, 'fom')};
+
+* Assign hybrid nuclear+storage storage to have the same value as the storage technology in stortech_nuclear_stor_config
+parameter cost_fom_nuclear_stor_s(i,v,r,t) "--2004$/MW-- fixed OM for storage portion of hybrid nuclear+storage" ;
+cost_fom_nuclear_stor_s(i,v,r,t)$nuclear_stor(i) = sum{ii$ nuclear_stor_stortech(i,ii), plant_char(ii,v,t, 'fom')};
+
+cost_fom(i,v,r,t)$nuclear_stor(i) = (cost_fom_nuclear_stor_p(i,v,r,t) + bcr(i) * cost_fom_nuclear_stor_s(i,v,r,t)) ;
+
+cost_fom_energy(i,v,r,t)$nuclear_stor(i) = sum{ii$ nuclear_stor_stortech(i,ii), plant_char(ii,v,t, 'fom_energy')};
+
 
 * -- FOM adjustments for coal and nuclear plants
 * The escalation factors are taken from NEMS and are roughly based on the
@@ -4599,6 +4838,9 @@ heat_rate(i,newv,r,t)$[upgrade(i)$Sw_Upgrades$valcap(i,newv,r,t)] =
 heat_rate(i,v,r,t)$[heat_rate_adj(i,'pre2010')$initv(v)] = heat_rate_adj(i,'pre2010') * heat_rate(i,v,r,t) ;
 heat_rate(i,v,r,t)$[heat_rate_adj(i,'post2010')$newv(v)] = heat_rate_adj(i,'post2010') * heat_rate(i,v,r,t) ;
 
+* Assign nuclear-stor heat rate from the associated generating technology
+heat_rate(i,v,r,t)$[nuclear_stor(i)$valcap(i,v,r,t)] = sum{ii$nuclear_stor_gentech(i,ii), heat_rate(ii,v,r,t) } ;
+
 *=========================================
 * --- Fuel Prices ---
 *=========================================
@@ -4625,54 +4867,14 @@ fuel_price(i,r,t)$[sum{f$fuel2tech(f,i),1}$(not fuel_price(i,r,t))] =
 fuel_price(i,r,t)$upgrade(i) = sum{ii$upgrade_to(i,ii), fuel_price(ii,r,t) } ;
 
 
+
 *=====================================================
 * -- Climate impacts on nondispatchable hydropower --
 *=====================================================
 
 $ifthen.climatehydro %GSw_ClimateHydro% == 1
-
-* declared over allt to allow for external data files that extend beyond end_year
-* Written by climateprep.py
-table climate_hydro_annual(r,allt)  "annual dispatchable hydropower availability"
-$offlisting
-$ondelim
-$include inputs_case%ds%climate_hydadjann.csv
-$offdelim
-$onlisting
-;
+parameter climate_hydro_annual(r,allt)  "annual dispatchable hydropower availability" ;
 $endif.climatehydro
-
-
-*=====================================================
-* -- Climate impacts on nondispatchable hydropower --
-*=====================================================
-
-$ifthen.climatewater %GSw_ClimateWater% == 1
-
-* Written by climateprep.py
-table wat_supply_climate(wst,r,allt)  "time-varying annual water supply"
-$offlisting
-$ondelim
-$include inputs_case%ds%climate_UnappWaterMultAnn.csv
-$offdelim
-$onlisting
-;
-
-set wst_climate(wst) "water sources affected by climate change"
-/
-$offlisting
-$ondelim
-$include inputs_case%ds%wst_climate.csv
-$offdelim
-$onlisting
-/ 
-;
-$endif.climatewater
-
-
-*=============================================
-* -- Capacity Factor Adjustments over Time -- 
-*=============================================
 
 *created by /input_processing/writecapdat.py
 parameter cap_hyd_ccseason_adj(i,ccseason,r) "--fraction-- ccseason max capacity adjustment for dispatchable hydro"
@@ -4790,6 +4992,10 @@ ramprate(i)$geo(i) = ramprate("geothermal") ;
 
 *if running with flexible nuclear, set ramp rate of nuclear to that of coal
 ramprate(i)$[nuclear(i)$Sw_NukeFlex] = ramprate("coal-new") ;
+ramprate(i)$[nuclear_stor(i)] = ramprate("nuclear") ;
+
+parameter ramprate_nuclear_stor(i) "--fraction/min-- storage ramp rate of hybrid nuclear+storage plants" ;
+ramprate_nuclear_stor(i)$nuclear_stor(i) = sum{ii$ nuclear_stor_stortech(i,ii), ramprate(ii)};
 
 ramprate(i)$[i_water_cooling(i)$Sw_WaterMain] =
   sum{ii$ctt_i_ii(i,ii), ramprate(ii) } ;
@@ -4803,7 +5009,7 @@ reserve_frac(i,ortype)$upgrade(i) = sum{ii$upgrade_to(i,ii), reserve_frac(ii,ort
 
 * input data for opres reserve costs by generator type (in $2004)
 * current options are bottom up costs by generator type ("default") or estimates based on historical reserve prices ("market")
-* market data based on national reserve prices in https://www.nlr.gov/docs/fy19osti/72578.pdf (converted from $2017)
+* market data based on national reserve prices in https://www.nrel.gov/docs/fy19osti/72578.pdf (converted from $2017)
 table cost_opres_input(i,ortype)
 $offlisting
 $ondelim
@@ -4820,6 +5026,9 @@ cost_opres(i,ortype,t)$geo(i) = cost_opres("geothermal",ortype,t) ;
 
 * Assign hybrid PV+battery the same value as battery_li
 cost_opres(i,ortype,t)$pvb(i) = cost_opres("battery_li",ortype,t) ;
+
+* Assign hybrid nuclear+storage the same value as storage tech
+cost_opres(i,ortype,t)$nuclear_stor(i) = sum{ii$ nuclear_stor_stortech(i,ii), cost_opres(ii,ortype,t)};
 
 * add heat rate penalty for providing reserves (currently only applied to spin)
 * input data calculated based on heat rates in the PLEXOS EI database as of Dec. 2020
@@ -4951,14 +5160,18 @@ $offempty
 * --- Planning Reserve Margin ---
 *================================
 
-parameter prm(r,t) "--fraction-- planning reserve margin by model year"
+* Written by input_processing\transmission.py
+parameter prm_nt(nercr,allt) "--fraction-- planning reserve margin for NERC regions"
 /
 $offlisting
 $ondelim
-$include inputs_case%ds%prm_initial.csv
+$include inputs_case%ds%prm_annual.csv
 $offdelim
 $onlisting
 / ;
+
+parameter prm(r,t) "--fraction-- planning reserve margin by BA" ;
+prm(r,t) = sum{nercr$r_nercr(r,nercr), prm_nt(nercr,t) } ;
 
 $onempty
 parameter firm_import_limit(nercr,allt) "--fraction-- limit on net firm imports into NERC regions"
@@ -5113,6 +5326,19 @@ parameter cost_cap_fin_mult_pvb_p(i,r,t)            "capital cost multiplier for
 parameter cost_cap_fin_mult_pvb_b(i,r,t)            "capital cost multiplier for the battery portion of hybrid PV+Battery"
           cost_cap_fin_mult_pvb_b_noITC(i,r,t)      "capital cost multiplier for the battery portion of hybrid PV+Battery, excluding ITC"
           cost_cap_fin_mult_pvb_b_no_credits(i,r,t) "capital cost multiplier for the battery portion of hybrid PV+Battery, excluding ITC/PTC/Depreciation"
+;
+
+* --- Hybrid Nuclear+Storage ---
+* Hybrid Nuclear+Storage: Nuclear portion
+parameter cost_cap_fin_mult_nuclear_stor_p(i,r,t)            "capital cost multiplier for the nuclear portion of hybrid Nuclear+Storage"
+          cost_cap_fin_mult_nuclear_stor_p_noITC(i,r,t)      "capital cost multiplier for the nuclear portion of hybrid Nuclear+Storage, excluding ITC"
+          cost_cap_fin_mult_nuclear_stor_p_no_credits(i,r,t) "capital cost multiplier for the nuclear portion of hybrid Nuclear+Storage, excluding ITC/PTC/Depreciation"
+;
+
+* Hybrid Nuclear+Storage: Storage portion
+parameter cost_cap_fin_mult_nuclear_stor_s(i,r,t)            "capital cost multiplier for the storage portion of hybrid Nuclear+Storage"
+          cost_cap_fin_mult_nuclear_stor_s_noITC(i,r,t)      "capital cost multiplier for the storage portion of hybrid Nuclear+Storage, excluding ITC"
+          cost_cap_fin_mult_nuclear_stor_s_no_credits(i,r,t) "capital cost multiplier for the storage portion of hybrid Nuclear+Storage, excluding ITC/PTC/Depreciation"
 ;
 
 
@@ -5722,9 +5948,11 @@ parameter storage_eff(i,t) "--fraction-- round-trip efficiency of storage techno
 
 storage_eff(i,t)$storage(i) = 1 ;
 storage_eff(i,t)$psh(i) = storage_eff_psh ;
+storage_eff("ICE",t) = 1 ;
 storage_eff(i,t)$[storage(i)$plant_char0(i,t,'rte')] = plant_char0(i,t,'rte') ;
 storage_eff(i,t)$[evmc_storage(i)$plant_char0(i,t,'rte')] = plant_char0(i,t,'rte') ;
 storage_eff(i,t)$pvb(i) = storage_eff("battery_li",t) ;
+storage_eff(i,t)$nuclear_stor(i) = sum{ii$ nuclear_stor_stortech(i,ii), plant_char0(ii,t,'rte')};
 
 parameter storage_eff_pvb_p(i,t) "--fraction-- efficiency of hybrid PV+battery when charging from the coupled PV"
           storage_eff_pvb_g(i,t) "--fraction-- efficiency of hybrid PV+battery when charging from the grid" ;
@@ -5733,6 +5961,17 @@ parameter storage_eff_pvb_p(i,t) "--fraction-- efficiency of hybrid PV+battery w
 storage_eff_pvb_p(i,t)$pvb(i) = storage_eff(i,t) / inverter_efficiency ;
 *when charging from the grid the efficiency will be the same as standalone storage
 storage_eff_pvb_g(i,t)$pvb(i) = storage_eff("battery_li",t) ;
+
+parameter storage_eff_nuclear_stor_p(i,t) "--fraction-- efficiency of hybrid nuclear+storage when charging from the coupled nuclear"
+          storage_eff_nuclear_stor_g(i,t) "--fraction-- efficiency of hybrid nuclear+storage when charging from the grid" ;
+
+*when charging from nuclear the nuclear_stor system will have a higher efficiency if the storage tech is tes
+storage_eff_nuclear_stor_p(i,t)$[nuclear_stor(i)$(not nuclear_stor_with_tes(i))] = sum{ii$nuclear_stor_stortech(i,ii), plant_char0(ii,t,'rte')};
+*set efficiency to 0.99 if the storage tech is tes to prevent degeneracy with dispatching from the plant
+storage_eff_nuclear_stor_p(i,t)$nuclear_stor_with_tes(i) = 0.99;
+
+*when charging from the grid the efficiency will be the same as standalone storage
+storage_eff_nuclear_stor_g(i,t)$nuclear_stor(i) = sum{ii$nuclear_stor_stortech(i,ii), plant_char0(ii,t,'rte')};
 
 *upgrade plants assume the same as what theyre upgraded to
 storage_eff(i,t)$upgrade(i) = sum{ii$upgrade_to(i,ii), storage_eff(ii,t) } ;
@@ -5747,19 +5986,18 @@ minstorfrac(i,v,r)$[i_water_cooling(i)$valcap_ivr(i,v,r)$psh(i)$Sw_WaterMain]
 
 parameter storinmaxfrac(i,v,r)  "--fraction-- max storage input capacity as a fraction of output capacity" ;
 
-$ifthen.storcap %GSw_HydroStorInMaxFrac% == "data"
 $onempty
 parameter storinmaxfrac_data(i,v,r) "--fraction-- data for max storage input capacity as a fraction of capacity if data is available"
 /
 $offlisting
 $ondelim
-$ifthen.readstorinmaxfrac %GSw_Storage% == 1
 $include inputs_case%ds%storinmaxfrac.csv
-$endif.readstorinmaxfrac
 $offdelim
 $onlisting
 / ;
 $offempty
+
+$ifthen.storcap %GSw_HydroStorInMaxFrac% == "data"
 * Use data file for available PSH data
 storinmaxfrac(i,v,r)$[valcap_ivr(i,v,r)$psh(i)] = storinmaxfrac_data(i,v,r) ;
 $else.storcap
@@ -5805,6 +6043,52 @@ csp_sm(i)$csp4(i) = csp_sm_4 ;
 
 resourcescaler(i)$[(not CSP_Storage(i))$(not ban(i))] = 1 ;
 resourcescaler(i)$csp(i) = CSP_SM(i) / csp_sm_baseline ;
+
+* --- Hybrid Nuclear+Storage ---
+
+* table nuclearstorcapmult(allt,i) "Nuclear+Storage capital cost multipliers over time"
+* $offlisting
+* $ondelim
+* $include inputs_case%ds%nuclearstorcapcostmult.csv
+* $offdelim
+* $onlisting
+* ;
+
+
+* the capital cost for nuclear_stor includes both the nuclear and storage portions
+* total cost = cost(nuclear) * cap(nuclear) + cost(stor) * cap(stor)
+*            = cost(nuclear) * cap(nuclear) + cost(stor) * bcr * cap(nuclear)
+*            = [cost(nuclear) + cost(stor) * bcr ] * cap(nuclear)
+
+* Turbine generator + electrical equipment costs should scale with the nuclear portion cost over time.
+* Fractions are from ATB 2024 Table 6, GN-COA breakdown (Abou-Jaoude et al. 2024, INL/RPT-24-77048):
+*   Code 23 (Energy Conversion System): Large=3.92%, SMR=3.86%
+*   Code 24 (Electrical Equipment):     Large=6.32%, SMR=9.46%
+* These are removed from the nuclear cost because the TES power block (energy island)
+* replaces the turbine-generator and electrical equipment, sized at (1+bcr) × nuclear capacity.
+parameter
+  turbine_generator_cost_nuc_stor(i,t) "--2004$/MW-- turbine generator cost component for nuclear+storage (GN-COA 23)"
+  electrical_cost_nuc_stor(i,t)        "--2004$/MW-- electrical equipment cost component for nuclear+storage (GN-COA 24)" ;
+
+* Use gentech-specific fractions: large reactor vs SMR have different cost shares
+turbine_generator_cost_nuc_stor(i,t)$nuclear_stor(i) =
+    sum{ii$nuclear_stor_gentech(i,ii),
+        cost_cap_nuclear_stor_p(i,t) * (0.0392$sameas(ii,"nuclear") + 0.0386$sameas(ii,"nuclear-smr")) } ;
+electrical_cost_nuc_stor(i,t)$nuclear_stor(i) =
+    sum{ii$nuclear_stor_gentech(i,ii),
+        cost_cap_nuclear_stor_p(i,t) * (0.0632$sameas(ii,"nuclear") + 0.0946$sameas(ii,"nuclear-smr")) } ;
+
+* Compose nuclear+storage capex:
+* - Start from nuclear portion capex
+* - Remove turbine + electrical once (they'll be added back using the capital costs of the storage plant)
+* - Add turbine + electrical for the storage system which is the output of the plant. capital costs of storage system * (1 + bcr)
+cost_cap(i,t)$[nuclear_stor(i)$thermal_storage(i)] = (cost_cap_nuclear_stor_p(i,t)
+                                 - turbine_generator_cost_nuc_stor(i,t)
+                                 - electrical_cost_nuc_stor(i,t)
+                                 + (1 + bcr(i)) * cost_cap_nuclear_stor_s(i,t)
+                                 + gridcharge_ratio(i) * sum{ii$[nuclear_stor_stortech(i,ii)$heater_char(ii,t,"capcost")], heater_char(ii,t,"capcost") });
+cost_cap(i,t)$[nuclear_stor(i)$(not thermal_storage(i))] = cost_cap_nuclear_stor_p(i,t)
+                                 + bcr(i) * cost_cap_nuclear_stor_s(i,t) ;
 
 * --- Storage Duration ---
 
@@ -5852,9 +6136,7 @@ parameter storage_duration_pshdata(i,v,r) "--hours-- storage duration data for P
 /
 $offlisting
 $ondelim
-$ifthene.readpshstorageduration ((%GSw_Storage%=1)and(%GSw_HydroPSHDurData%=1))
 $include inputs_case%ds%storage_duration_pshdata.csv
-$endif.readpshstorageduration
 $offdelim
 $onlisting
 / ;
@@ -5901,6 +6183,18 @@ cost_vom(i,v,r,t)$[psh(i)$valcap(i,v,r,t)] = cost_vom_psh ;
 * Apply a minimum VOM cost for storage (to avoid degeneracy with curtailment)
 * Only apply the value to storage that does not have a VOM value
 cost_vom(i,v,r,t)$[storage(i)$valgen(i,v,r,t)$(not cost_vom(i,v,r,t))] = storage_vom_min ;
+
+* declared over allt to allow for external data files that extend beyond end_year
+parameter ice_fom(allt) "--$/MW-year -- Fixed O&M costs for ice storage"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%ice_fom.csv
+$offdelim
+$onlisting
+/ ;
+
+cost_fom("ICE",v,r,t)$valcap("ICE",v,r,t) = ice_fom(t) ;
 
 * --- minimum capacity factor ----
 parameter minCF(i,t)      "--fraction-- minimum annual capacity factor for each tech fleet, applied to (i,r)"
@@ -6440,9 +6734,11 @@ loop(r$sum{(i,t)$[prescriptivelink("geothermal",i)$tmodel_new(t)], noncumulative
 *     m_rsc_dat(r,i,rscbin,"cost") * Sw_SpurCostMult ;
 set m_rsc_con(r,i) "set to detect numeraire rsc techs that have capacity value" ;
 m_rsc_con(r,i)$sum{rscbin, m_rsc_dat(r,i,rscbin,"cap") } = yes ;
+m_rsc_con(r,i)$sum{rscbin, sum{t,rsc_evmc(i,r,"cap",rscbin,t)} } = yes ;
 
 m_rscfeas(r,i,rscbin) = no ;
 m_rscfeas(r,i,rscbin)$m_rsc_dat(r,i,rscbin,"cap") = yes ;
+m_rscfeas(r,i,rscbin)$sum{t, rsc_evmc(i,r,"cap",rscbin,t) } = yes;
 m_rscfeas(r,i,rscbin)$[sum{ii$tg_rsc_cspagg(ii, i),m_rscfeas(r,ii,rscbin) }
                       $sum{t$tmodel_new(t), valcap_irt(i,r,t) }] = yes ;
 m_rscfeas(r,i,rscbin)$[sum{ii$rsc_agg(ii,i),m_rscfeas(r,ii,rscbin) }$sum{t$tmodel_new(t),valcap_irt(i,r,t) }$psh(i)$Sw_WaterMain] = yes ;
@@ -6720,8 +7016,6 @@ Parameter
     can_imports_szn_frac(allszn)           "--fraction-- [Sw_Canada=1] fraction of annual imports that occur in each season"
     can_exports_h(r,allh,t)                "--MW-- [Sw_Canada=1] timeslice exports to Canada by year"
     can_exports_h_frac(allh)               "--fraction-- [Sw_Canada=1] fraction of annual exports by timeslice"
-* Resource adequacy
-    prm_year(r)                            "--fraction-- planning reserve margin for the current solve year"
 * Capacity credit
     sdbin_size(ccreg,ccseason,sdbin,t)     "--MW-- available power capacity by storage duration bin - used to bin the peaking power capacity contribution of storage by duration"
     cc_old(i,r,ccseason,t)                 "--MW-- capacity credit for existing capacity - used in sequential solve similar to heritage reeds"

@@ -74,6 +74,7 @@ repgasprice(cendiv,t)              "--$/mmBTU-- NG prices in ReEDS, the calculat
 repgasquant(cendiv,t)              "--mmBTU-- NG fuel usage in ReEDS - used to determine NG price"
 ret_ivrt(i,v,r,t)                  "--MW-- retirements of generation capacity"
 ret(i,v,r)                         "--MW-- retirements of generation capacity"
+rsc_dat_evmc(i,r,sc_cat,rscbin)    "--varies-- EVMC resource supply curve data"
 rsc_dat_filt(i,r,sc_cat,rscbin)    "--$/MW-- capital costs filtered for pumped-hydro so arbitrage value doesn't exceed capital costs"
 storage_eff_filt(i)                "--fraction-- storage efficiency filtered for the next solve year"
 upgrade_to_filt(i,ii)              "--set-- set linking upgrade techs to the tech the upgraded from filtered for existing upgrades"
@@ -108,6 +109,8 @@ geo(i) = geo(i)$(not ban(i)) ;
 hydro_d(i) = hydro_d(i)$(not ban(i)) ;
 hydro_nd(i) = hydro_nd(i)$(not ban(i)) ;
 nuclear(i) = nuclear(i)$(not ban(i)) ;
+evmc_shape(i) = evmc_shape(i)$(not ban(i)) ;
+evmc_storage(i) = evmc_storage(i)$(not ban(i)) ;
 storage_duration(i) = storage_duration(i)$(not ban(i)) ;
 storage_eff(i,t) = storage_eff(i,t)$(not ban(i)) ;
 storage_standalone(i) = storage_standalone(i)$(not ban(i)) ;
@@ -122,7 +125,7 @@ cap_exist_iv(i,v)$valcap_iv_filt(i,v) = sum{r, cap_exist(i,v,r) } ;
 cap_exist_i(i)$valcap_i_filt(i) = sum{(r,v), cap_exist(i,v,r) } ;
 
 cap_ivrt(i,v,r,t)$([not (upv(i) or wind(i))]$valcap(i,v,r,t)$trange(t)) = CAP.l(i,v,r,t) ;
-cap_energy_ivrt(i,v,r,t)$[valcap(i,v,r,t)$trange(t)$battery(i)] = CAP_ENERGY.l(i,v,r,t) ;
+cap_energy_ivrt(i,v,r,t)$[valcap(i,v,r,t)$trange(t)$(battery(i) or tes(i) or nuclear_stor(i))] = CAP_ENERGY.l(i,v,r,t) ;
 cap_ivrt(i,v,r,t)$([upv(i) or wind(i)]$valcap(i,v,r,t)) =
     m_capacity_exog(i,v,r,t)$trange(t)
     + sum{tt$[inv_cond(i,v,r,t,tt)$trange(tt)],
@@ -130,7 +133,7 @@ cap_ivrt(i,v,r,t)$([upv(i) or wind(i)]$valcap(i,v,r,t)) =
 cap_init(i,v,r)$([not distpv(i)]$valcap_ivr(i,v,r)) = sum{t$tcur(t), cap_ivrt(i,v,r,t)$initv(v) } ;
 cap_init(i,v,r)$(distpv(i)$valcap_ivr(i,v,r)) = sum{t$tfirst(t), cap_ivrt(i,v,r,t) } ;
 inv_ivrt(i,v,r,t)$[valcap(i,v,r,t)$trange(t)] = [INV.l(i,v,r,t) + INV_REFURB.l(i,v,r,t)]$valinv(i,v,r,t) + UPGRADES.l(i,v,r,t)$[upgrade(i)$valcap(i,v,r,t)$Sw_Upgrades] ;
-inv_energy_ivrt(i,v,r,t)$[valcap(i,v,r,t)$trange(t)$battery(i)] = INV_ENERGY.l(i,v,r,t);
+inv_energy_ivrt(i,v,r,t)$[valcap(i,v,r,t)$trange(t)$(battery(i) or tes(i) or nuclear_stor(i))] = INV_ENERGY.l(i,v,r,t);
 inv_ivrt("distpv",v,r,t)$([trange(t)$(not tfirst(t))]$valcap("distpv",v,r,t)) = cap_ivrt("distpv",v,r,t) - sum{tt$tprev(t,tt), cap_ivrt("distpv",v,r,tt) } ;
 inv_ivrt("distpv","init-1",r,"%next_year%") = inv_distpv(r,"%next_year%") ;
 
@@ -238,9 +241,9 @@ can_imports_szn_filt(r,szn) = sum{t$tcur(t), can_imports_szn(r,szn,t)} ;
 
 cap_hyd_szn_adj_filt(i,szn,r)$[cap_exist_ir(i,r)$hydro_d(i)] = cap_hyd_szn_adj(i,szn,r) ;
 
-cost_cap_filt(i,t)$[storage_standalone(i)] = cost_cap(i,t)$tnext(t) ;
+cost_cap_filt(i,t)$[storage_standalone(i) or evmc(i)] = cost_cap(i,t)$tnext(t) ;
 
-cost_cap_fin_mult_filt(i,r,t)$([storage_standalone(i)]) = cost_cap_fin_mult(i,r,t)$tnext(t) ;
+cost_cap_fin_mult_filt(i,r,t)$([storage_standalone(i) or evmc(i)]) = cost_cap_fin_mult(i,r,t)$tnext(t) ;
 
 cost_vom_filt(i,v,r)$cap_exist(i,v,r) = sum{t$tcur(t), cost_vom(i,v,r,t) } ;
 
@@ -266,6 +269,7 @@ minloadfrac_filt(r,i,szn)$[hydro(i)$cap_exist_ir(i,r)$szn_rep(szn)] =
 
 rsc_dat_filt(i,r,"cost",rscbin)$[storage_standalone(i)$cap_exist_ir(i,r)] = rsc_dat(i,r,"cost",rscbin) ;
 
+rsc_dat_evmc(i,r,"cost",rscbin)$evmc(i)  = sum{t$tnext(t), rsc_evmc(i,r,"cost",rscbin,t) };
 
 storage_eff_filt(i)$storage(i) = sum{t$tnext(t), storage_eff(i,t) } ;
 
@@ -358,6 +362,13 @@ execute_unload 'ReEDS_Augur%ds%augur_data%ds%reeds_data_%cur_year%.gdx'
     ctt_i_ii_filt
     ctt_i_ii_psh
     degrade_annual
+    evmc_shape
+    evmc_storage
+    evmc_shape_gen
+    evmc_shape_load
+    evmc_storage_discharge_frac
+    evmc_storage_charge_frac
+    evmc_storage_energy_hours
     emissions_price
     emit_rate_filt
     energy_price
@@ -400,6 +411,7 @@ execute_unload 'ReEDS_Augur%ds%augur_data%ds%reeds_data_%cur_year%.gdx'
     ret
     ret_ivrt
     routes_filt
+    rsc_dat_evmc
     rsc_dat_filt
     sdbin
     storage_duration

@@ -1,8 +1,10 @@
 tech,years_from_now
 battery_li,0
+tes_ms,0
 biopower,2
 beccs_mod,4
 beccs_max,4
+caes,2
 can-imports,500
 coal-CCS_mod,4
 coal-CCS_max,4
@@ -36,7 +38,6 @@ Gas-CT,0
 Gas-CT_aero,0
 H2-CT,3
 H2-CC,3
-ng-fuel-cell,10
 geohydro_allkm_1*geohydro_allkm_10,2
 geothermal,2
 pvb1_1*pvb1_10,0
@@ -53,10 +54,13 @@ hydSD,2
 hydSND,2
 hydUD,2
 hydUND,2
+ice,2
 lfill-gas,500
+MHKwave,2
 egs_nearfield_1*egs_nearfield_10,2
 Nuclear,8
 Nuclear-SMR,8
+Ocean,500
 o-g-s,500
 pumped-hydro,3
 pumped-hydro-flex,3

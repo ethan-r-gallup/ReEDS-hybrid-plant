@@ -24,25 +24,25 @@ INV_LOADSITE.fx(r,tfix)$[Sw_LoadSiteCF$val_loadsite(r)] = INV_LOADSITE.l(r,tfix)
 OP_LOADSITE.fx(r,h,tfix)$[Sw_LoadSiteCF$(Sw_LoadSiteCF<1)$val_loadsite(r)] = OP_LOADSITE.l(r,h,tfix) ;
 
 * capacity and investment variables
-CAP.fx(i,v,r,tfix)$[valcap(i,v,r,tfix)] = CAP.l(i,v,r,tfix) ;
-CAP_ENERGY.fx(i,v,r,tfix)$[valcap(i,v,r,tfix)$battery(i)] = CAP_ENERGY.l(i,v,r,tfix) ;
-CAP_ABOVE_LIM.fx(tg,r,tfix)$[(yeart(tfix)>=model_builds_start_yr)
-                                $(sum{(tgg,rr), cap_limit(tgg,rr,tfix)})
-                                $sum{(i,newv)$tg_i(tg,i), valinv(i,newv,r,tfix)}] = CAP_ABOVE_LIM.l(tg,r,tfix) ;
-CAP_SDBIN.fx(i,v,r,ccseason,sdbin,tfix)$[valcap(i,v,r,tfix)$(storage(i) or hyd_add_pump(i))$(not csp(i))$Sw_PRM_CapCredit] = CAP_SDBIN.l(i,v,r,ccseason,sdbin,tfix) ;
-CAP_SDBIN_ENERGY.fx(i,v,r,ccseason,sdbin,tfix)$[valcap(i,v,r,tfix)$battery(i)$Sw_PRM_CapCredit] = CAP_SDBIN_ENERGY.l(i,v,r,ccseason,sdbin,tfix) ;
-GROWTH_BIN.fx(gbin,i,st,tfix)$[sum{r$[r_st(r,st)], valinv_irt(i,r,tfix) }$stfeas(st)$Sw_GrowthPenalties$(yeart(tfix)<=Sw_GrowthPenLastYear)] = GROWTH_BIN.l(gbin,i,st,tfix) ;
-INV.fx(i,v,r,tfix)$[valinv(i,v,r,tfix)] = INV.l(i,v,r,tfix) ;
-INV_ENERGY.fx(i,v,r,tfix)$[valinv(i,v,r,tfix)$battery(i)] = INV_ENERGY.l(i,v,r,tfix) ;
-INV_REFURB.fx(i,v,r,tfix)$[valinv(i,v,r,tfix)$refurbtech(i)] = INV_REFURB.l(i,v,r,tfix) ;
-INV_RSC.fx(i,v,r,rscbin,tfix)$[valinv(i,v,r,tfix)$rsc_i(i)$m_rscfeas(r,i,rscbin)] = INV_RSC.l(i,v,r,rscbin,tfix) ;
-CAP_RSC.fx(i,v,r,rscbin,tfix)$[valcap(i,v,r,tfix)$rsc_i(i)$m_rscfeas(r,i,rscbin)] = CAP_RSC.l(i,v,r,rscbin,tfix) ;
-INV_CAP_UP.fx(i,v,r,rscbin,tfix)$[allow_cap_up(i,v,r,rscbin,tfix)] = INV_CAP_UP.l(i,v,r,rscbin,tfix) ;
-INV_ENER_UP.fx(i,v,r,rscbin,tfix)$[allow_ener_up(i,v,r,rscbin,tfix)] = INV_ENER_UP.l(i,v,r,rscbin,tfix) ;
-UPGRADES.fx(i,v,r,tfix)$[valcap(i,v,r,tfix)$upgrade(i)] = UPGRADES.l(i,v,r,tfix) ;
-UPGRADES_RETIRE.fx(i,v,r,tfix)$[valcap(i,v,r,tfix)$upgrade(i)] = UPGRADES_RETIRE.l(i,v,r,tfix) ;
-EXTRA_PRESCRIP.fx(pcat,r,tfix)$[force_pcat(pcat,tfix)$sum{(i,newv)$[prescriptivelink(pcat,i)], valinv(i,newv,r,tfix) }] = EXTRA_PRESCRIP.l(pcat,r,tfix) ;
-EXTRA_PRESCRIP_ENERGY.fx(pcat,r,tfix)$[force_pcat(pcat,tfix)$sum{(i,newv)$[prescriptivelink(pcat,i)], valinv(i,newv,r,tfix) }] = EXTRA_PRESCRIP_ENERGY.l(pcat,r,tfix) ;
+    CAP.fx(i,v,r,tfix)$[valcap(i,v,r,tfix)] = CAP.l(i,v,r,tfix) ;
+    CAP_ENERGY.fx(i,v,r,tfix)$[valcap(i,v,r,tfix)$(battery(i) or tes(i) or nuclear_stor(i))] = CAP_ENERGY.l(i,v,r,tfix) ;
+    CAP_ABOVE_LIM.fx(tg,r,tfix)$[(yeart(tfix)>=model_builds_start_yr)
+                                 $(sum{(tgg,rr), cap_limit(tgg,rr,tfix)})
+                                 $sum{(i,newv)$tg_i(tg,i), valinv(i,newv,r,tfix)}] = CAP_ABOVE_LIM.l(tg,r,tfix) ;
+    CAP_SDBIN.fx(i,v,r,ccseason,sdbin,tfix)$[valcap(i,v,r,tfix)$(storage(i) or hyd_add_pump(i))$(not csp(i))$Sw_PRM_CapCredit] = CAP_SDBIN.l(i,v,r,ccseason,sdbin,tfix) ;
+    CAP_SDBIN_ENERGY.fx(i,v,r,ccseason,sdbin,tfix)$[valcap(i,v,r,tfix)$(battery(i) or tes(i) or nuclear_stor(i))$Sw_PRM_CapCredit] = CAP_SDBIN_ENERGY.l(i,v,r,ccseason,sdbin,tfix) ;
+    GROWTH_BIN.fx(gbin,i,st,tfix)$[sum{r$[r_st(r,st)], valinv_irt(i,r,tfix) }$stfeas(st)$Sw_GrowthPenalties$(yeart(tfix)<=Sw_GrowthPenLastYear)] = GROWTH_BIN.l(gbin,i,st,tfix) ;
+    INV.fx(i,v,r,tfix)$[valinv(i,v,r,tfix)] = INV.l(i,v,r,tfix) ;
+    INV_ENERGY.fx(i,v,r,tfix)$[valinv(i,v,r,tfix)$(battery(i) or tes(i) or nuclear_stor(i))] = INV_ENERGY.l(i,v,r,tfix) ;
+    INV_REFURB.fx(i,v,r,tfix)$[valinv(i,v,r,tfix)$refurbtech(i)] = INV_REFURB.l(i,v,r,tfix) ;
+    INV_RSC.fx(i,v,r,rscbin,tfix)$[valinv(i,v,r,tfix)$rsc_i(i)$m_rscfeas(r,i,rscbin)] = INV_RSC.l(i,v,r,rscbin,tfix) ;
+    CAP_RSC.fx(i,v,r,rscbin,tfix)$[valcap(i,v,r,tfix)$rsc_i(i)$m_rscfeas(r,i,rscbin)] = CAP_RSC.l(i,v,r,rscbin,tfix) ;
+    INV_CAP_UP.fx(i,v,r,rscbin,tfix)$[allow_cap_up(i,v,r,rscbin,tfix)] = INV_CAP_UP.l(i,v,r,rscbin,tfix) ;
+    INV_ENER_UP.fx(i,v,r,rscbin,tfix)$[allow_ener_up(i,v,r,rscbin,tfix)] = INV_ENER_UP.l(i,v,r,rscbin,tfix) ;
+    UPGRADES.fx(i,v,r,tfix)$[valcap(i,v,r,tfix)$upgrade(i)] = UPGRADES.l(i,v,r,tfix) ;
+    UPGRADES_RETIRE.fx(i,v,r,tfix)$[valcap(i,v,r,tfix)$upgrade(i)] = UPGRADES_RETIRE.l(i,v,r,tfix) ;
+    EXTRA_PRESCRIP.fx(pcat,r,tfix)$[force_pcat(pcat,tfix)$sum{(i,newv)$[prescriptivelink(pcat,i)], valinv(i,newv,r,tfix) }] = EXTRA_PRESCRIP.l(pcat,r,tfix) ;
+    EXTRA_PRESCRIP_ENERGY.fx(pcat,r,tfix)$[force_pcat(pcat,tfix)$sum{(i,newv)$[prescriptivelink(pcat,i)], valinv(i,newv,r,tfix) }] = EXTRA_PRESCRIP_ENERGY.l(pcat,r,tfix) ;
 
 * generation and storage variables
 GEN.fx(i,v,r,h,tfix)$valgen(i,v,r,tfix) = GEN.l(i,v,r,h,tfix) ;

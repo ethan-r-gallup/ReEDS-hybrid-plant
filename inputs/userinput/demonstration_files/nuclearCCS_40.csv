@@ -1,0 +1,17 @@
+t,r,i,coolingwatertech,ctt,wst,value,notes
+2033,p56023,nuclear-stor1,nuclear-stor1_r_fsu,r,fsu,345.0,"TerraPower Natrium project; online date from Pacificorp 2025 IRP (https://www.pacificorp.com/content/dam/pcorp/documents/en/pacificorp/energy/integrated-resource-plan/2025-irp/2025_IRP_Vol_1_Utah.pdf, page 147)"
+2030,p48057,nuclear-SMR,nuclear-SMR_r_fsu,r,fsu,320.0,Dow and X-energy project; site moved from WA to TX in 2023; details from https://x-energy.com/seadrift
+2033,p55003,Nuclear,nuclear_r_fsu,r,fsu,1357.953893,From ReEDS case nuclearCCS_40
+2036,p16009,Nuclear,nuclear_r_fsu,r,fsu,1096.661236,From ReEDS case nuclearCCS_40
+2036,p17007,Nuclear,nuclear_r_fsu,r,fsu,1933.754276,From ReEDS case nuclearCCS_40
+2036,p32001,Nuclear,nuclear_r_fsu,r,fsu,898.061285,From ReEDS case nuclearCCS_40
+2036,p36001,Nuclear,nuclear_r_fsu,r,fsu,1371.517338,From ReEDS case nuclearCCS_40
+2036,p53007,Nuclear,nuclear_r_fsu,r,fsu,306.439946,From ReEDS case nuclearCCS_40
+2036,p55003,Nuclear,nuclear_r_fsu,r,fsu,196.483878,From ReEDS case nuclearCCS_40
+2045,p10001,Nuclear,nuclear_r_fsu,r,fsu,55.152272,From ReEDS case nuclearCCS_40
+2048,p10001,Nuclear,nuclear_r_fsu,r,fsu,373.337724,From ReEDS case nuclearCCS_40
+2045,p32001,Nuclear,nuclear_r_fsu,r,fsu,151.983789,From ReEDS case nuclearCCS_40
+2048,p32001,Nuclear,nuclear_r_fsu,r,fsu,508.481745,From ReEDS case nuclearCCS_40
+2045,p36001,Nuclear,nuclear_r_fsu,r,fsu,895.66483,From ReEDS case nuclearCCS_40
+2048,p36001,Nuclear,nuclear_r_fsu,r,fsu,1334.446622,From ReEDS case nuclearCCS_40
+2045,p51003,Nuclear,nuclear_r_fsu,r,fsu,2138.995296,From ReEDS case nuclearCCS_40

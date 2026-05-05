@@ -1,5 +1,6 @@
 tech,hours
 battery_li,24
+tes_ms,24
 beccs_max,38
 beccs_mid,38
 beccs_mod,38
@@ -56,7 +57,6 @@ egs_nearfield_6,24
 egs_nearfield_7,24
 egs_nearfield_8,24
 egs_nearfield_9,24
-ng-fuel-cell,24
 gas-cc_gas-cc-ccs_max,48
 gas-cc_gas-cc-ccs_mod,48
 gas-cc_h_1x1_gas-cc_h_1x1-ccs_max,48

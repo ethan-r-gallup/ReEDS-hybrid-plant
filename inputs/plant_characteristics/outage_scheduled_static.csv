@@ -14,7 +14,6 @@ Gas-CC-CCS-F2,0.1
 Gas-CC-CCS-F3,0.1
 H2-CT,0.07
 H2-CC,0.1
-ng-fuel-cell,0.08
 CoalOldScr,0.12
 CoalOldUns,0.12
 coal-new,0.12
@@ -34,10 +33,14 @@ beccs_max,0.076
 CofireOld,0.1
 CofireNew,0.1
 lfill-gas,0.05
+ocean,0.01
 distpv,0.015
 pumped-hydro,0.14
 pumped-hydro-flex,0.14
 battery_li,0.006
+tes_ms,0.006
+CAES,0.04
+ice,0.01
 hydD,0.02
 hydND,0.02
 hydSD,0.02
