@@ -8,131 +8,37 @@ import numpy as np
 import pandas as pd
 import argparse
 import shutil
-import subprocess
 import yaml
 import json
-import re
 import h5py
+from pathlib import Path
 # Local Imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import reeds
 
 
-_INTERPOLATE_MANDATES_SPEC_RE = re.compile(
-    r"^(?:\d{4}-\d*\.?\d+)(?:_\d{4}-\d*\.?\d+)+$"
-)
-
-
-def _parse_interpolate_mandates_spec(spec: str) -> list[tuple[int, float]]:
-    """Parse year-fraction pairs: <year>-<fraction>_<year>-<fraction>[_...]."""
-    spec = str(spec).strip()
-    if not _INTERPOLATE_MANDATES_SPEC_RE.match(spec):
-        raise ValueError(
-            "GSw_interpolate_mandates must be '0' (disabled) or match "
-            "<year>-<fraction>_<year>-<fraction>[_<year>-<fraction>...]. "
-            f"Got: {spec!r}"
-        )
-
-    points: list[tuple[int, float]] = []
-    for part in spec.split('_'):
-        year_str, frac_str = part.split('-', 1)
-        year = int(year_str)
-        frac = float(frac_str)
-        if (frac < 0) or (frac > 1):
-            raise ValueError(
-                "GSw_interpolate_mandates fractions must be in [0, 1]. "
-                f"Got: year={year} fraction={frac} in {spec!r}"
-            )
-        points.append((year, frac))
-
-    years_only = [y for y, _ in points]
-    if years_only != sorted(years_only):
-        raise ValueError(
-            "GSw_interpolate_mandates years must be strictly increasing. "
-            f"Got: {years_only} in {spec!r}"
-        )
-    if len(set(years_only)) != len(years_only):
-        raise ValueError(
-            "GSw_interpolate_mandates cannot repeat the same year. "
-            f"Got: {years_only} in {spec!r}"
-        )
-
-    return points
-
-
-def _build_piecewise_linear_mandate_trajectory(
-    years: list[int],
-    points: list[tuple[int, float]],
-) -> pd.Series:
-    """0 before first point; piecewise-linear between points; hold last value after."""
-    years_arr = np.asarray(years, dtype=int)
-    values = np.zeros_like(years_arr, dtype=float)
-
-    (first_year, _first_frac) = points[0]
-    (last_year, last_frac) = points[-1]
-
-    # After last point, hold at last fraction
-    values[years_arr > last_year] = last_frac
-
-    # Interpolate each segment (inclusive endpoints)
-    for (y0, f0), (y1, f1) in zip(points[:-1], points[1:]):
-        if y1 <= y0:
-            raise ValueError(
-                "GSw_interpolate_mandates years must be strictly increasing. "
-                f"Got segment {y0}->{y1}"
-            )
-        mask = (years_arr >= y0) & (years_arr <= y1)
-        values[mask] = f0 + (f1 - f0) * ((years_arr[mask] - y0) / (y1 - y0))
-
-    # Set the exact value at the first year (years before remain 0 by default)
-    values[years_arr == first_year] = points[0][1]
-
-    return pd.Series(values, index=years_arr)
-
-
 #%% ===========================================================================
 ### --- General Read Functions---
 ### ===========================================================================
-def is_active_switch(switch_value, active_switch_value):
-    # In 'active_switch_value', '~' represents a "NOT" criterion
-    # and '|' represents an "OR" set of criteria.
-    # '~' applies first in order of operations: '~A|B' means (not A) or B.
-    # Entries can use regex after processing '~' and '|' (but don't use '|' as
-    # part of regex; '|' is processed before the regex check)
-    tests = [
-        (not re.match(switch_value, rule.lstrip('~'))) if rule.startswith('~')
-        else re.match(switch_value, rule)
-        for rule in active_switch_value.split('|')
-    ]
-    return any(tests)
-
 def is_required_file(runfiles_row, sw):
-    if runfiles_row['depends_on_switch'] == 'ignore':
-        return False
-    elif not runfiles_row['depends_on_switch']:
-        return True
-    else:
-        # In 'linked_switch', '|' represents an "OR" set of switches (file
-        # is required if any switches are active) and ',' represents an
-        # "AND" set (file is required if all switches are active)
-        linked_switch = runfiles_row['depends_on_switch']
-        active_switch_value = runfiles_row['depends_on_switch_value']
-        if '|' in linked_switch:
-            linked_switches = linked_switch.split('|')
-            file_required = any([
-                is_active_switch(sw[switch], active_switch_value)
-                for switch in linked_switches
-            ])
-        elif ',' in linked_switch:
-            linked_switches = linked_switch.split(',')
-            file_required = all([
-                is_active_switch(sw[switch], active_switch_value)
-                for switch in linked_switches
-            ])
-        else:
-            file_required = is_active_switch(sw[linked_switch], active_switch_value)
+    """
+    Determine whether or not the file corresponding to the provided row of
+    runfiles.csv is required using the row's "required_if" value.
 
-        return file_required
+    Note that the code snippets assume that a variable 'sw' has been
+    initialized and holds the result of reeds.io.get_switches(), which is why
+    this function takes 'sw' as an argument despite 'sw' not being used
+    explicitly.
+    """
+    required_if_value = runfiles_row['required_if']
+    is_required = eval(required_if_value)
+    if is_required not in [True, False, 1, 0]:
+        raise ValueError(
+            "The 'required_if' value must evaluate to a true/false statement."
+            f"Update the entry for {runfiles_row['filename']} in "
+            "runfiles.csv."
+        )
+    return is_required
 
 
 def read_runfiles(reeds_path, inputs_case, sw, agglevel_variables):
@@ -271,28 +177,10 @@ def get_source_deflator_map(reeds_path):
 
     return source_deflator_map
 
-def forwardfill_hydcf(hydcf_in, sw):
-    """
-    Forward-fills annual hydropower capacity factor data up to the ReEDS model end year
-    using the last available year of data in the hydcf.csv input file.
-    """
-    df = hydcf_in.copy()
-    # Get last data year and construct new index to forward-fill into
-    lastdatayr = df.index.max()
-    reindex = df.index.tolist() + np.arange(lastdatayr+1, int(sw.endyear)+1).tolist()
-    df = df.reindex(reindex)
-    # Forward-fill years using last data year data up to model end year
-    df.loc[lastdatayr:] = df.loc[lastdatayr:].ffill()
-    # Revert pivoted indices, leaving only 'r' in columns
-    df = df.stack(['*i','month'])
-
-    return df
-
 def get_regions_and_agglevel(
     reeds_path,
     inputs_case,
     save_regions_and_agglevel=True,
-    NARIS=False
 ):
     """
     Create a regional mapping to help filter for specific regions and aggregation levels.
@@ -304,17 +192,18 @@ def get_regions_and_agglevel(
     """
     sw = reeds.io.get_switches(inputs_case)
 
-    # Load the full regions list
+    ## TEMPORARY 20260402: Load the full regions list
+    ## Use the line below once we make the switch
+    # hierarchy = reeds.io.assemble_hierarchy(inputs_case)
     hierarchy = pd.read_csv(
-        os.path.join(reeds_path, 'inputs', 'hierarchy{}.csv'.format(
-            '' if (sw['GSw_HierarchyFile'] == 'default')
-            else '_'+sw['GSw_HierarchyFile']))
+        Path(reeds.io.reeds_path, 'inputs', 'zones', sw.GSw_ZoneSet, 'hierarchy_from134.csv')
     )
     hierarchy['offshore'] = 0
     # Append offshore zones if using
     if int(sw.GSw_OffshoreZones):
-        hierarchy_offshore = pd.read_csv(
-            os.path.join(reeds_path, 'inputs', 'hierarchy_offshore.csv')
+        hierarchy_offshore = reeds.io.assemble_hierarchy(
+            fpath=os.path.join(reeds_path, 'inputs', 'zones', 'hierarchy_offshore.csv'),
+            extra=False,
         ).assign(offshore=1)
         hierarchy = pd.concat([hierarchy, hierarchy_offshore], ignore_index=True)
 
@@ -325,12 +214,11 @@ def get_regions_and_agglevel(
             index=False, header=True
             )
 
-    if not NARIS:
-        hierarchy = hierarchy.loc[hierarchy.country.str.lower()=='usa'].copy()
-
     # Add a row for each county
-    county2zone = pd.read_csv(
-        os.path.join(reeds_path, 'inputs', 'county2zone.csv'), dtype={'FIPS':str},
+    ## TEMPORARY 20260402: Use the old 134-zone county2zone until the aggregation approach is updated
+    county2zone = (
+        reeds.io.get_county2zone(GSw_ZoneSet='z134', as_map=False)
+        .rename(columns={'r':'ba'})
     )
     county2zone['county'] = 'p' + county2zone.FIPS
     county2zone.to_csv(
@@ -344,44 +232,32 @@ def get_regions_and_agglevel(
     # Subset hierarchy for the region of interest (based on the GSw_Region switch)
     # Parse the GSw_Region switch. If it includes a '/' character, it has the format
     # {column of hierarchy.csv}/{period-delimited entries to keep from that column}.
-    if '/' in sw['GSw_Region']:
-        hier_sub = pd.DataFrame()
-        # allow the list defined by the user to include multiple spatial resolutions
-        region_groups = sw['GSw_Region'].split('//') if '//' in sw['GSw_Region'] else [sw['GSw_Region']]
-        # separate lists associated with each spatial resolution
-        for region_group in region_groups:
-            GSw_RegionLevel, GSw_Region = region_group.split('/')
-            GSw_Region = GSw_Region.split('.')
+    hier_sub = pd.DataFrame()
+    # allow the list defined by the user to include multiple spatial resolutions
+    region_groups = sw['GSw_Region'].split('//') if '//' in sw['GSw_Region'] else [sw['GSw_Region']]
+    # separate lists associated with each spatial resolution
+    for region_group in region_groups:
+        GSw_RegionLevel, GSw_Region = region_group.split('/')
+        GSw_Region = GSw_Region.split('.')
 
-            hier_sub_partial = pd.concat([
-                hierarchy[hierarchy[GSw_RegionLevel] == region] for region in GSw_Region
-            ])
+        hier_sub_partial = pd.concat([
+            hierarchy[hierarchy[GSw_RegionLevel] == region] for region in GSw_Region
+        ])
 
-            hier_sub = pd.concat([hier_sub, hier_sub_partial])
-    # Otherwise use the modeled_regions.csv file to define the regions
-    else:
-        modeled_regions = pd.read_csv(
-            os.path.join(reeds_path,'inputs','userinput','modeled_regions.csv'))
-        modeled_regions.columns = modeled_regions.columns.str.lower()
-        val_r_in = list(
-            modeled_regions[~modeled_regions[sw['GSw_Region'].lower()].isna()]['r'].unique())
-        hier_sub = hierarchy[hierarchy['ba'].isin(val_r_in)].copy()
-
+        hier_sub = pd.concat([hier_sub, hier_sub_partial])
 
     # Read region resolution switch to determine agglevel
     agglevel = sw['GSw_RegionResolution'].lower()
 
     # Check if desired spatial resolution is mixed
     if agglevel == 'mixed':
-
         #Set value in resolution column of hier_sub to match value assigned in modeled_regions.csv
         region_def = pd.read_csv(
-            os.path.join(reeds_path,'inputs','userinput','modeled_regions.csv'))
-        region_def =  region_def[['r', sw['GSw_Region']]]
+            os.path.join(reeds_path,'inputs','userinput','modeled_regions.csv')
+        )[['r', sw.GSw_ZoneSet]]
 
-        res_map = region_def.set_index('r')[sw['GSw_Region']].to_dict()
+        res_map = region_def.set_index('r').squeeze(1).to_dict()
         hier_sub['resolution'] = hier_sub['ba'].map(res_map)
-
     else:
         hier_sub['resolution'] = agglevel
 
@@ -401,8 +277,8 @@ def get_regions_and_agglevel(
 
     # Overwrite the regions with the ba, state, or aggreg values as specififed
     for level in ['ba','aggreg']:
-        hier_sub['r'][hier_sub['resolution'] == level] = (
-            hier_sub[level][hier_sub['resolution'] == level])
+        hier_sub.loc[hier_sub['resolution'] == level, 'r'] = (
+            hier_sub.loc[hier_sub['resolution'] == level, level])
 
     # Write out mappings of r and ba to all counties
     r_county = hier_sub[['r','county']].dropna(subset='county')
@@ -449,7 +325,7 @@ def get_regions_and_agglevel(
             os.path.join(inputs_case, 'val_r_all.csv'), header=False, index=False)
 
     # Rename columns and save as hierarchy_with_res.csv for use in agglevel_variables function
-    hier_sub.rename(columns={'r':'*r'}).to_csv(
+    hier_sub.drop(columns='offshore', errors='ignore').rename(columns={'r':'*r'}).to_csv(
         os.path.join(inputs_case, 'hierarchy_with_res.csv'), index=False)
 
     # Drop county name and resolution columns
@@ -474,7 +350,7 @@ def get_regions_and_agglevel(
     if sw.GSw_RegionResolution == 'mixed':
         mod_reg = pd.read_csv(
             os.path.join(reeds_path,'inputs','userinput','modeled_regions.csv'))
-        if 'aggreg' in mod_reg[sw.GSw_Region].tolist():
+        if 'aggreg' in mod_reg[sw.GSw_ZoneSet].tolist():
             hier_sub['itlgrp'] = hier_sub['aggreg']
     hier_sub[['r','itlgrp']].rename(columns={'r':'*r'}).to_csv(
         os.path.join(inputs_case, 'hierarchy_itlgrp.csv'), index=False)
@@ -484,7 +360,7 @@ def get_regions_and_agglevel(
         os.path.join(inputs_case, 'val_itlgrp.csv'), header=False, index=False)
 
     # Drop any substate region columns as these will no longer be needed
-    hier_sub = hier_sub.drop(['county','ba','itlgrp','st_interconnect'],axis=1)
+    hier_sub = hier_sub.drop(['county', 'ba', 'itlgrp'], axis=1)
 
     # Populate val_st as unique states (not st_int) from the subsetted hierarchy table
     # Also include "voluntary" state for modeling voluntary market REC trading
@@ -513,7 +389,7 @@ def get_regions_and_agglevel(
             os.path.join(inputs_case, 'offshore.csv'), index=False, header=False,
         )
 
-    levels = list(hier_sub.columns)
+    levels = [i for i in hier_sub if i != 'offshore']
     valid_regions = {level: list(hier_sub[level].unique()) for level in levels}
 
     val_r = sorted(valid_regions['r'])
@@ -608,14 +484,9 @@ def read_special_h5file(full_path):
     - recf_distpv: drop 'distpv|' from column titles
     - transmission_cost_ac: reset index and decode strings
     - transmission_distance: stack from wide into long and decode strings
-    - hydcf: stack from wide into long
     """
     filename = os.path.basename(full_path)
-    df = reeds.io.read_file(
-        full_path,
-        parse_timestamps=True,
-        decode_strings=(True if filename.startswith('hydcf') else False),
-    )
+    df = reeds.io.read_file(full_path, parse_timestamps=True)
 
     if filename.startswith('recf_distpv'):
         df.columns = df.columns.str.replace('distpv|','')
@@ -626,9 +497,6 @@ def read_special_h5file(full_path):
     elif filename.startswith('transmission_distance'):
         df = df.stack().rename('miles').reset_index()
         df['r'] = df['r'].str.decode('utf-8')
-    elif filename.startswith('hydcf'):
-        df = df.stack().rename_axis(['t','*i','month','r']).rename('value').to_frame().reset_index()
-        df = df.pivot_table(index='t', columns=['*i','month','r'], values='value')
 
     return df
 
@@ -664,6 +532,7 @@ def subset_to_valid_regions(
     if (
         filename.startswith('supplycurve')
         or filename.startswith('exog_cap')
+        or filename.startswith('prescribed_builds')
     ):
         sc_point_gid_index = True
 
@@ -687,16 +556,6 @@ def subset_to_valid_regions(
             case _:
                 raise TypeError(f'filetype for {full_path} is not .csv or .h5')
 
-        match filename:
-            case 'hydcf.csv':
-                # Forward-fill data to the endyear using last year of data
-                df_ba = forwardfill_hydcf(df_ba, sw)
-                df_ba = df_ba.stack().rename_axis(['t','*i','month','r']).rename('value').to_frame().reset_index()
-                df_county = forwardfill_hydcf(df_county, sw)
-                df_county = df_county.stack().rename_axis(['t','*i','month','r']).rename('value').to_frame().reset_index()
-            case _:
-                pass
-
     # Single resolution procedure
     else:
         # Replace '{switchnames}' in full_path with corresponding switch values
@@ -710,6 +569,11 @@ def subset_to_valid_regions(
             ).reset_index()
         elif filename.startswith('exog_cap'):
             df = reeds.io.assemble_exog_cap(
+                full_path,
+                case=os.path.dirname(os.path.normpath(inputs_case)),
+            )
+        elif filename.startswith('prescribed_builds'):
+            df = reeds.io.assemble_prescribed_builds(
                 full_path,
                 case=os.path.dirname(os.path.normpath(inputs_case)),
             )
@@ -731,14 +595,6 @@ def subset_to_valid_regions(
             df = pd.read_csv(full_path, dtype={'FIPS':str, 'fips':str, 'cnty_fips':str}, comment='#')
         else:
             raise ValueError(f'Unmatched filename ({filename}) or filetype ({filetype_in})')
-
-        match filename:
-            case 'hydcf.csv':
-                # Forward-fill data to the endyear using last year of data
-                df = forwardfill_hydcf(df, sw)
-                df = df.stack().rename_axis(['t','*i','month','r']).rename('value').to_frame().reset_index()
-            case _:
-                pass
 
     # ---- Filter data to valid regions ----
     # If running at mixed resolution we need to remove BA level data for regions that are being solved at county resolution
@@ -767,8 +623,6 @@ def subset_to_valid_regions(
 
         # Transmission files need to be filtered differently to allow interfaces between BA and county resolution regions
         transmission_files = [
-            'transmission_capacity_init_AC_r.csv',
-            'transmission_capacity_init_nonAC.csv',
             'transmission_cost_ac.csv',
             'transmission_cost_dc.csv',
             'transmission_distance.csv',
@@ -885,7 +739,7 @@ def subset_to_valid_regions(
 def write_empty_file(filepath):
     filetype = os.path.splitext(filepath)[1].strip('.')
     if filetype == 'h5':
-        with h5py.File(filepath, 'w') as f:
+        with h5py.File(filepath, 'w'):
             pass
     else:
         open(filepath, 'a').close()
@@ -1167,185 +1021,6 @@ def write_non_region_files(non_region_files, sw, inputs_case, regions_and_agglev
             src_file = row['full_filepath']
             write_non_region_file(filename, filepath, src_file, dir_dst, sw, regions_and_agglevel, source_deflator_map)
 
-
-def write_county_vre_hourly_profiles(inputs_case, reeds_path):
-    """
-    Copy county-level RE hourly profiles to the ReEDS folder
-    """
-    # Read the supply curve meta data
-    revData = pd.read_csv(os.path.join(inputs_case,'rev_paths.csv'))
-
-    # EGS and GeoHydro supply curves come from hourlize but don't have profiles,
-    # so drop those from consideration as well
-    revData = revData[revData['tech'] != 'egs']
-    revData = revData[revData['tech'] != 'geohydro']
-
-    # Create a dataframe to hold the new file version information
-    rev_data_cols = ['tech','access_case']
-    file_version_new = pd.DataFrame(columns = rev_data_cols + ['file version'])
-    for rdc in rev_data_cols:
-        file_version_new[rdc] = revData[rdc]
-
-    # Check to see if there is a file version file for existing county-level
-    # profiles, if not, then we'll need to copy over the files. If they are
-    # present, then we need to check to see if they are the right version.
-    try:
-        file_version = pd.read_csv(
-            os.path.join(reeds_path,'inputs','variability','multi_year','file_version.csv')
-        )
-        missing_cols = set(['tech','access_case','file version']) - set(file_version.columns)
-        if len(missing_cols) > 0:
-            print(
-                f"Current file_version.csv is missing {missing_cols}; "
-                "will delete and re-copy county-level profiles."
-            )
-            existing_fv = 0
-        else:
-            existing_fv = 1
-    except FileNotFoundError:
-        print(
-            f"{os.path.join(reeds_path,'inputs','variability','multi_year','file_version.csv')} "
-            "not found; copying county-level profiles from remote"
-        )
-        existing_fv = 0
-
-    if existing_fv:
-        profile_data = pd.merge(revData,file_version,on=['tech','access_case'], how='left')
-        # NaN means this profile is missing from the current file version
-        profile_data['file version'] = profile_data['file version'].fillna("missing")
-        # Check to see if the file version in the repo is already present
-        profile_data['present'] = profile_data['sc_path'].apply(
-            lambda x: x.split('/')[-1]) == profile_data['file version']
-        # Check that entries in the file version have an existing file
-        profile_data['present'] = profile_data.apply(
-            lambda row: row.present and os.path.exists(
-            os.path.join(
-                reeds_path,'inputs','variability','multi_year',
-                f'{row.tech}-{row.access_case}_county.h5')),
-            axis=1)
-
-        # Populate the new file version file with the existing file version
-        # information to start
-        file_version_new = file_version
-    else:
-        profile_data = revData
-        profile_data['present'] = False
-
-    # If the profile data doesn't exist for the correct version of the supply
-    # curve, then copy it over and put the supply curve version in
-    # file_version.csv
-    present_in_fv = 0
-    file_version_updates = 0
-    missing_file_versions = []
-    for i,row in profile_data.iterrows():
-        # If the profile is already present, do nothing
-        if row['present'] is True:
-            present_in_fv += 1
-            continue
-        # Otherwise copy the profile over
-        else:
-            # Check if ReEDS is being run by a non-NLR user. Non-NLR users must
-            # download county-level data manually from OpenEI to the ReEDS
-            # multi-year input folder. NLR users will auto-magically have the
-            # county-level data downloaded from the remote location that coincides
-            # with where they are running ReEDS from.
-            try:
-                remote_data = subprocess.check_output('git remote -v', stderr=subprocess.STDOUT, shell=True)
-                remote_url = (remote_data.splitlines()[0].split()[1].decode('utf-8'))
-            except Exception:
-                # Set remote_url to 'no remote' if ReEDS was downloaded via zip file
-                remote_url = 'no remote'
-            access_case = row['access_case']
-            # If NLR user, then attempt to copy data from the remote location defined in
-            # rev_paths.csv.
-
-            # github runner test settings
-            # tries to get environment variable from github, if it's not found it defaults to False
-            github_test = os.getenv("GITHUB_COUNTY_TEST", False)
-
-            if 'github.nrel.gov' in remote_url:
-                sc_path = row['sc_path']
-                techlabel = f"{row.tech}{'_radial' if row.tech == 'wind-ofs' else ''}"
-                print(f'Copying county-level hourly profiles for {techlabel} {row["access_case"]}')
-
-                if github_test:
-                    # this is a county-level test run, get the data from the tests/data folder
-                    shutil.copy(
-                        os.path.join(reeds_path,'tests','data','county',f'{row["tech"]}.h5'),
-                        os.path.join(
-                            reeds_path,'inputs','variability','multi_year',
-                            f'{techlabel}-{access_case}_county.h5')
-                    )
-                else:
-                    fpath = os.path.join(
-                        sc_path,
-                        f'{techlabel}_{access_case}_county',
-                        'results',
-                        f"{row['tech']}.h5",
-                    )
-                    try:
-                        shutil.copy(
-                            fpath,
-                            os.path.join(
-                                reeds_path, 'inputs', 'variability', 'multi_year',
-                                f'{techlabel}-{access_case}_county.h5')
-                        )
-                    except FileNotFoundError:
-                        err = (
-                            f"Cannot copy {fpath}.\n"
-                            f"Check that you are connected to external drive ({sc_path})."
-                        )
-                        raise FileNotFoundError(err)
-
-                # Update the file version information
-                condition = (
-                    (file_version_new['tech'] == row['tech'])
-                    & (file_version_new['access_case'] == row['access_case'])
-                )
-
-                if condition.any():
-                    file_version_new.loc[condition, 'file version'] = sc_path.split("/")[-1]
-                else:
-                    newrow = pd.DataFrame(
-                        data={
-                            'tech': [row['tech']],
-                            'access_case': [row['access_case']],
-                            'file version': [sc_path.split("/")[-1]]
-                        }
-                    )
-                    file_version_new = pd.concat([file_version_new, newrow])
-                file_version_updates += 1
-
-            # If non-NLR user, then save the name of the missing file, and write it out
-            # in the error message below
-            else:
-                missing_file_versions.append(f'{row["tech"]}-{access_case}_county.h5')
-    # If any county-level file is missing from the inputs folder but a file_version.csv exists,
-    # then print out an error message to delete the file_version.csv and restart the run
-    if (existing_fv) and (present_in_fv < 1):
-        error = ("It appears that there is a file_version.csv present in\n"
-            "/inputs/variability/multi-year/ despite a county-level file(s) missing\n"
-            "from the folder. Delete file_version.csv from the folder and restart the run\n"
-            "to have ReEDS redownload the missing county-level file(s)."
-        )
-        raise ValueError(error)
-    # If any missing files for non-NLR users, then print out an error message with those
-    # file names and where to download them
-    if len(missing_file_versions) > 0:
-        error = ("To run ReEDS at county-level spatial resolution, please download the following\n"
-            "county-level data files from OpenEI to /inputs/variability/multi-year/\n\n"
-            "Files:\n"
-            +"\n".join(missing_file_versions)+"\n\n"
-            +"OpenEI files link:\n"
-            "[https://data.openei.org/submissions/5986]"
-        )
-        raise ValueError(error)
-    # Write out the new file version file if there are any updates
-    if file_version_updates > 0:
-        file_version_new.to_csv(
-            os.path.join(
-                reeds_path,'inputs','variability','multi_year','file_version.csv'), index = False)
-
     
 def calculate_county_fractions(df, county2zone):
     """
@@ -1355,7 +1030,7 @@ def calculate_county_fractions(df, county2zone):
     "model region" means a zone from the set of zones specific to this run).
     Note the calculation of the county-to-BA fractions will eventually
     be deprecated once the 134-zone structure is removed from all spatial
-    inputs (see https://github.nrel.gov/ReEDS/ReEDS-2.0/issues/1889).
+    inputs (see https://github.com/ReEDS-Model/ReEDS/issues/16).
     The provided dataframe must have columns 'FIPS' and 'value'.
     """
     required_columns = ['FIPS', 'value']
@@ -1399,7 +1074,11 @@ def write_disagg_data_files(runfiles, inputs_case):
     # region-to-county fractions, and the latter is needed to calculate
     # state-to-county and BA-to-county fractions.
     county_r_map = reeds.io.get_county2zone(os.path.dirname(inputs_case))
-    county2zone = reeds.io.get_county2zone(as_map=False)
+    ## TEMPORARY 20260402: Use the old 134-zone county2zone until the aggregation approach is updated
+    county2zone = (
+        reeds.io.get_county2zone(GSw_ZoneSet='z134', as_map=False)
+        .rename(columns={'r':'ba'})
+    )
     county2zone['county'] = 'p' + county2zone['FIPS'].astype(str).str.zfill(5)
     county2zone['r'] = county2zone['FIPS'].map(county_r_map)
 
@@ -1539,6 +1218,7 @@ def write_region_indexed_file(
                 | 'h2_ba_share.csv'
                 | 'regional_cap_cost_diff.csv'
                 | 'cendivweights.csv'
+                | 'cap_existing_psh.csv'
             ):
                 # The upscale_from_county_to_ba function correctly handles the different spatial resolution options
                 # This sections just needs to check if the run is at pure county resolution
@@ -1623,8 +1303,6 @@ def write_miscellaneous_files(
     (runfiles.csv - from function read_runfiles).
     """
     # ---- Miscellaneous files not in non_region_files or region_files ----
-    val_nercr = regions_and_agglevel['valid_regions']['nercr']
-
     pd.DataFrame(
         {'*pvb_type': [f'pvb{i}' for i in sw['GSw_PVB_Types'].split('_')],
         'ilr': [np.around(float(c) / 100, 2) for c in sw['GSw_PVB_ILR'].split('_')
@@ -1646,14 +1324,31 @@ def write_miscellaneous_files(
             values = values * n
         if len(values) < n:
             raise ValueError(
-                f"{label} must have 1 value or {n} values (to match GSw_NuclearStor_Types={sw['GSw_NuclearStor_Types']})"
+                f"{label} must have 1 value or {n} values "
+                f"(to match GSw_NuclearStor_Types={sw['GSw_NuclearStor_Types']})"
             )
         return values[:n]
 
-    nuclear_bcrs = _expand_to_len(sw['GSw_NuclearStor_BCR'].split('_'), n_nuclear_types, 'GSw_NuclearStor_BCR')
-    nuclear_storage_techs = _expand_to_len(sw['GSw_NuclearStor_StorageTechs'].split('_'), n_nuclear_types, 'GSw_NuclearStor_StorageTechs')
-    nuclear_gridcharge = _expand_to_len(sw['GSw_NuclearStor_GridCharging'].split('_'), n_nuclear_types, 'GSw_NuclearStor_GridCharging')
-    nuclear_gen_techs = _expand_to_len(sw['GSw_NuclearStor_GenTechs'].split('_'), n_nuclear_types, 'GSw_NuclearStor_GenTechs')
+    nuclear_bcrs = _expand_to_len(
+        sw['GSw_NuclearStor_BCR'].split('_'),
+        n_nuclear_types,
+        'GSw_NuclearStor_BCR',
+    )
+    nuclear_storage_techs = _expand_to_len(
+        sw['GSw_NuclearStor_StorageTechs'].split('_'),
+        n_nuclear_types,
+        'GSw_NuclearStor_StorageTechs',
+    )
+    nuclear_gridcharge = _expand_to_len(
+        sw['GSw_NuclearStor_GridCharging'].split('_'),
+        n_nuclear_types,
+        'GSw_NuclearStor_GridCharging',
+    )
+    nuclear_gen_techs = _expand_to_len(
+        sw['GSw_NuclearStor_GenTechs'].split('_'),
+        n_nuclear_types,
+        'GSw_NuclearStor_GenTechs',
+    )
 
     pd.DataFrame(
         {
@@ -1668,7 +1363,7 @@ def write_miscellaneous_files(
             'gridcharge_ratio': [float(c) for c in nuclear_gridcharge],
         }
     ).to_csv(os.path.join(inputs_case, 'nuclear_stor_gridcharging.csv'), index=False)
-    
+
     pd.DataFrame(
         {
             '*nuclear-stor_type': [f'nuclear-stor{i}' for i in nuclear_types],
@@ -1773,10 +1468,7 @@ def write_miscellaneous_files(
         os.path.join(inputs_case,'co2_tax.csv')
     )
 
-    solveyears = pd.read_csv(
-        os.path.join(reeds_path,'inputs','modeledyears.csv'),
-        usecols=[sw['yearset_suffix']],
-    ).squeeze(1).dropna().astype(int).tolist()
+    solveyears = reeds.inputs.parse_yearset(sw['yearset'])
     if int(sw['startyear']) not in solveyears:
         solveyears.append(int(sw['startyear']))
         solveyears = sorted(solveyears)
@@ -1784,31 +1476,12 @@ def write_miscellaneous_files(
     pd.DataFrame(columns=solveyears).to_csv(
         os.path.join(inputs_case,'modeledyears.csv'), index=False)
 
-    interpolate_spec = str(sw.get('GSw_interpolate_mandates', '0')).strip()
-    if interpolate_spec.lower() not in ['0', 'false', 'none', '']:
-        points = _parse_interpolate_mandates_spec(interpolate_spec)
-        years = list(range(int(sw['startyear']), int(sw['endyear']) + 1))
-        trajectory = _build_piecewise_linear_mandate_trajectory(years=years, points=points)
-        trajectory.name = f"interp_{interpolate_spec}"
-        trajectory.rename_axis('*t').round(5).to_csv(
-            os.path.join(inputs_case, 'gen_mandate_trajectory.csv')
-        )
-    else:
-        (
-            pd.read_csv(
-                os.path.join(
-                    reeds_path,
-                    'inputs',
-                    'national_generation',
-                    'gen_mandate_trajectory.csv',
-                ),
-                index_col='GSw_GenMandateScen',
-            )
-            .loc[sw['GSw_GenMandateScen']]
-            .rename_axis('*t')
-            .round(5)
-            .to_csv(os.path.join(inputs_case, 'gen_mandate_trajectory.csv'))
-        )
+    pd.read_csv(
+        os.path.join(reeds_path,'inputs','national_generation','gen_mandate_trajectory.csv'),
+        index_col='GSw_GenMandateScen'
+    ).loc[sw['GSw_GenMandateScen']].rename_axis('*t').round(5).to_csv(
+        os.path.join(inputs_case,'gen_mandate_trajectory.csv')
+    )
 
     pd.read_csv(
         os.path.join(reeds_path,'inputs','national_generation','gen_mandate_tech_list.csv'),
@@ -1845,21 +1518,40 @@ def write_miscellaneous_files(
         os.path.join(inputs_case,'upgrade_costs_ccs_gas.csv')
     )
 
+    ccseason_dates = pd.read_csv(
+        os.path.join(reeds_path, 'inputs', 'reserves', 'ccseason_dates.csv'),
+        index_col=['month', 'day'],
+    )[sw['GSw_PRM_CapCreditSeasons']].rename('ccseason')
+    ccseason_dates.to_csv(os.path.join(inputs_case, 'ccseason_dates.csv'))
+    ccseason_dates.drop_duplicates().to_csv(
+        os.path.join(inputs_case, 'ccseason.csv'),
+        index=False, header=False,
+    )
+
     prm_profiles = pd.read_csv(
         os.path.join(reeds_path,'inputs','reserves','prm_annual.csv'),
-        index_col=['*nercr','t']
-    )
+    ).rename(columns={'*nercr':'nercr'}).set_index(['nercr','t'])
     if sw['GSw_PRM_scenario'] in prm_profiles:
         prm = prm_profiles[sw['GSw_PRM_scenario']]
     else:
         prm = pd.Series(index=prm_profiles.index, data=float(sw['GSw_PRM_scenario']))
 
-    # Filter values to those that only include valide nercr regions while processing
-    (prm[prm.index.get_level_values('*nercr').isin(val_nercr)]
-        .unstack('*nercr').reindex(solveyears)
-        .fillna(method='bfill').rename_axis('t').stack('*nercr')
-        .reorder_levels(['*nercr','t']).round(4)
-    ).to_csv(os.path.join(inputs_case,'prm_annual.csv'))
+    ## Broadcast PRM from nercr to r and backfill missing years
+    hierarchy = reeds.io.get_hierarchy(reeds.io.standardize_case(inputs_case))
+    prm_initial = (
+        prm
+        .unstack('nercr')
+        .reindex(solveyears)
+        .bfill().ffill()
+        [hierarchy['nercr']]
+    )
+    prm_initial.columns = hierarchy.index.rename('*r')
+    prm_initial = prm_initial.stack('*r').reorder_levels(['*r','t']).round(4).rename('fraction')
+    prm_initial.to_csv(os.path.join(inputs_case, 'prm_initial.csv'))
+    for t in solveyears:
+        stresspath = os.path.join(inputs_case, f'stress{t}i0')
+        os.makedirs(stresspath, exist_ok=True)
+        prm_initial.xs(t, 0, 't').to_csv(os.path.join(stresspath, 'prm.csv'))
 
     # Add capacity deployment limits based on interconnection queue data
     cap_queue = pd.read_csv(
@@ -1941,18 +1633,7 @@ def generate_maps_gpkg(inputs_case):
 
 
 def propagate_nuclearstor_tech_rows(sw, inputs_case):
-    """Duplicate generator-tech rows for Nuclear-Stor technologies.
-
-    For each configured Nuclear-Stor type, identify its paired generator tech
-    (via GSw_NuclearStor_GenTechs) and then scan CSVs in inputs_case. For any
-    CSV that contains rows with the paired generator tech in *any* column,
-    append identical rows for the corresponding Nuclear-Stor{type} technology
-    and replace the technology value in the matching column.
-
-    To avoid interfering with files that already explicitly encode nuclear-stor
-    behavior, this function skips any file whose name or contents include
-    'nuclear-stor' (case-insensitive).
-    """
+    """Duplicate generator-tech rows for Nuclear-Stor technologies."""
 
     def _expand_to_len(values, n, label):
         values = [v for v in values if v != '']
@@ -1960,7 +1641,8 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
             values = values * n
         if len(values) < n:
             raise ValueError(
-                f"{label} must have 1 value or {n} values (to match GSw_NuclearStor_Types={sw['GSw_NuclearStor_Types']})"
+                f"{label} must have 1 value or {n} values "
+                f"(to match GSw_NuclearStor_Types={sw['GSw_NuclearStor_Types']})"
             )
         return values[:n]
 
@@ -1975,70 +1657,53 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
             f"{gen_tech!r}. Expected 'nuclear' or 'nuclear-smr'."
         )
 
-    # Respect the nuclear-stor master on/off switch
     if 'GSw_NuclearStor' in sw and int(sw['GSw_NuclearStor']) == 0:
         return
 
-    # Optional user-controlled exclusions.
-    #
-    # Add entries to these lists to prevent Nuclear-Stor propagation from
-    # touching certain files or subdirectories under inputs_case.
-    #
-    # - Use forward slashes and paths relative to inputs_case for directories.
-    #   Example: ['inputs_case_subdir', 'nested/dir']
-    # - Use lowercase filenames for exact filename matches.
-    #   Example: ['regional_cap_cost_diff.csv', 'ivt.csv']
-    NUCLEARSTOR_PROPAGATION_SKIP_DIRS: list[str] = ["capacity_exogenous", "demonstration_files"]
-    NUCLEARSTOR_PROPAGATION_SKIP_FILES: list[str] = [
-        "emission_constraints/emitrate.csv",
-        "financials/cap_penalty.csv",
-        "national_generation/gbin_min.csv",
-        "unitdata.csv",
-        "sets/tg.csv", "tech-subset-table.csv"
-    ]
+    skip_dirs = ['capacity_exogenous', 'demonstration_files']
+    skip_files = {
+        'emission_constraints/emitrate.csv',
+        'financials/cap_penalty.csv',
+        'national_generation/gbin_min.csv',
+        'unitdata.csv',
+        'sets/tg.csv',
+        'tech-subset-table.csv',
+    }
 
-    # Also skip any financials/ files that start with incentives_ or ref_cap_cost_diff_
-    _financials_dir = os.path.join(inputs_case, "financials")
-    if os.path.isdir(_financials_dir):
-        for _fname in os.listdir(_financials_dir):
-            _fname_l = _fname.lower()
-            if _fname_l.endswith(".csv") and (
-                _fname_l.startswith("incentives_")
-                or _fname_l.startswith("ref_cap_cost_diff_")
+    financials_dir = os.path.join(inputs_case, 'financials')
+    if os.path.isdir(financials_dir):
+        for fname in os.listdir(financials_dir):
+            fname_lower = fname.lower()
+            if fname_lower.endswith('.csv') and (
+                fname_lower.startswith('incentives_')
+                or fname_lower.startswith('ref_cap_cost_diff_')
             ):
-                # NUCLEARSTOR_PROPAGATION_SKIP_FILES is treated as lowercase filename matches below
-                NUCLEARSTOR_PROPAGATION_SKIP_FILES.append(_fname_l)
-    
+                skip_files.add(fname_lower)
 
     nuclear_types = [t for t in str(sw.get('GSw_NuclearStor_Types', '1')).split('_') if t]
-    if len(nuclear_types) == 0:
+    if not nuclear_types:
         return
 
-    if 'GSw_NuclearStor_GenTechs' in sw:
-        gen_techs_raw = str(sw['GSw_NuclearStor_GenTechs']).split('_')
-    else:
-        gen_techs_raw = ['nuclear-smr']
-
-    nuclear_gen_techs = _expand_to_len(gen_techs_raw, len(nuclear_types), 'GSw_NuclearStor_GenTechs')
-    tech_map = [(_nuclearstor_gen_tech_to_i_name(gt), f'Nuclear-Stor{nt}') for nt, gt in zip(nuclear_types, nuclear_gen_techs)]
+    gen_techs_raw = str(sw.get('GSw_NuclearStor_GenTechs', 'nuclear-smr')).split('_')
+    nuclear_gen_techs = _expand_to_len(
+        gen_techs_raw,
+        len(nuclear_types),
+        'GSw_NuclearStor_GenTechs',
+    )
+    tech_map = [
+        (_nuclearstor_gen_tech_to_i_name(gt), f'Nuclear-Stor{nt}')
+        for nt, gt in zip(nuclear_types, nuclear_gen_techs)
+    ]
 
     def _first_noncomment_line(path):
         with open(path, 'r', encoding='utf-8-sig') as f:
             for line in f:
                 stripped = line.strip()
-                if not stripped:
-                    continue
-                if stripped.startswith('#'):
-                    continue
-                return stripped
+                if stripped and not stripped.startswith('#'):
+                    return stripped
         return None
 
     def _read_csv_loose(path):
-        """Read CSVs in inputs_case leniently.
-
-        Many ReEDS inputs contain leading comment lines; treat those as comments
-        and coerce all columns to strings to keep exact values during cloning.
-        """
         return pd.read_csv(
             path,
             comment='#',
@@ -2051,7 +1716,6 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
         return str(value).strip().lower().replace('_', '-').replace(' ', '')
 
     def _load_tech_canon_set(inputs_case):
-        """Load the model technology set (i) as canonical labels."""
         techset_path = os.path.join(inputs_case, 'sets', 'i.csv')
         if not os.path.exists(techset_path):
             return set()
@@ -2068,45 +1732,24 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
     tech_canon_set = _load_tech_canon_set(inputs_case)
 
     def _looks_like_tech_column(series, min_nonempty=5, min_match_frac=0.6):
-        """Heuristic: treat a column as a tech-id column if most entries match techs in sets/i.csv.
-
-        This is intentionally conservative to avoid accidentally treating
-        numeric parameter columns as technology-id columns.
-        """
-
-        s = series.astype(str).str.strip()
-        s = s[s != '']
-
-        if len(s) < min_nonempty:
+        values = series.astype(str).str.strip()
+        values = values[values != '']
+        if len(values) < min_nonempty or not tech_canon_set:
             return False
-
-        if not tech_canon_set:
-            # If we can't load the tech set, only allow explicit i/*i columns.
-            return False
-
         canon = (
-            s.str.lower()
+            values.str.lower()
             .str.replace('_', '-', regex=False)
             .str.replace(' ', '', regex=False)
         )
-        match_frac = float(canon.isin(tech_canon_set).mean())
-        return match_frac >= min_match_frac
+        return float(canon.isin(tech_canon_set).mean()) >= min_match_frac
 
     def _normalize_headers(df, header_line):
-        """Attempt to preserve any blank header fields on write.
-
-        Pandas reads a blank header as 'Unnamed: x'; if the source header has
-        an empty field, replace the corresponding column name with '' so
-        to_csv reproduces the leading comma.
-        """
         try:
             raw_cols = [c.strip() for c in header_line.split(',')]
         except Exception:
             return df
-
         if len(raw_cols) != len(df.columns):
             return df
-
         new_cols = list(df.columns)
         for idx, (raw, col) in enumerate(zip(raw_cols, df.columns)):
             if raw == '' and str(col).startswith('Unnamed:'):
@@ -2117,53 +1760,32 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
         return df
 
     def _file_contains_nuclearstor(path):
-        needles = ('nuclear-stor', 'nuclear_stor')
         try:
             with open(path, 'r', encoding='utf-8-sig', errors='ignore') as f:
                 for chunk in iter(lambda: f.read(65536), ''):
-                    if not chunk:
-                        break
                     lower = chunk.lower()
-                    if any(n in lower for n in needles):
+                    if ('nuclear-stor' in lower) or ('nuclear_stor' in lower):
                         return True
         except Exception:
-            # If we can't safely read the file, don't risk modifying it.
             return True
         return False
 
     n_files_modified = 0
-    skip_dirs = [d.strip().replace('\\', '/').strip('/') for d in NUCLEARSTOR_PROPAGATION_SKIP_DIRS if str(d).strip()]
-    skip_files = {str(f).strip().lower() for f in NUCLEARSTOR_PROPAGATION_SKIP_FILES if str(f).strip()}
     for root, _dirs, files in os.walk(inputs_case):
         for fname in files:
             if not fname.lower().endswith('.csv'):
                 continue
-            # Never modify plant characteristics inputs here.
-            # plantcostprep.py reads plantchar_*.csv and is responsible for
-            # creating Nuclear-Stor* rows in plantcharout.csv. If we propagate
-            # into plantchar_*.csv, plantcharout will end up with duplicates.
-            if fname.lower().startswith('plantchar_'):
+            if fname.lower().startswith('plantchar_') or fname.lower() == 'plantcharout.csv':
                 continue
-            # Avoid touching outputs that are generated later in the pipeline
-            # and already explicitly handle nuclear-stor (e.g., plantcharout.csv).
-            if fname.lower() in {'plantcharout.csv'}:
-                continue
-
-            # Skip any files that already mention nuclear-stor.
-            # These often have bespoke hard-coded rows and should not be altered.
-            fname_lower = fname.lower()
-            if ('nuclear-stor' in fname_lower) or ('nuclear_stor' in fname_lower):
+            if ('nuclear-stor' in fname.lower()) or ('nuclear_stor' in fname.lower()):
                 continue
 
             fpath = os.path.join(root, fname)
-
-            # User-controlled skip logic (relative to inputs_case)
             rel = os.path.relpath(fpath, inputs_case).replace('\\', '/').lstrip('./')
-            if fname.lower() in skip_files:
+            if fname.lower() in skip_files or rel.lower() in skip_files:
                 continue
             if any(rel == d or rel.startswith(d + '/') for d in skip_dirs):
                 continue
-
             if _file_contains_nuclearstor(fpath):
                 continue
 
@@ -2174,12 +1796,9 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
             try:
                 df = _read_csv_loose(fpath)
             except Exception:
-                # If a file doesn't parse cleanly as CSV, skip it.
                 continue
 
             df = _normalize_headers(df, header_line)
-
-            # Identify columns that appear to contain technology identifiers.
             tech_id_cols = [
                 col for col in df.columns
                 if (str(col).strip().lower() in {'i', '*i'})
@@ -2191,16 +1810,13 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
                 base_canon = _canon_label(base_i)
                 stor_canon = _canon_label(stor_i)
 
-                # 1) Wide-format: tech names appear as column headers.
                 col_canons = {_canon_label(c): c for c in df.columns}
                 if (base_canon in col_canons) and (stor_canon not in col_canons):
                     base_col = col_canons[base_canon]
-                    # Preserve header style (lower/upper) based on base column.
                     stor_col = stor_i.lower() if str(base_col) == str(base_col).lower() else stor_i
                     df[stor_col] = df[base_col]
                     changed = True
 
-                # 2) Long/mixed-format: tech names appear in cell values.
                 for col in tech_id_cols:
                     series_canon = (
                         df[col]
@@ -2210,15 +1826,12 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
                         .str.replace('_', '-', regex=False)
                         .str.replace(' ', '', regex=False)
                     )
-
                     if stor_canon in set(series_canon):
                         continue
                     mask = series_canon == base_canon
                     if not mask.any():
                         continue
-
                     base_rows = df.loc[mask].copy()
-                    # Preserve cell style (lower/upper) based on the matched value.
                     example = str(df.loc[mask, col].iloc[0])
                     stor_value = stor_i.lower() if example == example.lower() else stor_i
                     base_rows[col] = stor_value
@@ -2233,18 +1846,16 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
         print(f"propagate_nuclearstor_tech_rows: modified {n_files_modified} file(s)")
 
 
-
 #%% ===========================================================================
 ### --- PROCEDURE ---
 ### ===========================================================================
-def main(reeds_path, inputs_case, NARIS=False):
+def main(reeds_path, inputs_case):
     """
     Run copy_files.py for use in the ReEDS workflow
 
     Parameters:
     reeds_path : str (Path to the ReEDS directory)
     inputs_case : str (Path to the run/inputs_case directory)
-    NARIS : Ture/False (NARIS: North American Renewable Integration Study)
 
     Returns:
     None (Writes files to the inputs_case directory)
@@ -2253,7 +1864,7 @@ def main(reeds_path, inputs_case, NARIS=False):
     ### --- Gather dataframes and dictionaries necessary for the script execution ---
     ### ===========================================================================
     # Obtain data necessary to filter and aggregate regions
-    regions_and_agglevel = get_regions_and_agglevel(reeds_path, inputs_case, NARIS=NARIS)
+    regions_and_agglevel = get_regions_and_agglevel(reeds_path, inputs_case)
     # Use agglevel_variables function to obtain spatial resolution variables
     agglevel_variables = reeds.spatial.get_agglevel_variables(reeds_path, inputs_case)
 
@@ -2261,18 +1872,15 @@ def main(reeds_path, inputs_case, NARIS=False):
     ### --- Copying files ---
     ### ===========================================================================
 
-    # Copy county-level vre hourly profiles to the ReEDS folder if necessary
-    if (agglevel_variables['lvl'] == 'county') or ('county' in agglevel_variables['agglevel']):
-        write_county_vre_hourly_profiles(inputs_case, reeds_path)
-
     sw = reeds.io.get_switches(inputs_case)
+
     runfiles, non_region_files, region_files = read_runfiles(
         reeds_path,
         inputs_case,
         sw,
         agglevel_variables
     )
-    
+
     # Write general GAMS files
     # Write GAMS-readable sets to the inputs_case directory
     write_GAMS_sets(runfiles, reeds_path, inputs_case)
@@ -2301,7 +1909,9 @@ def main(reeds_path, inputs_case, NARIS=False):
 
     # Create a maps.gpkg for this run
     # Skip if using region dis/aggregation, maps will be written in aggregation_regions.py.
-    if agglevel_variables['lvl'] == 'ba':
+    # Run if using mixed resolution aggreg-county combination
+    if agglevel_variables['lvl'] == 'ba' or (
+        agglevel_variables['lvl'] == 'mult' and 'aggreg' in agglevel_variables['agglevel']):
         generate_maps_gpkg(inputs_case)
 
     #%% ===========================================================================
@@ -2317,10 +1927,7 @@ def main(reeds_path, inputs_case, NARIS=False):
         reeds_path
     )
 
-    # After all inputs are present, propagate generator-tech rows onto
-    # Nuclear-Stor technologies based on GSw_NuclearStor_GenTechs.
     propagate_nuclearstor_tech_rows(sw, inputs_case)
-
 
 
 #%% Procedure
@@ -2335,9 +1942,8 @@ if __name__ == '__main__' and not hasattr(sys, 'ps1'):
     inputs_case = args.inputs_case
 
     # #%% Settings for testing ###
-    #reeds_path = reeds.io.reeds_path
-    #inputs_case = os.path.join(reeds_path,'runs','v20250910_offshoreM0_MARICTNYNJ_Offshore','inputs_case')
-    #NARIS = False
+    # reeds_path = reeds.io.reeds_path
+    # inputs_case = os.path.join(reeds_path,'runs','v20260305_itlM0_USA_defaults','inputs_case')
 
 
     # ---- Set up logger ----
