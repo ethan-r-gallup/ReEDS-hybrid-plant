@@ -352,21 +352,21 @@ def check_compatibility(sw):
             f"GSw_PVB_ILR = {sw['GSw_PVB_ILR']} but all entries must be {int(ilr_upv)}"
         )
     
-    # for bcr in sw['GSw_NuclearStor_BCR'].split('_'):
+    # for bcr in sw['GSw_StorageHybrid_BCR'].split('_'):
     #     if not (float(bcr) >= 0):
-    #         raise ValueError("Fix GSw_NuclearStor_BCR")
+    #         raise ValueError("Fix GSw_StorageHybrid_BCR")
 
-    for nuclearstor_type in sw['GSw_NuclearStor_Types'].split('_'):
-        if not (1 <= int(nuclearstor_type) <= 8):
-            raise ValueError("Fix GSw_NuclearStor_Types")
+    for storagehybrid_type in sw['GSw_StorageHybrid_Types'].split('_'):
+        if not (1 <= int(storagehybrid_type) <= 8):
+            raise ValueError("Fix GSw_StorageHybrid_Types")
 
     scalars = reeds.io.get_scalars()
     ilr_upv = scalars['ilr_utility'] * 100
 
     valid_storage_techs = ['battery', 'tes', 'caes']
-    for tech in sw['GSw_NuclearStor_StorageTechs'].split('_'):
+    for tech in sw['GSw_StorageHybrid_StorageTechs'].split('_'):
         if tech.split('-')[0] not in valid_storage_techs:
-            raise ValueError(f"Invalid storage tech '{tech}' in GSw_NuclearStor. Allowed: {', '.join(valid_storage_techs)}")
+            raise ValueError(f"Invalid storage tech '{tech}' in GSw_StorageHybrid. Allowed: {', '.join(valid_storage_techs)}")
 
     allowed_years = list(range(2007,2014)) + list(range(2016,2024))
     allowed_years_string = ','.join([str(year) for year in allowed_years])

@@ -1637,7 +1637,7 @@ def write_miscellaneous_files(
                 ][0:len(sw['GSw_PVB_Types'].split('_'))]}
     ).to_csv(os.path.join(inputs_case, 'pvb_bir.csv'), index=False)
 
-    nuclear_types = [t for t in sw['GSw_NuclearStor_Types'].split('_') if t]
+    nuclear_types = [t for t in sw['GSw_StorageHybrid_Types'].split('_') if t]
     n_nuclear_types = len(nuclear_types)
 
     def _expand_to_len(values, n, label):
@@ -1646,42 +1646,42 @@ def write_miscellaneous_files(
             values = values * n
         if len(values) < n:
             raise ValueError(
-                f"{label} must have 1 value or {n} values (to match GSw_NuclearStor_Types={sw['GSw_NuclearStor_Types']})"
+                f"{label} must have 1 value or {n} values (to match GSw_StorageHybrid_Types={sw['GSw_StorageHybrid_Types']})"
             )
         return values[:n]
 
-    nuclear_bcrs = _expand_to_len(sw['GSw_NuclearStor_BCR'].split('_'), n_nuclear_types, 'GSw_NuclearStor_BCR')
-    nuclear_storage_techs = _expand_to_len(sw['GSw_NuclearStor_StorageTechs'].split('_'), n_nuclear_types, 'GSw_NuclearStor_StorageTechs')
-    nuclear_gridcharge = _expand_to_len(sw['GSw_NuclearStor_GridCharging'].split('_'), n_nuclear_types, 'GSw_NuclearStor_GridCharging')
-    nuclear_gen_techs = _expand_to_len(sw['GSw_NuclearStor_GenTechs'].split('_'), n_nuclear_types, 'GSw_NuclearStor_GenTechs')
+    nuclear_bcrs = _expand_to_len(sw['GSw_StorageHybrid_BCR'].split('_'), n_nuclear_types, 'GSw_StorageHybrid_BCR')
+    storage_hybridage_techs = _expand_to_len(sw['GSw_StorageHybrid_StorageTechs'].split('_'), n_nuclear_types, 'GSw_StorageHybrid_StorageTechs')
+    nuclear_gridcharge = _expand_to_len(sw['GSw_StorageHybrid_GridCharging'].split('_'), n_nuclear_types, 'GSw_StorageHybrid_GridCharging')
+    nuclear_gen_techs = _expand_to_len(sw['GSw_StorageHybrid_GenTechs'].split('_'), n_nuclear_types, 'GSw_StorageHybrid_GenTechs')
 
     pd.DataFrame(
         {
-            '*nuclear-stor_type': [f'nuclear-stor{i}' for i in nuclear_types],
+            '*storage-hybrid_type': [f'storage-hybrid{i}' for i in nuclear_types],
             'bcr': [float(c) for c in nuclear_bcrs],
         }
-    ).to_csv(os.path.join(inputs_case, 'nuclear_stor_bcr.csv'), index=False)
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_bcr.csv'), index=False)
 
     pd.DataFrame(
         {
-            '*nuclear-stor_type': [f'nuclear-stor{i}' for i in nuclear_types],
+            '*storage-hybrid_type': [f'storage-hybrid{i}' for i in nuclear_types],
             'gridcharge_ratio': [float(c) for c in nuclear_gridcharge],
         }
-    ).to_csv(os.path.join(inputs_case, 'nuclear_stor_gridcharging.csv'), index=False)
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gridcharging.csv'), index=False)
     
     pd.DataFrame(
         {
-            '*nuclear-stor_type': [f'nuclear-stor{i}' for i in nuclear_types],
-            'storage_type': [c.replace('-', '_') for c in nuclear_storage_techs],
+            '*storage-hybrid_type': [f'storage-hybrid{i}' for i in nuclear_types],
+            'storage_type': [c.replace('-', '_') for c in storage_hybridage_techs],
         }
-    ).to_csv(os.path.join(inputs_case, 'nuclear_stor_storagetechs.csv'), index=False)
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_storagetechs.csv'), index=False)
 
     pd.DataFrame(
         {
-            '*nuclear-stor_type': [f'nuclear-stor{i}' for i in nuclear_types],
+            '*storage-hybrid_type': [f'storage-hybrid{i}' for i in nuclear_types],
             'gen_tech': nuclear_gen_techs,
         }
-    ).to_csv(os.path.join(inputs_case, 'nuclear_stor_gentechs.csv'), index=False)
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gentechs.csv'), index=False)
 
     # Constant value if input is float, otherwise named profile
     # Methane leakage rate:
@@ -1940,18 +1940,18 @@ def generate_maps_gpkg(inputs_case):
         dfmap[level].to_file(mapsfile, layer=level)
 
 
-def propagate_nuclearstor_tech_rows(sw, inputs_case):
-    """Duplicate generator-tech rows for Nuclear-Stor technologies.
+def propagate_storage_hybrid_tech_rows(sw, inputs_case):
+    """Duplicate generator-tech rows for Storage-Hybrid technologies.
 
-    For each configured Nuclear-Stor type, identify its paired generator tech
-    (via GSw_NuclearStor_GenTechs) and then scan CSVs in inputs_case. For any
+    For each configured Storage-Hybrid type, identify its paired generator tech
+    (via GSw_StorageHybrid_GenTechs) and then scan CSVs in inputs_case. For any
     CSV that contains rows with the paired generator tech in *any* column,
-    append identical rows for the corresponding Nuclear-Stor{type} technology
+    append identical rows for the corresponding Storage-Hybrid{type} technology
     and replace the technology value in the matching column.
 
-    To avoid interfering with files that already explicitly encode nuclear-stor
+    To avoid interfering with files that already explicitly encode storage-hybrid
     behavior, this function skips any file whose name or contents include
-    'nuclear-stor' (case-insensitive).
+    'storage-hybrid' (case-insensitive).
     """
 
     def _expand_to_len(values, n, label):
@@ -1960,28 +1960,28 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
             values = values * n
         if len(values) < n:
             raise ValueError(
-                f"{label} must have 1 value or {n} values (to match GSw_NuclearStor_Types={sw['GSw_NuclearStor_Types']})"
+                f"{label} must have 1 value or {n} values (to match GSw_StorageHybrid_Types={sw['GSw_StorageHybrid_Types']})"
             )
         return values[:n]
 
-    def _nuclearstor_gen_tech_to_i_name(gen_tech):
+    def _storage_hybrid_gen_tech_to_i_name(gen_tech):
         gen_tech = str(gen_tech).strip()
         if gen_tech in ['nuclear', 'Nuclear']:
             return 'Nuclear'
         if gen_tech in ['nuclear-smr', 'nuclear_smr', 'Nuclear-SMR', 'Nuclear_SMR']:
             return 'Nuclear-SMR'
         raise ValueError(
-            "Unsupported GSw_NuclearStor_GenTechs entry: "
+            "Unsupported GSw_StorageHybrid_GenTechs entry: "
             f"{gen_tech!r}. Expected 'nuclear' or 'nuclear-smr'."
         )
 
-    # Respect the nuclear-stor master on/off switch
-    if 'GSw_NuclearStor' in sw and int(sw['GSw_NuclearStor']) == 0:
+    # Respect the storage-hybrid master on/off switch
+    if 'GSw_StorageHybrid' in sw and int(sw['GSw_StorageHybrid']) == 0:
         return
 
     # Optional user-controlled exclusions.
     #
-    # Add entries to these lists to prevent Nuclear-Stor propagation from
+    # Add entries to these lists to prevent Storage-Hybrid propagation from
     # touching certain files or subdirectories under inputs_case.
     #
     # - Use forward slashes and paths relative to inputs_case for directories.
@@ -2010,17 +2010,17 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
                 NUCLEARSTOR_PROPAGATION_SKIP_FILES.append(_fname_l)
     
 
-    nuclear_types = [t for t in str(sw.get('GSw_NuclearStor_Types', '1')).split('_') if t]
+    nuclear_types = [t for t in str(sw.get('GSw_StorageHybrid_Types', '1')).split('_') if t]
     if len(nuclear_types) == 0:
         return
 
-    if 'GSw_NuclearStor_GenTechs' in sw:
-        gen_techs_raw = str(sw['GSw_NuclearStor_GenTechs']).split('_')
+    if 'GSw_StorageHybrid_GenTechs' in sw:
+        gen_techs_raw = str(sw['GSw_StorageHybrid_GenTechs']).split('_')
     else:
         gen_techs_raw = ['nuclear-smr']
 
-    nuclear_gen_techs = _expand_to_len(gen_techs_raw, len(nuclear_types), 'GSw_NuclearStor_GenTechs')
-    tech_map = [(_nuclearstor_gen_tech_to_i_name(gt), f'Nuclear-Stor{nt}') for nt, gt in zip(nuclear_types, nuclear_gen_techs)]
+    nuclear_gen_techs = _expand_to_len(gen_techs_raw, len(nuclear_types), 'GSw_StorageHybrid_GenTechs')
+    tech_map = [(_storage_hybrid_gen_tech_to_i_name(gt), f'Storage-Hybrid{nt}') for nt, gt in zip(nuclear_types, nuclear_gen_techs)]
 
     def _first_noncomment_line(path):
         with open(path, 'r', encoding='utf-8-sig') as f:
@@ -2116,8 +2116,8 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
             df.columns = new_cols
         return df
 
-    def _file_contains_nuclearstor(path):
-        needles = ('nuclear-stor', 'nuclear_stor')
+    def _file_contains_storagehybrid(path):
+        needles = ('storage-hybrid', 'storage_hybrid')
         try:
             with open(path, 'r', encoding='utf-8-sig', errors='ignore') as f:
                 for chunk in iter(lambda: f.read(65536), ''):
@@ -2140,19 +2140,19 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
                 continue
             # Never modify plant characteristics inputs here.
             # plantcostprep.py reads plantchar_*.csv and is responsible for
-            # creating Nuclear-Stor* rows in plantcharout.csv. If we propagate
+            # creating Storage-Hybrid* rows in plantcharout.csv. If we propagate
             # into plantchar_*.csv, plantcharout will end up with duplicates.
             if fname.lower().startswith('plantchar_'):
                 continue
             # Avoid touching outputs that are generated later in the pipeline
-            # and already explicitly handle nuclear-stor (e.g., plantcharout.csv).
+            # and already explicitly handle storage-hybrid (e.g., plantcharout.csv).
             if fname.lower() in {'plantcharout.csv'}:
                 continue
 
-            # Skip any files that already mention nuclear-stor.
+            # Skip any files that already mention storage-hybrid.
             # These often have bespoke hard-coded rows and should not be altered.
             fname_lower = fname.lower()
-            if ('nuclear-stor' in fname_lower) or ('nuclear_stor' in fname_lower):
+            if ('storage-hybrid' in fname_lower) or ('storage_hybrid' in fname_lower):
                 continue
 
             fpath = os.path.join(root, fname)
@@ -2164,7 +2164,7 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
             if any(rel == d or rel.startswith(d + '/') for d in skip_dirs):
                 continue
 
-            if _file_contains_nuclearstor(fpath):
+            if _file_contains_storagehybrid(fpath):
                 continue
 
             header_line = _first_noncomment_line(fpath)
@@ -2230,7 +2230,7 @@ def propagate_nuclearstor_tech_rows(sw, inputs_case):
                 n_files_modified += 1
 
     if n_files_modified:
-        print(f"propagate_nuclearstor_tech_rows: modified {n_files_modified} file(s)")
+        print(f"propagate_storage_hybrid_tech_rows: modified {n_files_modified} file(s)")
 
 
 
@@ -2318,8 +2318,8 @@ def main(reeds_path, inputs_case, NARIS=False):
     )
 
     # After all inputs are present, propagate generator-tech rows onto
-    # Nuclear-Stor technologies based on GSw_NuclearStor_GenTechs.
-    propagate_nuclearstor_tech_rows(sw, inputs_case)
+    # Storage-Hybrid technologies based on GSw_StorageHybrid_GenTechs.
+    propagate_storage_hybrid_tech_rows(sw, inputs_case)
 
 
 

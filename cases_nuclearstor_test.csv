@@ -3,11 +3,11 @@ ignore,1,0,0
 endyear,2040,,
 GSw_Region,cendiv/Pacific,,
 GSw_GasCurve,2,,
-GSw_NuclearStor_Types,1_2_3,,
-GSw_NuclearStor_StorageTechs,tes-ms_tes-ms_tes-ms,,
-GSw_NuclearStor_GenTechs,nuclear-smr_nuclear-smr_nuclear-smr,,
-GSw_NuclearStor_BCR,0.45_0.5_0.65,,
-GSw_NuclearStor_GridCharging,0.0_0.0_0.0,,0.0_0.5_1.0
+GSw_StorageHybrid_Types,1_2_3,,
+GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_tes-ms,,
+GSw_StorageHybrid_GenTechs,nuclear-smr_nuclear-smr_nuclear-smr,,
+GSw_StorageHybrid_BCR,0.45_0.5_0.65,,
+GSw_StorageHybrid_GridCharging,0.0_0.0_0.0,,0.0_0.5_1.0
 GSw_NuclearDemo,1,,
 GSw_demoFile,test_pacific_nucstor,,
 GSw_GenMandate,1,,

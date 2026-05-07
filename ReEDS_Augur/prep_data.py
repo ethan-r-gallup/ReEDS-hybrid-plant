@@ -490,8 +490,8 @@ def main(t, casedir, iteration=0):
     csvout['max_cap'] = max_cap.drop(too_small_storage, errors='ignore')
 
     ### Storage efficiency
-    storage_hybrid = reeds.techs.expand_GAMS_tech_groups(
-        reeds.techs.get_tech_subset_table(casedir).loc[['STORAGE_HYBRID']].reset_index()
+    hybrid_plant = reeds.techs.expand_GAMS_tech_groups(
+        reeds.techs.get_tech_subset_table(casedir).loc[['HYBRID_PLANT']].reset_index()
     ).i
     storage_eff = (
         gdxreeds['storage_eff']
@@ -500,7 +500,7 @@ def main(t, casedir, iteration=0):
         .Value
         .rename('fraction')
         ## Only keep standalone storage
-        .drop(storage_hybrid, errors='ignore')
+        .drop(hybrid_plant, errors='ignore')
     )
     ## As in ReEDS LP, storage losses are applied to charging side (none for discharging)
     csvout['charge_eff'] = storage_eff
