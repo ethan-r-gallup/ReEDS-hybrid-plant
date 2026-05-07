@@ -2,7 +2,6 @@
 timetype,seq
 endyear,2030
 GSw_Region,st/UT
-GSw_RegionLevel,state
 GSw_RegionResolution,ba
 GSw_HourlyClusterAlgorithm,user
 GSw_PRM_CapCredit,0
@@ -48,9 +47,9 @@ ivt_suffix,small
 numhintage,1
 plantchar_nuclear,nuclear_ATB_2024_advanced
 plantchar_nuclear_smr,nuclear-smr_ATB_2024_advanced
-plantchar_naturalgas,naturalgas_ATB_2024_advanced
-plantchar_geothermal,geothermal_ATB_2024_advanced
-plantchar_pv,pv_ATB_2024_advanced
-plantchar_wind-ons,wind-ons_ATB_2024_advanced
+plantchar_gas,gas_ATB_2024_moderate
+plantchar_geo,geo_ATB_2024_advanced
+plantchar_upv,upv_ATB_2024_advanced
+plantchar_onswind,ons-wind_ATB_2024_advanced
 plantchar_battery,battery_ATB_2024_advanced
 plantchar_tes,tes_ATB_2024_advanced
