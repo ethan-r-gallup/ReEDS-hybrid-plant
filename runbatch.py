@@ -3,19 +3,21 @@
 ### ===========================================================================
 
 import os
+import git
 import queue
 import threading
 import time
 import shutil
 import csv
+import importlib
 import numpy as np
 import pandas as pd
 import subprocess
 import re
 from datetime import datetime
 import argparse
+from pathlib import Path
 import reeds
-from input_processing import mcs_sampler as mcs
 
 # Assert core programs are accessible
 CORE_PROGRAMS = ["gams"]
@@ -74,6 +76,37 @@ def big_comment(text, PATH):
     PATH.writelines(f'\n{commentchar}\n')
     comment(text, PATH)
     PATH.writelines(f'{commentchar}\n')
+
+
+def create_case_lists(df_cases:pd.DataFrame, BatchName:str, single:str=''):
+    """
+    """
+    # Initiate the empty lists which will be filled with info from cases
+    # Needs to be done after the MCS runs are processed, so that the case names are correct
+    caseList = []
+    caseSwitches = [] #list of dicts, one dict for each case
+    # Redefine casenames to include all the Monte Carlo cases, which have been expanded in df_cases.
+    casenames = list(df_cases.columns)
+
+    for case in casenames:
+        # If --single/-s was passed, only keep those cases (regardless of ignore)
+        # otherwise, drop any case marked ignore
+        if single:
+            if case not in single.split(','):
+                continue
+        else:
+            if int(df_cases.loc['ignore', case]) == 1:
+                continue
+        # Add switch settings to list of options passed to GAMS
+        shcom = f' --case={BatchName}_{case}'
+        for i,v in df_cases[case].items():
+            #exclude certain switches that don't need to be passed to GAMS
+            if i not in ['file_replacements','keep_run_terminal']:
+                shcom += f' --{i}={v}'
+        caseList.append(shcom)
+        caseSwitches.append(df_cases[case].to_dict())
+
+    return caseSwitches, casenames, caseList
 
 
 def get_ivt_numclass(reeds_path, casedir, caseSwitches):
@@ -164,6 +197,28 @@ def get_rev_paths(revswitches, caseSwitches):
 
     return revswitches
 
+
+def check_cases_format(df_cases):
+    """Check the integrity of the input cases_{}.csv data"""
+    dfkeep = df_cases.loc[:, ~df_cases.loc['ignore'].astype(int).astype(bool)]
+    ## Only allow GSw_FakeData to be used all-or-nothing
+    unique_fakes = dfkeep.loc['GSw_FakeData'].unique()
+    if len(unique_fakes) > 1:
+        err = (
+            'GSw_FakeData can only take a single value in a set of cases but values of "'
+            + ', '.join(unique_fakes) + '" were provided'
+        )
+        raise ValueError(err)
+    ## Check for spaces in case names
+    spaces = [i for i in dfkeep if ' ' in i]
+    if len(spaces):
+        err = (
+            'Spaces are not allowed in case names; the following names have spaces:\n'
+            + '\n'.join(f'"{i}"' for i in spaces)
+        )
+        raise ValueError(err)
+
+
 def check_compatibility(sw):
     if int(sw['startyear']) < 2010:
         raise ValueError(f"startyear = {sw['startyear']} but must be ≥ 2010")
@@ -207,7 +262,7 @@ def check_compatibility(sw):
                 "GSw_HourlyClusterAlgorithm must be set to 'hierarchical', 'optimized', "
                 "'kmeans', or 'kmedoids', or must "
                 "contain the substring 'user' and match a scenario in "
-                "inputs/variability/period_szn_user.csv"
+                "inputs/temporal/period_szn_user.csv"
             )
 
     if ((sw['GSw_PRM_StressModel'].lower() not in ['pras'])
@@ -215,7 +270,7 @@ def check_compatibility(sw):
         raise ValueError(
             "GSw_PRM_StressModel must be set to 'pras' or must "
             "contain the substring 'user' and match a scenario at "
-            "inputs/variability/stressperiods_{GSw_PRM_StressModel}.csv"
+            "inputs/temporal/stressperiods_{GSw_PRM_StressModel}.csv"
         )
 
     if (int(sw['GSw_H2_PTC']) == 1) and (int(sw['GSw_H2']) != 2):
@@ -250,6 +305,8 @@ def check_compatibility(sw):
                 .format('\n'.join(err_switch_configs))
             )
 
+    reeds.inputs.validate_zoneset(sw['GSw_ZoneSet'])
+
     ### Aggregation
     if (sw['GSw_RegionResolution'] != 'aggreg') and (int(sw['GSw_NumCSPclasses']) != 12):
         raise NotImplementedError(
@@ -260,7 +317,7 @@ def check_compatibility(sw):
     ### Parsed string switches
     ## Automatic inputs
     reeds_path = os.path.dirname(__file__)
-    hierarchy = pd.read_csv(os.path.join(reeds_path,'inputs','hierarchy.csv'))
+    hierarchy = reeds.io.get_hierarchy(GSw_ZoneSet=sw['GSw_ZoneSet']).reset_index()
 
     for threshold in sw['GSw_PRM_StressThreshold'].split('/'):
         ## Example: threshold = 'transgrp_10_EUE_sum'
@@ -341,6 +398,16 @@ def check_compatibility(sw):
         if not (1 <= int(pvbtype) <= 3):
             raise ValueError("Fix GSw_PVB_Types")
 
+    try:
+        prm = float(sw['GSw_PRM_scenario'])
+        if prm >= 1:
+            raise Exception(
+                f"GSw_PRM_scenario={sw['GSw_PRM_scenario']} but should be formatted as a "
+                "fraction, not a percent"
+            )
+    except ValueError:
+        pass
+
     scalars = reeds.io.get_scalars()
     ilr_upv = scalars['ilr_utility'] * 100
 
@@ -351,22 +418,18 @@ def check_compatibility(sw):
         raise ValueError(
             f"GSw_PVB_ILR = {sw['GSw_PVB_ILR']} but all entries must be {int(ilr_upv)}"
         )
-    
-    # for bcr in sw['GSw_StorageHybrid_BCR'].split('_'):
-    #     if not (float(bcr) >= 0):
-    #         raise ValueError("Fix GSw_StorageHybrid_BCR")
 
     for storagehybrid_type in sw['GSw_StorageHybrid_Types'].split('_'):
         if not (1 <= int(storagehybrid_type) <= 8):
             raise ValueError("Fix GSw_StorageHybrid_Types")
 
-    scalars = reeds.io.get_scalars()
-    ilr_upv = scalars['ilr_utility'] * 100
-
     valid_storage_techs = ['battery', 'tes', 'caes']
     for tech in sw['GSw_StorageHybrid_StorageTechs'].split('_'):
         if tech.split('-')[0] not in valid_storage_techs:
-            raise ValueError(f"Invalid storage tech '{tech}' in GSw_StorageHybrid. Allowed: {', '.join(valid_storage_techs)}")
+            raise ValueError(
+                f"Invalid storage tech '{tech}' in GSw_StorageHybrid. "
+                f"Allowed: {', '.join(valid_storage_techs)}"
+            )
 
     allowed_years = list(range(2007,2014)) + list(range(2016,2024))
     allowed_years_string = ','.join([str(year) for year in allowed_years])
@@ -392,49 +455,58 @@ def check_compatibility(sw):
                 f"GSw_HourlyWeatherYears={sw['GSw_HourlyWeatherYears']} and "
                 f"resource_adequacy_years={sw['resource_adequacy_years']}"
             )
+
+    solveyears = reeds.inputs.parse_yearset(sw['yearset'])
+    if int(sw['endyear']) not in solveyears:
+        err = f"`endyear` = {sw['endyear']} but must be in `yearset`: {sw['yearset']}"
+        raise ValueError(err)
+
     # Add a row for each county
-    county2zone = pd.read_csv(
-        os.path.join(reeds_path, 'inputs', 'county2zone.csv'), dtype={'FIPS':str},
-    )
+    ## TEMPORARY 20260402 until the aggregation procedure is updated
+    county2zone = reeds.io.get_county2zone(GSw_ZoneSet='z134', as_map=False)
     county2zone['county'] = 'p' + county2zone.FIPS
     # Add county info to hierarchy
-    hierarchy = hierarchy.merge(county2zone.drop(columns=['FIPS','state']), on='ba')
+    hierarchy = hierarchy.merge(county2zone.drop(columns=['FIPS','state']), on='r')
 
-    if '/' in sw['GSw_Region']:
-        # Handle multiple spatial resolutions
-        region_groups = sw['GSw_Region'].split('//') if '//' in sw['GSw_Region'] else [sw['GSw_Region']]
-        for group in region_groups:
-            level, regions = group.split('/')
-            if level not in hierarchy:
-                raise ValueError("Fix level in GSw_Region")
-            invalid_regions = [
-                region for region in regions.split('.')
-                if region.lower() not in hierarchy[level].str.lower().values
-            ]
-            if invalid_regions:
-                err = f"GSw_Region: {', '.join(invalid_regions)} need to be in {hierarchy[level].unique()}"
-                raise Exception(err)
-    else:
-        modeled_regions = pd.read_csv(
-            os.path.join(reeds_path,'inputs','userinput','modeled_regions.csv')
-        )
-        if sw['GSw_Region'] not in modeled_regions:
-            raise ValueError("No column in modeled_regions.csv matching GSw_Region")
+    # Make sure specified regions are allowed for the specified hierarchy level
+    region_groups = sw['GSw_Region'].split('//') if '//' in sw['GSw_Region'] else [sw['GSw_Region']]
+    for group in region_groups:
+        level, regions = group.split('/')
+        if level not in hierarchy:
+            err = (
+                f"The specified hierarchy level '{level}' does not exist in the hierarchy file."
+                f"\nUpdate GSw_Region={sw['GSw_Region']} to specify a valid level."
+            )
+            raise ValueError(err)
+        invalid_regions = [
+            region for region in regions.split('.')
+            if region.lower() not in hierarchy[level].str.lower().values
+        ]
+        if invalid_regions:
+            err = f"GSw_Region: {', '.join(invalid_regions)} need to be in {hierarchy[level].unique()}"
+            raise Exception(err)
 
     ### Compatible switch combinations
     if sw['GSw_LoadProfiles'] == 'historic':
         if ('demand_' + sw['demandscen'] +'.csv') not in os.listdir(os.path.join(reeds_path, 'inputs','load')) :
             raise ValueError("The demand file specified by the demandscen switch is not in the inputs/load folder")
 
+    if (
+        re.match(r'(\/|[a-zA-Z]:[\\\/]).+$', sw['GSw_LoadProfiles'])
+        and not Path(sw['GSw_LoadProfiles']).is_file()
+    ):
+        err = f"GSw_LoadProfiles={sw['GSw_LoadProfiles']} but the specified file does not exist"
+        raise FileNotFoundError(err)
+
     ### Dependent model availability
     if (
-        ((not int(sw['GSw_PRM_CapCredit'])) or (int(sw['pras']) == 2))
+        ((int(sw['pras']) == 2) or int(sw['GSw_PRM_StressIterateMax']))
         and (not os.path.isfile(os.path.join(reeds_path, 'Manifest.toml')))
     ):
         err = (
             "Manifest.toml does not exist. "
             "Please set up julia by following the instructions at "
-            "https://natlabrockies.github.io/ReEDS-2.0/setup.html#reeds2pras-julia-and-stress-periods-setup"
+            "https://reeds-model.github.io/ReEDS/setup.html#reeds2pras-julia-and-stress-periods-setup"
         )
         raise Exception(err)
 
@@ -457,6 +529,19 @@ def check_compatibility(sw):
 
     ### Contents of user-specified files
     reeds.checks.check_switches(sw)
+
+    ### Uncommonly used packages
+    if sw['GSw_HourlyClusterAlgorithm'].lower().startswith('kmedoids'):
+        if importlib.util.find_spec("sklearn_extra") is None:
+            err = (
+                "The scikit-learn-extra package is required for GSw_HourlyClusterAlgorithm="
+                f"{sw['GSw_HourlyClusterAlgorithm']} but is not available in your conda "
+                "environment. Please install it by running:\n"
+                "    pip install 'scikit-learn-extra>=0.2.0,<0.3.0'"
+                "\nor:\n"
+                "    conda install -c conda-forge scikit-learn-extra=0.2"
+            )
+            raise ModuleNotFoundError(err)
 
 
 def solvestring_sequential(
@@ -588,10 +673,7 @@ def setup_sequential(
         OPATH.writelines(f"python tc_phaseout.py {cur_year} {casedir}\n\n")
 
         ### Write the GAMS LP and Augur calls
-        if (
-            int(caseSwitches['GSw_PRM_StressIterateMax'])
-            and (not int(caseSwitches['GSw_PRM_CapCredit']))
-        ):
+        if int(caseSwitches['GSw_PRM_StressIterateMax']):
             OPATH.writelines(
                 f"python d_solve_iterate.py {casedir} {cur_year}\n"
             )
@@ -769,11 +851,15 @@ def setupEnvironment(
         debug=False, debugnode=False, cases_per_node=1,
         dryrun=False,
     ):
-    # #%% Settings for testing
-    # BatchName = 'v20230508_prasM0_Pacific'
+    #%% Settings for testing
+    # BatchName = 'v20260307_downloadM0'
     # cases_suffix = 'test'
     # WORKERS = 1
     # forcelocal = 0
+    # single = ''
+    # skip_checks = False
+    # debug = False
+    # dryrun = True
 
     #%% Automatic inputs
     reeds_path = os.path.dirname(__file__)
@@ -850,197 +936,28 @@ def setupEnvironment(
             quit()
 
     #%% Load specified case file, infer other settings from cases.csv
-    df_cases = pd.read_csv(
-        os.path.join(reeds_path, 'cases.csv'), dtype=object, index_col=0)
-    cases_filename = 'cases.csv'
+    if cases_suffix in ['', 'default']:
+        cases_filename = 'cases.csv'
+    else:
+        cases_filename = f'cases_{cases_suffix}.csv'
 
-    # If we have a case suffix, use cases_[suffix].csv for cases.
-    if cases_suffix not in ['','default']:
-        df_cases = df_cases[['Choices', 'Default Value']]
-        cases_filename = 'cases_' + cases_suffix + '.csv'
-        df_cases_suf = pd.read_csv(
-            os.path.join(reeds_path, cases_filename), dtype=object, index_col=0)
-        # Replace periods and spaces in case names with _
-        df_cases_suf.columns = [
-            c.replace(' ','_').replace('.','_') if c != 'Default Value' else c
-            for c in df_cases_suf.columns]
+    df_cases = reeds.inputs.parse_cases(
+        cases_filename=cases_filename,
+        single=single,
+        skip_checks=skip_checks,
+    )
+    ## Propagate debug setting
+    if debug:
+        df_cases.loc['debug'] = str(debug)
 
-        # Check to make sure user-specified cases file has up-to-date switches
-        missing_switches = [s for s in df_cases_suf.index if s not in df_cases.index]
-        if len(missing_switches):
-            error = ("The following switches are in {} but have changed names or are no longer "
-                      "supported by ReEDS:\n\n{} \n\nPlease update your cases file; "
-                      "for the full list of available switches see cases.csv."
-                      "Note that switch names are case-sensitive."
-                    ).format(cases_filename, '\n'.join(missing_switches))
-            raise ValueError(error)
-
-        # First use 'Default Value' from cases_[suffix].csv to fill missing switches
-        # Later, we will also use 'Default Value' from cases.csv to fill any remaining holes.
-        if 'Default Value' in df_cases_suf.columns:
-            case_i = df_cases_suf.columns.get_loc('Default Value') + 1
-            casenames = df_cases_suf.columns[case_i:].tolist()
-            for case in casenames:
-                df_cases_suf[case] = df_cases_suf[case].fillna(df_cases_suf['Default Value'])
-        df_cases_suf.drop(['Choices','Default Value'], axis='columns',inplace=True, errors='ignore')
-        df_cases = df_cases.join(df_cases_suf, how='outer')
-
-
-    casenames = [c for c in df_cases.columns if c not in ['Description','Default Value','Choices']]
-    # Get the list of switch choices
-    choices = df_cases.Choices.copy()
-
-    for case in casenames:
-        # Fill any missing switches with the defaults in cases.csv
-        df_cases[case] = df_cases[case].fillna(df_cases['Default Value'])
-
-        # If --single/-s was passed, only keep those cases (regardless of ignore)
-        # otherwise, drop any case marked ignore
-        if single:
-            if case not in single.split(','):
-                continue
-        else:
-            if int(df_cases.loc['ignore', case]) == 1:
-                continue
-
-        # Check to make sure the switch setting is valid
-        for i, val in df_cases[case].items():
-            if skip_checks:
-                continue
-            # check that the switch isn't duplicated
-            if isinstance(choices[i], pd.Series) and len(choices[i]) > 1:
-                error = (
-                        f'Duplicate entries for "{i}", delete one and restart.'
-                        )
-                raise ValueError(error)
-            ### Split choices by either '; ' or ','
-            if choices[i] in ['N/A',None,np.nan]:
-                pass
-            elif choices[i].lower() in ['int','integer']:
-                try:
-                    int(val)
-                except ValueError:
-                    error = (
-                        f'Invalid entry for "{i}" for case "{case}".\n'
-                        f'Entered "{val}" but must be an integer.'
-                    )
-                    raise ValueError(error)
-            elif choices[i].lower() in ['float','numeric','number','num']:
-                try:
-                    float(val)
-                except ValueError:
-                    error = (
-                        f'Invalid entry for "{i}" for case "{case}".\n'
-                        f'Entered "{val}" but must be a float (number).'
-                    )
-                    raise ValueError(error)
-            else:
-                i_choices = [
-                    str(j).strip() for j in
-                    np.ravel([i.split(',') for i in choices[i].split(';')]).tolist()
-                ]
-                matches = [re.match(choice, str(val)) for choice in i_choices]
-                if not any(matches): 
-                    error = (
-                        f'Invalid entry for "{i}" for case "{case}".\n'
-                        f'Entered "{val}" but must match one of the following:\n> '
-                        + '\n> '.join(i_choices)
-                        + '\n'
-                        + f'Or, if "{val}" is intended, it must be added to the "Choices" column in cases.csv.'
-                    )
-                    raise ValueError(error)
-
-        #Check GSw_Region switch and ask user to correct if commas are used instead of periods to list multiple regions
-        if ',' in (df_cases[case].loc['GSw_Region']) :
-            print("Please change the delimeter in the GSw_Region switch from ',' to '.'")
-            quit()
-
-        # Propagate debug setting
-        if debug:
-            df_cases.loc['debug',case] = str(debug)
-
-    # If doing a Monte Carlo run modify df_cases by adding new columns for each scenario run
-    # Also validate the distribution file
-    warned_about_cluster_alg = False
-    if 'MCS_runs' in df_cases.index:
-        for c in df_cases.columns:
-            if (
-                c not in ['Description','Default Value','Choices']
-                and (int(df_cases.loc['MCS_runs',c]) > 0)
-                and (not int(df_cases.loc['ignore',c]))
-            ):
-                # Warn user if the hourly clustering algorithm is not fixed for Monte Carlo runs
-                if (
-                    not df_cases.at['GSw_HourlyClusterAlgorithm', c].startswith('user')
-                    and not warned_about_cluster_alg
-                ):
-                    print(f"\n[Warning] Case Column: '{c}'")
-                    print(
-                        "You are attempting to run a Monte Carlo simulation with "
-                        "`GSw_HourlyClusterAlgorithm` set to a value other than 'user'.\n"
-                        "This may result in inconsistent representative days across MCS runs.\n\n"
-                        "To ensure consistency, we strongly recommend setting "
-                        "`GSw_HourlyClusterAlgorithm = user` in your switch configuration.\n"
-                        "Do you want to proceed with the current setup?"
-                    )
-                    user_input = input("Type 'yes' to proceed, or 'no' to exit: ").strip().lower()
-                    if user_input not in ['yes', 'y']:
-                        print("\nExiting. Please update the `GSw_HourlyClusterAlgorithm` switch and try again.")
-                        quit()
-                    warned_about_cluster_alg = True
-                    print()
-
-                # Validate the distribution file
-                sw = df_cases[c].fillna(df_cases['Default Value'])
-                mcs_dist_path = os.path.join(
-                    reeds_path, 'inputs', 'userinput',
-                    'mcs_distributions_{}.yaml'.format(sw.MCS_dist)
-                )
-                mcs.general_mcs_dist_validation(reeds_path, mcs_dist_path, sw)
-
-                # c (column) is a case with monte carlo runs, replicate this column N (NumMonteCarloRuns) times
-                NumMonteCarloRuns = int(df_cases.loc['MCS_runs',c])
-                NewColumnNames = [
-                    f"{c}_MC{i:0>4}"
-                    for i in range(1, NumMonteCarloRuns + 1)
-                ]
-
-                # Each new column is a copy of the original column with name c_{MC1,MC2,...}
-                df_cases_MC = pd.DataFrame(
-                    data=np.array([df_cases[c].values]*NumMonteCarloRuns).T,
-                    index=df_cases.index,
-                    columns=NewColumnNames,
-                )
-                df_cases = pd.concat([df_cases, df_cases_MC], axis=1)
-                df_cases.drop(c, axis=1, inplace=True) #drop the original column
-
-
-    # Initiate the empty lists which will be filled with info from cases
-    # Needs to be done after the MCS runs are processed, so that the case names are correct
-    caseList = []
-    caseSwitches = [] #list of dicts, one dict for each case
-    # Redefine casenames to include all the Monte Carlo cases, which have been expanded in df_cases.
-    casenames = [c for c in df_cases.columns if c not in ['Description','Default Value','Choices']]
-
-    for case in casenames:
-        # If --single/-s was passed, only keep those cases (regardless of ignore)
-        # otherwise, drop any case marked ignore
-        if single:
-            if case not in single.split(','):
-                continue
-        else:
-            if int(df_cases.loc['ignore', case]) == 1:
-                continue
-        # Add switch settings to list of options passed to GAMS
-        shcom = ' --case=' + BatchName + "_" + case
-        for i,v in df_cases[case].items():
-            #exclude certain switches that don't need to be passed to GAMS
-            if i not in ['file_replacements','keep_run_terminal']:
-                shcom = shcom + ' --' + i + '=' + v
-        caseList.append(shcom)
-        caseSwitches.append(df_cases[case].to_dict())
+    caseSwitches, casenames, caseList = create_case_lists(
+        df_cases=df_cases,
+        BatchName=BatchName,
+        single=single,
+    )
 
     #%% Stop now if any switches are incompatible
+    check_cases_format(df_cases)
     for sw in caseSwitches:
         check_compatibility(sw)
     if dryrun:
@@ -1061,10 +978,7 @@ def setupEnvironment(
             if s not in df_cases:
                 err = (
                     f'Specified single={single} but available cases are:\n'
-                    + '\n> '.join([
-                        c for c in df_cases.columns
-                        if c not in ['Choices','Description','Default Value']
-                    ])
+                    + '\n> '.join([c for c in df_cases.columns])
                 )
                 raise KeyError(err)
         df_cases = df_cases[single.split(',')].copy()
@@ -1099,11 +1013,7 @@ def setupEnvironment(
             if skip.lower() not in ['y','yes']:
                 raise IsADirectoryError('\n'+'\n'.join(existing_outpaths))
 
-    df_cases.drop(
-        ['Choices','Description','Default Value'],
-        axis='columns', inplace=True, errors='ignore')
-
-    # User warnings
+    #%% User warnings
     if (df_cases.loc['cleanup_level'].astype(int) > 0).any() and not skip_checks:
         print(
             '\nWARNING: At least one case uses cleanup_level ≥ 1, which removes files '
@@ -1156,6 +1066,20 @@ def setupEnvironment(
     elif not hpc:
         # Not on HPC
         cases_per_node = None
+
+    #%% Sync remote files
+    print('Syncing remote files')
+    # If using Monte Carlo sampling, download everything (since combinations of switches
+    ## not listed in cases{}.csv may be used)
+    if df_cases.loc['MCS_runs'].astype(int).sum():
+        reeds.remote.download_remote_files()
+    ## Otherwise, only download the files needed for the present set of runs
+    else:
+        required_files = [
+            reeds.remote.identify_required_remote_files(df_cases[case]) for case in df_cases
+        ]
+        required_files = sorted(set([i for sublist in required_files for i in sublist]))
+        reeds.remote.download_remote_files(required_files)
 
     envVar = {
         'WORKERS': WORKERS,
@@ -1298,25 +1222,27 @@ def write_batch_script(
 
     #%% Set up the meta.csv file to track repo information and runtime
     logger = os.path.join(reeds_path, 'reeds', 'log.py')
-    loglines = ['computer,repo,branch,commit,description\n']
+    loglines = ['repo,branch,commit,tag,description\n']
     ### Get some git metadata
     try:
-        import git
-        import socket
         repo = git.Repo()
         try:
             branch = repo.active_branch.name
-            description = repo.git.describe()
+            tags = sorted(repo.tags, key=lambda t: t.commit.committed_datetime)
+            if len(tags):
+                tag = tags[-1].name
+                description = repo.git.describe()
+            else:
+                tag = ''
+                description = ''
         except TypeError:
             branch = 'DETACHED_HEAD'
+            tag = ''
             description = ''
-        loglines.append(
-            '{},{},{},{},{}\n'.format(
-                socket.gethostname(),
-                repo.git_dir, branch, repo.head.object.hexsha, description))
+        text = f'{repo.git_dir},{branch},{repo.head.object.hexsha},{tag},{description}\n'
+        loglines.append(text)
     except Exception:
-        ### In case the user hasn't installed GitPython (conda install GitPython)
-        ### or isn't in a git repo or anything else goes wrong
+        ## In case the user isn't in a git repo or anything else goes wrong
         loglines.append('None,None,None,None,None\n')
 
     with open(os.path.join(casedir,'meta.csv'),'a') as METAFILE:
@@ -1344,33 +1270,13 @@ def write_batch_script(
     shutil.copy2(os.path.join(reeds_path, cases_filename), casedir)
 
     ### Switches with values derived from other switches
-    caseSwitches['GSw_itlgrpConstraint'] = int(
-        caseSwitches['GSw_RegionResolution'] in ['county', 'mixed']
-    )
-    caseSwitches['GSw_OffshoreFiles'] = (
-        'meshed' if int(caseSwitches['GSw_OffshoreZones']) else 'radial'
-    )
     ## Get hpc setting (used in Augur)
     caseSwitches['hpc'] = int(hpc)
     ## Get numclass from the max value in ivt
     caseSwitches['numclass'] = get_ivt_numclass(
         reeds_path=reeds_path, casedir=casedir, caseSwitches=caseSwitches)
-    ## Load site region level (GSw_LoadSiteReg) is embedded in GSw_LoadSiteTrajectory
-    caseSwitches['GSw_LoadSiteReg'] = caseSwitches['GSw_LoadSiteTrajectory'].split('_')[0]
-    ## Get numbins from the max of individual technology bins
-    caseSwitches['numbins'] = max(
-        int(caseSwitches['numbins_windons']),
-        int(caseSwitches['numbins_windofs']),
-        int(caseSwitches['numbins_upv']),
-        15)
-    for switchname in [
-        'GSw_itlgrpConstraint',
-        'GSw_OffshoreFiles',
-        'hpc',
-        'numclass',
-        'numbins',
-        'GSw_LoadSiteReg',
-    ]:
+
+    for switchname in ['hpc', 'numclass']:
         options += f" --{switchname}={caseSwitches[switchname]}"
     options += f' --reeds_path={reeds_path}{os.sep} --casedir={casedir}'
 
@@ -1380,10 +1286,7 @@ def write_batch_script(
     pd.Series(caseSwitches).to_csv(
         os.path.join(inputs_case,'switches.csv'), header=False)
 
-    solveyears = pd.read_csv(
-        os.path.join(reeds_path, 'inputs','modeledyears.csv'),
-        usecols=[caseSwitches['yearset_suffix']],
-    ).squeeze(1).dropna().astype(int).tolist()
+    solveyears = reeds.inputs.parse_yearset(caseSwitches['yearset'])
 
     # If start year is not in solveyears, start year is added into solveyears set
     startyear = int(caseSwitches['startyear'])
@@ -1442,6 +1345,7 @@ def write_batch_script(
                 OPATH.writelines("module load anaconda3 \n")
                 OPATH.writelines("module use /nopt/nrel/apps/software/gams/modulefiles \n")
                 OPATH.writelines("module load gams \n")
+                OPATH.writelines("module load julia/1.12.1 \n")
             else:
                 OPATH.writelines("module load conda \n")
                 OPATH.writelines("module load gams \n")
@@ -1455,6 +1359,7 @@ def write_batch_script(
             'copy_files',
             'mcs_sampler',
             'aggregate_regions',
+            'hydcf',
             'h2_storage',
             'calc_financial_inputs',
             'fuelcostprep',
@@ -1526,14 +1431,14 @@ def write_batch_script(
         big_comment('Output processing', OPATH)
         if not LINUXORMAC:
             OPATH.writelines("setlocal enabledelayedexpansion\n")
-        ### If not using stress periods, run for iteration 0
-        if int(caseSwitches['GSw_PRM_CapCredit']):
+        ### If not iterating, run for iteration 0
+        if not int(caseSwitches['GSw_PRM_StressIterateMax']):
             OPATH.writelines(
                 f"r={os.path.join('g00files', f'{batch_case}_{max(solveyears)}i0')}\n"
                 if LINUXORMAC else
                 f'set "r={os.path.join("g00files", f"{batch_case}_{max(solveyears)}i0")}"\n'
             )
-        ### If using stress periods, run for the last iteration (lexicographically sorted)
+        ### Otherwise, run for the last iteration (lexicographically sorted)
         else:
             OPATH.writelines(
                 f"for r in g00files/{batch_case}_*.g00; do true; done\n"
@@ -1652,7 +1557,7 @@ def write_batch_script(
             r2xpath = os.path.join(casedir, 'outputs', 'r2x')
             os.makedirs(r2xpath, exist_ok=True)
             OPATH.writelines(
-                "uvx --python 3.11 --from git+https://github.com/nrel/r2x@main r2x -vv run "
+                "uvx --python 3.11 --from git+https://github.com/natlabrockies/r2x@main r2x -vv run "
                 f"-i {casedir} "
                 f"-o {r2xpath} "
                 "--input-model=reeds-US "
@@ -1713,7 +1618,7 @@ def submit_slurm_parallel_jobs(
                 SPATH.write(line + '\n')
 
             if debugnode:
-                SPATH.write("#SBATCH --time=01:00:00\n")
+                SPATH.write("#SBATCH --time=04:00:00\n")
                 SPATH.write("#SBATCH --partition=debug\n")
 
             SPATH.write(f"#SBATCH --ntasks-per-node={cases_per_node}\n")
@@ -1832,9 +1737,6 @@ def launch_single_case_run(
     ### Inferred inputs
     batch_case = f'{BatchName}_{case}'
     casedir = os.path.join(reeds_path,'runs',batch_case)
-    
-    from ToApps import to_slack
-    to_slack(f"Launching single case run for case {batch_case}...\n")
 
     write_batch_script(
         options,
@@ -1994,8 +1896,6 @@ if __name__ == '__main__':
                         help="Check inputs but don't start runs")
 
     args = parser.parse_args()
-    # from ToApps import to_slack
-    # print(to_slack("ReEDS runbatch.py has started"))
 
     main(
         BatchName=args.BatchName, cases_suffix=args.cases_suffix, single=args.single,
@@ -2003,4 +1903,3 @@ if __name__ == '__main__':
         debug=args.debug, debugnode=args.debugnode, cases_per_node=args.cases_per_node,
         dryrun=args.dryrun,
     )
-    # print(to_slack("ReEDS runbatch.py has completed"))

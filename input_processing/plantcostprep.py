@@ -37,7 +37,7 @@ print('Starting plantcostprep.py')
 
 #%% Inputs from switches
 sw = reeds.io.get_switches(inputs_case)
-caesscen = "caes_reference"
+
 
 #%% ===========================================================================
 ### --- FUNCTIONS ---
@@ -98,7 +98,7 @@ upv_stack = pd.concat(
 ###########################
 
 conv_in = []
-conv_techs = ['gas', 'gas_ccs', 'coal', 'coal_ccs', 'biopower', 'nuclear', 'nuclear_smr', 'other']
+conv_techs = ['gas', 'gas_ccs', 'coal', 'coal_ccs', 'biopower', 'nuclear', 'nuclear_smr','fuelcell', 'other']
 for ct in conv_techs:
     print(f"Loading plantchar_{ct}")
     df = pd.read_csv(os.path.join(inputs_case,f'plantchar_{ct}.csv'))
@@ -218,24 +218,17 @@ csp_stack = csp_stack[['t','capcost','fom','vom','i']]
 battery = pd.read_csv(os.path.join(inputs_case,'plantchar_battery.csv'))
 battery = deflate_func(battery, sw.plantchar_battery)
 
-tes = pd.read_csv(os.path.join(inputs_case,'plantchar_tes.csv'))
-tes = deflate_func(tes, sw.plantchar_tes)
-
 evmc_storage = pd.read_csv(os.path.join(inputs_case,'plantchar_evmc_storage.csv'))
 evmc_storage = deflate_func(evmc_storage, 'evmc_storage_' + sw.evmcscen)
 evmc_shape = pd.read_csv(os.path.join(inputs_case,'plantchar_evmc_shape.csv'), dtype = {'fom':float,'vom':float,'rte':float})
 evmc_shape = deflate_func(evmc_shape, 'evmc_shape_' + sw.evmcscen)
 
-caes = pd.read_csv(os.path.join(inputs_case,'plantchar_caes.csv'))
-caes = deflate_func(caes,caesscen)
-caes['i'] = 'caes'
-
 #%%############################
 #    -- Concat all data --    #
 ###############################
 
-alldata = pd.concat([conv,upv_stack,wind_stack,geo_stack,csp_stack,battery,tes,
-                     evmc_storage,evmc_shape,caes,beccs,ccsflex,h2combustion],sort=False)
+alldata = pd.concat([conv,upv_stack,wind_stack,geo_stack,csp_stack,battery,
+                     evmc_storage,evmc_shape,beccs,ccsflex,h2combustion],sort=False)
 
 if sw.upgradescen != 'default':
     alldata = pd.concat([alldata,upgrade])
@@ -296,12 +289,47 @@ mask = (consume_char['*i'].isin(['electrolyzer'])) & (consume_char['parameter'].
 consume_char.loc[mask, 'value'] = consume_char[mask]['value'] + round( (elec_cost_future * scalars['h2_elec_stack_replace_perc'])/(discount_rate**scalars['h2_elec_stack_replace_year']) ,3)
 
 #%%###############################
+#    -- DR Shed --    #
+##################################
+# Capital cost multipliers for DR Shed vary by state and year
+# Input cost data are state-level and are assigned to model region resolution here
+# We assume all regions within the same state have uniform costs
+dr_shed = pd.read_csv(os.path.join(inputs_case,'plantchar_dr_shed.csv'), index_col=0).round(6)
+# FOM & VOM inputs are also state-level and need to be disaggregated
+fom = pd.read_csv(os.path.join(inputs_case,'plantchar_dr_shed_fom.csv'), index_col=0).round(6)
+vom = pd.read_csv(os.path.join(inputs_case,'plantchar_dr_shed_vom.csv'), index_col=0).round(6)
+# If there are no DR shed data for regions being run, write dr_shed_capcostmult.csv
+if dr_shed.empty:
+    dr_shed_capcost_mult = dr_shed.copy()
+    dr_shed_fom_regional = fom.copy()
+    dr_shed_vom_regional = vom.copy()
+else:
+    state2r = pd.read_csv(os.path.join(inputs_case,'disagg_state_lpf.csv'),usecols=['state','r'])
+    # Map each unique state to all r values within that state
+    state2r = state2r.groupby('state')['r'].unique().apply(list).to_dict()
+
+    def disaggregate_to_regions(data, state2r):
+        regional_data = {}
+        for st in data['r'].unique():
+            bas_in_st = state2r[st]
+            data2r = {}
+            for r in bas_in_st:
+                copy_state = data.loc[data['r'] == st].copy()
+                copy_state['r'] = r
+                data2r[r] = copy_state
+            regional_data[st] = pd.concat(data2r.values())
+        return pd.concat(regional_data.values())
+
+    dr_shed_capcost_mult = disaggregate_to_regions(dr_shed, state2r)
+    dr_shed_fom_regional = disaggregate_to_regions(fom, state2r)
+    dr_shed_vom_regional = disaggregate_to_regions(vom, state2r)
+
+#%%###############################
 #    -- Other Technologies --    #
 ##################################
 
 ccsflex_perf = pd.read_csv(os.path.join(inputs_case,'plantchar_ccsflex_perf.csv'),index_col=0).round(6)
 hydro = pd.read_csv(os.path.join(inputs_case,'plantchar_hydro.csv'), index_col=0).round(6)
-dr_shed = pd.read_csv(os.path.join(inputs_case,'plantchar_dr_shed.csv'), index_col=0).round(6)
 degrade = pd.read_csv(
 	os.path.join(inputs_case,'degradation_annual.csv'),
 	header=None)
@@ -409,12 +437,12 @@ for i in sw['GSw_PVB_Types'].split('_'):
 pvb = pd.concat(pvb, axis=1)
 
 #%%##################################
-#    -- Nuclear+Storage Cost Model --    #
+#    -- Nuclear+Storage Cost Model --
 #####################################
 heatercosts = pd.read_csv(os.path.join(inputs_case, 'heaterchars.csv'))
 heatercosts = deflate_func(heatercosts, sw.heaterscen)
 
-# ReEDS expects generator/storage capex and FOM in $/MW (consistent with plantcharout.csv).
+# ReEDS expects generator/storage capex and FOM in $/MW.
 # Heater cost inputs are provided in $/kW, so convert to $/MW.
 for col in ['capcost', 'fom']:
     if col in heatercosts.columns:
@@ -422,8 +450,7 @@ for col in ['capcost', 'fom']:
 
 heatercosts_out = (
     heatercosts
-    .melt(id_vars=['i','t'],value_vars=['capcost','fom','vom'])
-    ### Rename the columns so GAMS reads them as a comment
+    .melt(id_vars=['i','t'], value_vars=['capcost','fom','vom'])
     .rename(columns={'i':'*i'})
 )
 
@@ -479,11 +506,12 @@ outwindcfmult.to_csv(os.path.join(inputs_case,'windcfmult.csv'))
 ccsflex_perf.to_csv(os.path.join(inputs_case,'ccsflex_perf.csv'))
 consume_char.to_csv(os.path.join(inputs_case,'consume_char.csv'),index=False)
 hydro.to_csv(os.path.join(inputs_case,'hydrocapcostmult.csv'))
-dr_shed.to_csv(os.path.join(inputs_case,'dr_shed_capcostmult.csv'))
+dr_shed_capcost_mult.to_csv(os.path.join(inputs_case,'dr_shed_capcostmult.csv'))
+dr_shed_fom_regional.to_csv(os.path.join(inputs_case,'plantchar_dr_shed_fom.csv'))
+dr_shed_vom_regional.to_csv(os.path.join(inputs_case,'plantchar_dr_shed_vom.csv'))
 ofswind_rsc_mult.to_csv(os.path.join(inputs_case,'ofswind_rsc_mult.csv'))
 degrade.to_csv(os.path.join(inputs_case,'degradation_annual.csv'),header=False)
 pvb.to_csv(os.path.join(inputs_case,'pvbcapcostmult.csv'))
-# storagehybridage.to_csv(os.path.join(inputs_case,'storagehybridcapcostmult.csv'))
 heatercosts_out.to_csv(os.path.join(inputs_case,'heaterchar.csv'), index=False)
 upgrade_mult.round(4).to_csv(os.path.join(inputs_case,'upgrade_mult_final.csv'), index=False)
 outdac_elec.to_csv(os.path.join(inputs_case,'consumechardac.csv'), index=False)
