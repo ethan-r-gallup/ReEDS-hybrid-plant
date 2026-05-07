@@ -1314,13 +1314,16 @@ eq_curt_gen_balance(r,h,t)$tmodel(t)..
 
 * ---------------------------------------------------------------------------
 * Generation in each timeslice must be greater than mingen_fixed * available capacity
+* For dispatchable storage-hybrid configs, mingen tracks the gen tech's thermal output (GEN_PLANT)
+* rather than the net grid output (GEN). VRE storage-hybrid configs (and all non-storage-hybrid
+* techs) use GEN since mingen is not a meaningful constraint for variable resources.
 eq_mingen_fixed(i,v,r,h,t)
     $[Sw_MingenFixed$tmodel(t)$mingen_fixed(i)$valgen(i,v,r,t)
     $(yeart(t)>=Sw_StartMarkets)]..
 
-    GEN(i,v,r,h,t)$(not storage_hybrid(i))
+    GEN(i,v,r,h,t)$(not storage_hybrid_dispatchable(i))
 
-    + GEN_PLANT(i,v,r,h,t)$storage_hybrid(i)
+    + GEN_PLANT(i,v,r,h,t)$storage_hybrid_dispatchable(i)
 
     =g=
 
@@ -1726,13 +1729,15 @@ eq_sdbin_power_limit(ccreg,ccseason,sdbin,t)$[tmodel(t)$Sw_PRM_CapCredit]..
         }
 
 *[plus] hybrid storage capacity in each sdbin adjusted by the appropriate CC value and the hybrid derate factor
+*       Includes PVB and any storage-hybrid configs whose gen tech is VRE (e.g., upv, wind-ons),
+*       since these share PVB-style capacity-credit derating tied to VRE availability.
     + sum{(i,v,r)$[r_ccreg(r,ccreg)
-                 $valcap(i,v,r,t)$hybrid_plant(i)$(not csp(i))$(not storage_hybrid(i))],
+                 $valcap(i,v,r,t)$((hybrid_plant(i)$(not csp(i))$(not storage_hybrid(i))) or storage_hybrid_vre(i))],
           CAP_SDBIN(i,v,r,ccseason,sdbin,t) * cc_storage(i,sdbin) * hybrid_cc_derate(i,r,ccseason,sdbin,t)
           }
 
-*[plus] hybrid nuclear+storage capacity in each sdbin adjusted by the appropriate CC value
-    + sum{(i,v,r)$[r_ccreg(r,ccreg)$valcap(i,v,r,t)$storage_hybrid(i)],
+*[plus] dispatchable hybrid plant storage capacity in each sdbin (no VRE-availability derate)
+    + sum{(i,v,r)$[r_ccreg(r,ccreg)$valcap(i,v,r,t)$storage_hybrid_dispatchable(i)],
           CAP_SDBIN(i,v,r,ccseason,sdbin,t) * cc_storage(i,sdbin)
           }
 ;
@@ -1775,12 +1780,12 @@ eq_reserve_margin(r,ccseason,t)
           cc_storage(i,sdbin) * CAP_SDBIN(i,v,r,ccseason,sdbin,t)
          }
 *hybrid PV+battery
-    + sum{(i,v,sdbin)$[pvb(i)$valcap(i,v,r,t)$(not forced_retire(i,r,t))],
+    + sum{(i,v,sdbin)$[(pvb(i) or storage_hybrid_vre(i))$valcap(i,v,r,t)$(not forced_retire(i,r,t))],
           cc_storage(i,sdbin) * hybrid_cc_derate(i,r,ccseason,sdbin,t) * CAP_SDBIN(i,v,r,ccseason,sdbin,t)
          }
 
-*hybrid nuclear+storage
-    + sum{(i,v,sdbin)$[storage_hybrid(i)$valcap(i,v,r,t)$(not forced_retire(i,r,t))],
+*hybrid dispatchable+storage (no VRE-availability derate)
+    + sum{(i,v,sdbin)$[storage_hybrid_dispatchable(i)$valcap(i,v,r,t)$(not forced_retire(i,r,t))],
           cc_storage(i,sdbin) * CAP_SDBIN(i,v,r,ccseason,sdbin,t)
          }
 
@@ -3414,13 +3419,16 @@ eq_plant_total_gen(i,v,r,h,t)$[hybrid_plant(i)$(not csp(i))$tmodel(t)$valgen(i,v
 ;
 
 *Energy to storage from hybrid storage palnt + hybrid storage plant generation <= hybrid storage plant maximum production for a resource
-*capacity factor is adjusted to include inverter losses, clipping losses, and low voltage losses
+*capacity factor is adjusted to include inverter losses, clipping losses, and low voltage losses.
+* For storage-hybrid configs paired with VRE gen techs (upv, wind-ons), the gen tech's
+* m_cf derates the available output. For configs paired with dispatchable gen techs
+* (nuclear, gas-cc, geothermal, etc.), output is capped at full nameplate (CAP).
 eq_hybrid_plant_energy_limit(i,v,r,h,t)$[hybrid_plant(i)$(not csp(i))$tmodel(t)$valgen(i,v,r,t)$valcap(i,v,r,t)$Sw_HybridPlant]..
 
 * [plus] plant output
-    m_cf(i,v,r,h,t) * CAP(i,v,r,t)$(not storage_hybrid(i))
-    
-    + CAP(i,v,r,t)$(storage_hybrid(i))
+    m_cf(i,v,r,h,t) * CAP(i,v,r,t)$(pvb(i) or storage_hybrid_vre(i))
+
+    + CAP(i,v,r,t)$storage_hybrid_dispatchable(i)
 
     =g=
 

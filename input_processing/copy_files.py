@@ -1637,8 +1637,8 @@ def write_miscellaneous_files(
                 ][0:len(sw['GSw_PVB_Types'].split('_'))]}
     ).to_csv(os.path.join(inputs_case, 'pvb_bir.csv'), index=False)
 
-    nuclear_types = [t for t in sw['GSw_StorageHybrid_Types'].split('_') if t]
-    n_nuclear_types = len(nuclear_types)
+    storage_hybrid_types = [t for t in sw['GSw_StorageHybrid_Types'].split('_') if t]
+    n_storage_hybrid_types = len(storage_hybrid_types)
 
     def _expand_to_len(values, n, label):
         values = [v for v in values if v != '']
@@ -1650,36 +1650,36 @@ def write_miscellaneous_files(
             )
         return values[:n]
 
-    nuclear_bcrs = _expand_to_len(sw['GSw_StorageHybrid_BCR'].split('_'), n_nuclear_types, 'GSw_StorageHybrid_BCR')
-    storage_hybridage_techs = _expand_to_len(sw['GSw_StorageHybrid_StorageTechs'].split('_'), n_nuclear_types, 'GSw_StorageHybrid_StorageTechs')
-    nuclear_gridcharge = _expand_to_len(sw['GSw_StorageHybrid_GridCharging'].split('_'), n_nuclear_types, 'GSw_StorageHybrid_GridCharging')
-    nuclear_gen_techs = _expand_to_len(sw['GSw_StorageHybrid_GenTechs'].split('_'), n_nuclear_types, 'GSw_StorageHybrid_GenTechs')
+    storage_hybrid_bcrs = _expand_to_len(sw['GSw_StorageHybrid_BCR'].split('_'), n_storage_hybrid_types, 'GSw_StorageHybrid_BCR')
+    storage_hybrid_storage_techs = _expand_to_len(sw['GSw_StorageHybrid_StorageTechs'].split('_'), n_storage_hybrid_types, 'GSw_StorageHybrid_StorageTechs')
+    storage_hybrid_gridcharge = _expand_to_len(sw['GSw_StorageHybrid_GridCharging'].split('_'), n_storage_hybrid_types, 'GSw_StorageHybrid_GridCharging')
+    storage_hybrid_gen_techs = _expand_to_len(sw['GSw_StorageHybrid_GenTechs'].split('_'), n_storage_hybrid_types, 'GSw_StorageHybrid_GenTechs')
 
     pd.DataFrame(
         {
-            '*storage-hybrid_type': [f'storage-hybrid{i}' for i in nuclear_types],
-            'bcr': [float(c) for c in nuclear_bcrs],
+            '*storage-hybrid_type': [f'Storage-Hybrid{i}' for i in storage_hybrid_types],
+            'bcr': [float(c) for c in storage_hybrid_bcrs],
         }
     ).to_csv(os.path.join(inputs_case, 'storage_hybrid_bcr.csv'), index=False)
 
     pd.DataFrame(
         {
-            '*storage-hybrid_type': [f'storage-hybrid{i}' for i in nuclear_types],
-            'gridcharge_ratio': [float(c) for c in nuclear_gridcharge],
+            '*storage-hybrid_type': [f'Storage-Hybrid{i}' for i in storage_hybrid_types],
+            'gridcharge_ratio': [float(c) for c in storage_hybrid_gridcharge],
         }
     ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gridcharging.csv'), index=False)
     
     pd.DataFrame(
         {
-            '*storage-hybrid_type': [f'storage-hybrid{i}' for i in nuclear_types],
-            'storage_type': [c.replace('-', '_') for c in storage_hybridage_techs],
+            '*storage-hybrid_type': [f'Storage-Hybrid{i}' for i in storage_hybrid_types],
+            'storage_type': [c.replace('-', '_') for c in storage_hybrid_storage_techs],
         }
     ).to_csv(os.path.join(inputs_case, 'storage_hybrid_storagetechs.csv'), index=False)
 
     pd.DataFrame(
         {
-            '*storage-hybrid_type': [f'storage-hybrid{i}' for i in nuclear_types],
-            'gen_tech': nuclear_gen_techs,
+            '*storage-hybrid_type': [f'Storage-Hybrid{i}' for i in storage_hybrid_types],
+            'gen_tech': storage_hybrid_gen_techs,
         }
     ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gentechs.csv'), index=False)
 
@@ -1964,15 +1964,28 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
             )
         return values[:n]
 
-    def _storage_hybrid_gen_tech_to_i_name(gen_tech):
+    def _storage_hybrid_gen_tech_to_i_name(gen_tech, inputs_case):
+        """Resolve a switch-form gen tech (e.g. 'wind-ons-1') to its canonical i.csv form.
+
+        Comparison is case-insensitive and tolerates underscore/hyphen swaps. Returns the
+        first match from sets/i.csv; raises if not found so misconfigurations surface early.
+        """
         gen_tech = str(gen_tech).strip()
-        if gen_tech in ['nuclear', 'Nuclear']:
-            return 'Nuclear'
-        if gen_tech in ['nuclear-smr', 'nuclear_smr', 'Nuclear-SMR', 'Nuclear_SMR']:
-            return 'Nuclear-SMR'
+        techset_path = os.path.join(inputs_case, 'sets', 'i.csv')
+        techs = (
+            pd.read_csv(techset_path, header=None, comment='*', dtype=str, encoding='utf-8-sig')
+            .squeeze(1)
+            .dropna()
+            .astype(str)
+            .map(lambda x: x.strip())
+        )
+        techs = techs[techs != ''].tolist()
+        target = gen_tech.lower().replace('_', '-')
+        for t in techs:
+            if t.lower().replace('_', '-') == target:
+                return t
         raise ValueError(
-            "Unsupported GSw_StorageHybrid_GenTechs entry: "
-            f"{gen_tech!r}. Expected 'nuclear' or 'nuclear-smr'."
+            f"GSw_StorageHybrid_GenTechs entry {gen_tech!r} not found in sets/i.csv"
         )
 
     # Respect the storage-hybrid master on/off switch
@@ -2020,7 +2033,7 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
         gen_techs_raw = ['nuclear-smr']
 
     nuclear_gen_techs = _expand_to_len(gen_techs_raw, len(nuclear_types), 'GSw_StorageHybrid_GenTechs')
-    tech_map = [(_storage_hybrid_gen_tech_to_i_name(gt), f'Storage-Hybrid{nt}') for nt, gt in zip(nuclear_types, nuclear_gen_techs)]
+    tech_map = [(_storage_hybrid_gen_tech_to_i_name(gt, inputs_case), f'Storage-Hybrid{nt}') for nt, gt in zip(nuclear_types, nuclear_gen_techs)]
 
     def _first_noncomment_line(path):
         with open(path, 'r', encoding='utf-8-sig') as f:

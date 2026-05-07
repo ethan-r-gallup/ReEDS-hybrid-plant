@@ -210,14 +210,15 @@ cost_cap_fin_mult(i,r,t)$[gas(i)$valcap_irt(i,r,t)] =
 parameter storage_hybrid_cost_p(i,t)  "--$/MW-- nuclear-side cost weight for storage_hybrid"
           storage_hybrid_cost_s(i,t) "--$/MW-- storage-side cost weight for storage_hybrid";
 
-* Default (non-thermal-storage): total capex = nuclear + bcr * storage
-storage_hybrid_cost_p(i,t)$storage_hybrid(i) = cost_cap_storage_hybrid_p(i,t);
+* Default (non-thermal-storage): total capex = gen tech + bcr * storage,
+* with optional powerblock-share subtraction for gen techs that share a powerblock with the storage discharge
+storage_hybrid_cost_p(i,t)$storage_hybrid(i) = cost_cap_storage_hybrid_p(i,t)
+    - powerblock_cost_storage_hybrid(i,t);
 storage_hybrid_cost_s(i,t)$storage_hybrid(i) = bcr(i) * cost_cap_storage_hybrid_s(i,t);
 
 * Thermal-storage: align with cost_cap(i,t) composition
 storage_hybrid_cost_p(i,t)$[storage_hybrid(i)$thermal_storage(i)] = cost_cap_storage_hybrid_p(i,t)
-    - turbine_generator_cost_storage_hybrid(i,t)
-    - electrical_cost_storage_hybrid(i,t);
+    - powerblock_cost_storage_hybrid(i,t);
 
 storage_hybrid_cost_s(i,t)$[storage_hybrid(i)$thermal_storage(i)] = (1 + bcr(i)) * cost_cap_storage_hybrid_s(i,t)
     + gridcharge_ratio(i) * sum{ii$[storage_hybrid_stortech(i,ii)$heater_char(ii,t,"capcost")], heater_char(ii,t,"capcost") };

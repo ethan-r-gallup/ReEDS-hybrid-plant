@@ -853,49 +853,16 @@ $ifthen.pvb12 %GSw_PVB_Types% == '1'
     ban(i)$i_subsets(i,'pvb3') = yes ;
 $endif.pvb12
 
-* Ban StorageHybrid_Types that aren't included in the model
-$ifthen.storage_hybrid1234567 %GSw_StorageHybrid_Types% == '1_2_3_4_5_6_7'
-    ban(i)$i_subsets(i,'Storage-Hybrid8') = yes ;
-$endif.storage_hybrid1234567
-$ifthen.storage_hybrid123456 %GSw_StorageHybrid_Types% == '1_2_3_4_5_6'
-    ban(i)$i_subsets(i,'Storage-Hybrid7') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid8') = yes ;
-$endif.storage_hybrid123456
-$ifthen.storage_hybrid12345 %GSw_StorageHybrid_Types% == '1_2_3_4_5'
-    ban(i)$i_subsets(i,'Storage-Hybrid6') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid7') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid8') = yes ;
-$endif.storage_hybrid12345
-$ifthen.storage_hybrid1234 %GSw_StorageHybrid_Types% == '1_2_3_4'
-    ban(i)$i_subsets(i,'Storage-Hybrid5') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid6') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid7') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid8') = yes ;
-$endif.storage_hybrid1234
-$ifthen.storage_hybrid123 %GSw_StorageHybrid_Types% == '1_2_3'
-    ban(i)$i_subsets(i,'Storage-Hybrid4') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid5') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid6') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid7') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid8') = yes ;
-$endif.storage_hybrid123
-$ifthen.storage_hybrid12 %GSw_StorageHybrid_Types% == '1_2'
-    ban(i)$i_subsets(i,'Storage-Hybrid3') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid4') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid5') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid6') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid7') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid8') = yes ;
-$endif.storage_hybrid12
-$ifthen.storage_hybrid1 %GSw_StorageHybrid_Types% == '1'
-    ban(i)$i_subsets(i,'Storage-Hybrid2') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid3') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid4') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid5') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid6') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid7') = yes ;
-    ban(i)$i_subsets(i,'Storage-Hybrid8') = yes ;
-$endif.storage_hybrid1
+* Ban Storage-Hybrid types that aren't activated by GSw_StorageHybrid_Types.
+* Active types are inferred from storage_hybrid_gentech(i,ii) which copy_files.py
+* only populates for the types listed in GSw_StorageHybrid_Types. This avoids
+* hardcoding individual type-count branches and supports any N up to the maximum
+* declared in inputs/sets/storage_hybrid_config.csv.
+* (NB: this block runs AFTER storage_hybrid_gentech is loaded — see below.
+*  Set definitions for the storage_hybrid_* link sets occur ~L1150-1170. The
+*  ban assignment below is deliberately deferred until after those sets exist;
+*  GAMS executes statements in source order so do not move this block above
+*  the $include for storage_hybrid_gentechs.csv without also moving that.)
 
 *** Ban storage techs based on Sw_Storage switch
 * 0: Ban all storage
@@ -1108,7 +1075,7 @@ tg_i('pv',i)$[(pv(i) or pvb(i))$(not distpv(i))] = yes ;
 tg_i('csp',i)$csp(i) = yes ;
 tg_i('gas',i)$gas(i) = yes ;
 tg_i('coal',i)$coal(i) = yes ;
-tg_i('nuclear',i)$[(nuclear(i) or storage_hybrid(i))] = yes ;
+tg_i('nuclear',i)$nuclear(i) = yes ;
 tg_i('battery',i)$battery(i) = yes ;
 tg_i('hydro',i)$hydro(i) = yes ;
 tg_i('h2',i)$h2_combustion(i) = yes ;
@@ -1165,12 +1132,36 @@ $offdelim
 $onlisting
 / ;
 
+* Ban Storage-Hybrid types not activated by GSw_StorageHybrid_Types.
+* copy_files.py only writes storage_hybrid_gentechs.csv rows for active types, so
+* any Storage-Hybrid{N} with no gentech mapping is inactive and must be banned.
+set storage_hybrid_active(i) "Storage-Hybrid configs activated by GSw_StorageHybrid_Types" ;
+storage_hybrid_active(i)$[i_subsets(i,'Storage-Hybrid')$sum{ii, storage_hybrid_gentech(i,ii) }] = yes ;
+ban(i)$[i_subsets(i,'Storage-Hybrid')$(not storage_hybrid_active(i))] = yes ;
+bannew(i)$[i_subsets(i,'Storage-Hybrid')$(not storage_hybrid_active(i))] = yes ;
+
 * If storage tech used by nuclear+storage config is in i_subsets(i, 'TES'), then add it to tes and thermal_storage sets
 set storage_hybrid_with_tes(i) "hybrid nuclear+storage technologies whose storage tech is TES" ;
 storage_hybrid_with_tes(i)$(sum(ii$ (storage_hybrid_stortech(i,ii) and i_subsets(ii,'tes')),1) = 1) = yes ;
 
 tes(i)$storage_hybrid_with_tes(i) = yes ;
 thermal_storage(i)$storage_hybrid_with_tes(i) = yes ;
+
+* Storage-hybrid configs split by gen-tech behavior:
+* - storage_hybrid_vre(i): config's gen tech is variable renewable (uses m_cf for derating)
+* - storage_hybrid_dispatchable(i): config's gen tech is dispatchable (uses raw CAP)
+* These sets drive equation-level branching for the energy limit, mingen substitution,
+* and capacity-credit derating. They depend on vre(i), so they must be assigned AFTER
+* the vre(i) assignment (~L1064). The assignment below is intentionally located here
+* with the other storage_hybrid set derivations; vre(i) is already populated by this point.
+set storage_hybrid_vre(i)          "storage-hybrid configs whose gen tech is VRE" ;
+set storage_hybrid_dispatchable(i) "storage-hybrid configs whose gen tech is dispatchable (non-VRE)" ;
+storage_hybrid_vre(i)$[storage_hybrid(i)$sum{ii$storage_hybrid_gentech(i,ii), vre(ii)}] = yes ;
+storage_hybrid_dispatchable(i)$[storage_hybrid(i)$(not storage_hybrid_vre(i))] = yes ;
+
+* Inherit tech-group membership from each storage-hybrid config's gen tech so that downstream
+* group-keyed logic (valinv_tg, RPS state aggregations, etc.) recognizes the config.
+tg_i(tg,i)$[storage_hybrid(i)$sum{ii$storage_hybrid_gentech(i,ii), tg_i(tg,ii)}] = yes ;
 
 *add non-numeraire CSPs in index i of already defined set tg_i(tg,i)
 tg_i("csp",i)$[(csp1(i) or csp2(i) or csp3(i) or csp4(i))$Sw_WaterMain] = yes ;
@@ -6060,34 +6051,46 @@ resourcescaler(i)$csp(i) = CSP_SM(i) / csp_sm_baseline ;
 *            = cost(nuclear) * cap(nuclear) + cost(stor) * bcr * cap(nuclear)
 *            = [cost(nuclear) + cost(stor) * bcr ] * cap(nuclear)
 
-* Turbine generator + electrical equipment costs should scale with the nuclear portion cost over time.
-* Fractions are from ATB 2024 Table 6, GN-COA breakdown (Abou-Jaoude et al. 2024, INL/RPT-24-77048):
+* Turbine generator + electrical equipment costs should scale with the gen tech portion cost over time.
+* For thermal gen techs (nuclear, nuclear-smr) the storage-hybrid TES energy island
+* replaces the gen tech's turbine-generator + electrical equipment, sized at (1+bcr) ×
+* gen capacity. The combined fraction (GN-COA Code 23 + Code 24) is loaded from
+* inputs/storage_hybrid_powerblock_share.csv per gen tech. Default share = 0 for any
+* gen tech without an explicit row (e.g., upv, wind-ons, geothermal, gas-cc), which
+* yields no powerblock cost subtraction — appropriate when the gen tech and the
+* storage discharge do not share a common powerblock.
+* Fractions in the CSV reflect ATB 2024 Table 6, GN-COA breakdown
+* (Abou-Jaoude et al. 2024, INL/RPT-24-77048):
 *   Code 23 (Energy Conversion System): Large=3.92%, SMR=3.86%
 *   Code 24 (Electrical Equipment):     Large=6.32%, SMR=9.46%
-* These are removed from the nuclear cost because the TES power block (energy island)
-* replaces the turbine-generator and electrical equipment, sized at (1+bcr) × nuclear capacity.
+*   Combined:                           Large=10.24%, SMR=13.32%
+parameter powerblock_share_storage_hybrid(i) "--unitless-- combined turbine-generator + electrical equipment cost share for the gen tech in a storage-hybrid plant"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%storage_hybrid_powerblock_share.csv
+$offdelim
+$onlisting
+/ ;
+
 parameter
-  turbine_generator_cost_storage_hybrid(i,t) "--2004$/MW-- turbine generator cost component for nuclear+storage (GN-COA 23)"
-  electrical_cost_storage_hybrid(i,t)        "--2004$/MW-- electrical equipment cost component for nuclear+storage (GN-COA 24)" ;
+  powerblock_cost_storage_hybrid(i,t) "--2004$/MW-- combined powerblock cost component (turbine-gen + electrical) for storage-hybrid gen techs that share a powerblock with the storage discharge" ;
 
-* Use gentech-specific fractions: large reactor vs SMR have different cost shares
-turbine_generator_cost_storage_hybrid(i,t)$storage_hybrid(i) =
+powerblock_cost_storage_hybrid(i,t)$storage_hybrid(i) =
     sum{ii$storage_hybrid_gentech(i,ii),
-        cost_cap_storage_hybrid_p(i,t) * (0.0392$sameas(ii,"nuclear") + 0.0386$sameas(ii,"nuclear-smr")) } ;
-electrical_cost_storage_hybrid(i,t)$storage_hybrid(i) =
-    sum{ii$storage_hybrid_gentech(i,ii),
-        cost_cap_storage_hybrid_p(i,t) * (0.0632$sameas(ii,"nuclear") + 0.0946$sameas(ii,"nuclear-smr")) } ;
+        cost_cap_storage_hybrid_p(i,t) * powerblock_share_storage_hybrid(ii) } ;
 
-* Compose nuclear+storage capex:
-* - Start from nuclear portion capex
-* - Remove turbine + electrical once (they'll be added back using the capital costs of the storage plant)
-* - Add turbine + electrical for the storage system which is the output of the plant. capital costs of storage system * (1 + bcr)
+* Compose storage-hybrid capex:
+* - Start from gen tech portion capex
+* - Subtract powerblock cost (only nonzero when the gen tech shares a powerblock with the storage)
+* - Add storage capex scaled by (1 + bcr) for thermal-storage configs (shared energy island sized larger than the gen tech)
+* - For non-thermal-storage configs, no shared energy island; storage capex scales by bcr only
 cost_cap(i,t)$[storage_hybrid(i)$thermal_storage(i)] = (cost_cap_storage_hybrid_p(i,t)
-                                 - turbine_generator_cost_storage_hybrid(i,t)
-                                 - electrical_cost_storage_hybrid(i,t)
+                                 - powerblock_cost_storage_hybrid(i,t)
                                  + (1 + bcr(i)) * cost_cap_storage_hybrid_s(i,t)
                                  + gridcharge_ratio(i) * sum{ii$[storage_hybrid_stortech(i,ii)$heater_char(ii,t,"capcost")], heater_char(ii,t,"capcost") });
 cost_cap(i,t)$[storage_hybrid(i)$(not thermal_storage(i))] = cost_cap_storage_hybrid_p(i,t)
+                                 - powerblock_cost_storage_hybrid(i,t)
                                  + bcr(i) * cost_cap_storage_hybrid_s(i,t) ;
 
 * --- Storage Duration ---
