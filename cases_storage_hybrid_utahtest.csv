@@ -1,10 +1,13 @@
 ,storagehybrid_utah
 timetype,seq
 endyear,2030
+yearset,2010_2020_2030
 GSw_Region,st/UT
-GSw_RegionResolution,ba
+GSw_ZoneSet,z132
 GSw_HourlyClusterAlgorithm,user
 GSw_PRM_CapCredit,0
+pras,0
+GSw_PRM_StressIterateMax,0
 GSw_SkipAugurYear,2030
 GSw_StorageHybrid,1
 GSw_StorageHybrid_Types,1_2_3_4_5_6
@@ -20,7 +23,6 @@ GSw_OfsWind,0
 GSw_PVB,0
 GSw_CSP,0
 GSw_Storage,1
-GSw_TES,0
 GSw_BatteryMandate,0
 GSw_Biopower,0
 GSw_CCS,0
