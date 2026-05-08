@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Storage-Hybrid Technology &mdash; ReEDS  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+      <link rel="stylesheet" type="text/css" href="_static/customtheme.css?v=299ffeb9" />
+
+  
+    <link rel="shortcut icon" href="_static/reeds-icon.png"/>
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="User guide" href="user_guide.html" />
+    <link rel="prev" title="Model Documentation" href="model_documentation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html">
+            
+              <img src="_static/reeds-logo-white.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer_best_practices.html">Developer Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_documentation.html">Model Documentation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Storage-Hybrid Technology</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#conceptual-model">Conceptual Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#user-switches">User Switches</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#preprocessing">Preprocessing</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#generated-case-inputs">Generated Case Inputs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#technology-row-propagation">Technology Row Propagation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#sets-and-activation">Sets and Activation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cost-and-performance-inheritance">Cost and Performance Inheritance</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#capacity-costs">Capacity Costs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fixed-and-variable-o-m">Fixed and Variable O&amp;M</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#financial-multipliers">Financial Multipliers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#operational-parameters">Operational Parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#dispatch-and-constraints">Dispatch and Constraints</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#plant-output-limit">Plant Output Limit</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#local-charging-limit">Local Charging Limit</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#hybrid-plant-capacity-limit">Hybrid Plant Capacity Limit</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#storage-power-limit">Storage Power Limit</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#grid-charging-limit">Grid Charging Limit</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#storage-state-of-charge">Storage State of Charge</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#minimum-generation">Minimum Generation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#capacity-credit-and-reserve-margin">Capacity Credit and Reserve Margin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#objective-function-and-reporting">Objective Function and Reporting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#outputs-to-inspect">Outputs to Inspect</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#adding-a-new-storage-hybrid-scenario">Adding a New Storage-Hybrid Scenario</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#design-assumptions-and-current-limitations">Design Assumptions and Current Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#key-implementation-files">Key Implementation Files</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="user_guide.html">User guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sources.html">Sources and Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="postprocessing_tools.html">Analysis tools and helper scripts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="publications.html">ReEDS publications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">ReEDS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Storage-Hybrid Technology</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/storage_hybrid.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="storage-hybrid-technology">
+<h1>Storage-Hybrid Technology<a class="headerlink" href="#storage-hybrid-technology" title="Link to this heading"></a></h1>
+<p>This page documents the <code class="docutils literal notranslate"><span class="pre">storage-hybrid</span></code> technology family in ReEDS. A storage-hybrid technology represents a paired generation and storage resource where the generation technology can be any configured ReEDS generation technology and the storage technology can be any configured storage technology that is valid for the storage-hybrid workflow.</p>
+<p>Storage-hybrid was generalized from an earlier nuclear-plus-storage representation. The current implementation no longer assumes that the plant side is nuclear. Instead, each active storage-hybrid configuration explicitly maps one generic <code class="docutils literal notranslate"><span class="pre">Storage-HybridN</span></code> technology to one generation technology and one storage technology.</p>
+<section id="conceptual-model">
+<h2>Conceptual Model<a class="headerlink" href="#conceptual-model" title="Link to this heading"></a></h2>
+<p>Each storage-hybrid configuration is a technology in <code class="docutils literal notranslate"><span class="pre">i</span></code> named <code class="docutils literal notranslate"><span class="pre">Storage-Hybrid1</span></code> through <code class="docutils literal notranslate"><span class="pre">Storage-Hybrid8</span></code>. The model treats each one as a hybrid plant with:</p>
+<ul class="simple">
+<li><p>A generation-side power capacity, represented by <code class="docutils literal notranslate"><span class="pre">CAP(i,v,r,t)</span></code>.</p></li>
+<li><p>A storage-side charge/discharge power capacity, represented as <code class="docutils literal notranslate"><span class="pre">bcr(i)</span> <span class="pre">*</span> <span class="pre">CAP(i,v,r,t)</span></code>.</p></li>
+<li><p>A storage energy capacity, represented by <code class="docutils literal notranslate"><span class="pre">CAP_ENERGY(i,v,r,t)</span></code>.</p></li>
+<li><p>Optional grid-charging power capacity, represented as <code class="docutils literal notranslate"><span class="pre">gridcharge_ratio(i)</span> <span class="pre">*</span> <span class="pre">CAP(i,v,r,t)</span></code>.</p></li>
+</ul>
+<p>The storage-hybrid dispatch variables follow the existing hybrid-plant pattern:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GEN_PLANT(i,v,r,h,t)</span></code></p></td>
+<td><p>Generation-side output before local charging is netted out.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GEN_STORAGE(i,v,r,h,t)</span></code></p></td>
+<td><p>Storage discharge to the grid.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">STORAGE_IN_PLANT(i,v,r,h,t)</span></code></p></td>
+<td><p>Storage charging from the coupled generation technology.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">STORAGE_IN_GRID(i,v,r,h,t)</span></code></p></td>
+<td><p>Storage charging from the grid.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GEN(i,v,r,h,t)</span></code></p></td>
+<td><p>Net hybrid output used by the model’s generation accounting.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The core net-output identity is:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>GEN = GEN_PLANT + GEN_STORAGE - STORAGE_IN_PLANT
+</pre></div>
+</div>
+<p>Grid charging is not included in that identity. It is constrained separately by <code class="docutils literal notranslate"><span class="pre">gridcharge_ratio</span></code>, enters storage state-of-charge accounting, and is subtracted in reporting and tax-credit accounting where the model needs net generation after grid charging.</p>
+</section>
+<section id="user-switches">
+<h2>User Switches<a class="headerlink" href="#user-switches" title="Link to this heading"></a></h2>
+<p>Storage-hybrid is configured through the case switches in <code class="docutils literal notranslate"><span class="pre">cases.csv</span></code>:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Switch</p></th>
+<th class="head"><p>Purpose</p></th>
+<th class="head"><p>Example</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid</span></code></p></td>
+<td><p>Turns storage-hybrid on (<code class="docutils literal notranslate"><span class="pre">1</span></code>) or off (<code class="docutils literal notranslate"><span class="pre">0</span></code>).</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_Types</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">_</span></code>-delimited list of configuration IDs from 1 to 8.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1_2_3</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_GenTechs</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">_</span></code>-delimited generation technologies to pair with storage.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nuclear_nuclear-smr_upv-1</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_StorageTechs</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">_</span></code>-delimited storage technologies to pair with generation.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tes-ms_tes-ms_battery-li</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_BCR</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">_</span></code>-delimited storage power capacity ratio relative to generation capacity.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.5_0.5_1.0</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_GridCharging</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">_</span></code>-delimited grid-charging power capacity ratio relative to generation capacity.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.0_0.5_1.0</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>The list-valued switches must either provide one value or the same number of values as <code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_Types</span></code>. A single value is expanded to all active types. For example:</p>
+<div class="highlight-csv notranslate"><div class="highlight"><pre><span></span>GSw_StorageHybrid,1
+GSw_StorageHybrid_Types,1_2_3_4_5_6
+GSw_StorageHybrid_GenTechs,nuclear_nuclear-smr_gas-cc_egs-allkm-1_upv-1_wind-ons-1
+GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_battery-li_battery-li_battery-li_battery-li
+GSw_StorageHybrid_BCR,0.5_0.5_0.5_0.5_0.5_0.5
+GSw_StorageHybrid_GridCharging,0.0_0.0_0.0_0.0_0.0_0.0
+</pre></div>
+</div>
+<p>This example activates six configurations:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Config</p></th>
+<th class="head"><p>Generation tech</p></th>
+<th class="head"><p>Storage tech</p></th>
+<th class="head"><p>BCR</p></th>
+<th class="head"><p>Grid-charge ratio</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Storage-Hybrid1</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nuclear</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tes_ms</span></code></p></td>
+<td><p>0.5</p></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Storage-Hybrid2</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nuclear-smr</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tes_ms</span></code></p></td>
+<td><p>0.5</p></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Storage-Hybrid3</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gas-cc</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">battery_li</span></code></p></td>
+<td><p>0.5</p></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Storage-Hybrid4</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">egs-allkm-1</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">battery_li</span></code></p></td>
+<td><p>0.5</p></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Storage-Hybrid5</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">upv-1</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">battery_li</span></code></p></td>
+<td><p>0.5</p></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Storage-Hybrid6</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">wind-ons-1</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">battery_li</span></code></p></td>
+<td><p>0.5</p></td>
+<td><p>0.0</p></td>
+</tr>
+</tbody>
+</table>
+<p>Hyphens and underscores in switch labels are canonicalized during preprocessing. For example, <code class="docutils literal notranslate"><span class="pre">battery-li</span></code> resolves to the <code class="docutils literal notranslate"><span class="pre">battery_li</span></code> technology if that technology exists in <code class="docutils literal notranslate"><span class="pre">inputs_case/sets/i.csv</span></code>.</p>
+</section>
+<section id="preprocessing">
+<h2>Preprocessing<a class="headerlink" href="#preprocessing" title="Link to this heading"></a></h2>
+<p>The storage-hybrid preprocessing happens in <code class="docutils literal notranslate"><span class="pre">input_processing/copy_files.py</span></code>.</p>
+<section id="generated-case-inputs">
+<h3>Generated Case Inputs<a class="headerlink" href="#generated-case-inputs" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">write_miscellaneous_files()</span></code> reads the <code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_*</span></code> switches and writes four run-specific input files into <code class="docutils literal notranslate"><span class="pre">inputs_case</span></code>:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Generated file</p></th>
+<th class="head"><p>Loaded by</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_bcr.csv</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">b_inputs.gms</span></code></p></td>
+<td><p>Maps each active <code class="docutils literal notranslate"><span class="pre">Storage-HybridN</span></code> to its storage power capacity ratio.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_gridcharging.csv</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">b_inputs.gms</span></code></p></td>
+<td><p>Maps each active <code class="docutils literal notranslate"><span class="pre">Storage-HybridN</span></code> to its grid-charging capacity ratio.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_storagetechs.csv</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">b_inputs.gms</span></code></p></td>
+<td><p>Maps each active <code class="docutils literal notranslate"><span class="pre">Storage-HybridN</span></code> to its storage technology.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_gentechs.csv</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">b_inputs.gms</span></code></p></td>
+<td><p>Maps each active <code class="docutils literal notranslate"><span class="pre">Storage-HybridN</span></code> to its generation technology.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The full set of possible generic configurations comes from <code class="docutils literal notranslate"><span class="pre">inputs/sets/storage_hybrid_config.csv</span></code>, which currently lists <code class="docutils literal notranslate"><span class="pre">Storage-Hybrid1</span></code> through <code class="docutils literal notranslate"><span class="pre">Storage-Hybrid8</span></code>. Only the configurations listed in <code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_Types</span></code> receive generated gen-tech mappings. Configurations without a gen-tech mapping are banned in <code class="docutils literal notranslate"><span class="pre">b_inputs.gms</span></code>.</p>
+</section>
+<section id="technology-row-propagation">
+<h3>Technology Row Propagation<a class="headerlink" href="#technology-row-propagation" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">propagate_storage_hybrid_tech_rows()</span></code> duplicates relevant input rows and columns from each configured generation technology to the corresponding <code class="docutils literal notranslate"><span class="pre">Storage-HybridN</span></code> technology. This lets storage-hybrid technologies inherit generation-side data that downstream model logic expects to find by technology name.</p>
+<p>For example, if <code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_GenTechs</span></code> maps <code class="docutils literal notranslate"><span class="pre">gas-cc</span></code> to <code class="docutils literal notranslate"><span class="pre">Storage-Hybrid3</span></code>, preprocessing copies applicable <code class="docutils literal notranslate"><span class="pre">gas-cc</span></code> rows or columns to <code class="docutils literal notranslate"><span class="pre">Storage-Hybrid3</span></code> in the case inputs. This is intentionally a generation-side propagation step. Storage-side parameters are inherited explicitly from <code class="docutils literal notranslate"><span class="pre">storage_hybrid_stortech(i,ii)</span></code> in GAMS.</p>
+<p>The propagation code avoids files that should not be blindly copied, including selected capacity prescription files, demonstrations, some financial incentive files, <code class="docutils literal notranslate"><span class="pre">tech-subset-table.csv</span></code>, and files that already contain storage-hybrid-specific content.</p>
+</section>
+</section>
+<section id="sets-and-activation">
+<h2>Sets and Activation<a class="headerlink" href="#sets-and-activation" title="Link to this heading"></a></h2>
+<p>The core storage-hybrid sets are built in <code class="docutils literal notranslate"><span class="pre">b_inputs.gms</span></code>.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Set or parameter</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid(i)</span></code></p></td>
+<td><p>All active storage-hybrid technologies.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid1(i)</span></code> through <code class="docutils literal notranslate"><span class="pre">storage_hybrid8(i)</span></code></p></td>
+<td><p>Type-specific subsets for <code class="docutils literal notranslate"><span class="pre">Storage-Hybrid1</span></code> through <code class="docutils literal notranslate"><span class="pre">Storage-Hybrid8</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_config</span></code></p></td>
+<td><p>All possible generic configurations from <code class="docutils literal notranslate"><span class="pre">inputs/sets/storage_hybrid_config.csv</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_gentech(i,ii)</span></code></p></td>
+<td><p>Generation technology used by storage-hybrid technology <code class="docutils literal notranslate"><span class="pre">i</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_stortech(i,ii)</span></code></p></td>
+<td><p>Storage technology used by storage-hybrid technology <code class="docutils literal notranslate"><span class="pre">i</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_active(i)</span></code></p></td>
+<td><p>Active configs inferred from nonempty <code class="docutils literal notranslate"><span class="pre">storage_hybrid_gentech(i,ii)</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_with_tes(i)</span></code></p></td>
+<td><p>Storage-hybrid configs whose storage technology is in <code class="docutils literal notranslate"><span class="pre">thermal_storage</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_vre(i)</span></code></p></td>
+<td><p>Storage-hybrid configs whose generation technology is VRE.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_dispatchable(i)</span></code></p></td>
+<td><p>Storage-hybrid configs whose generation technology is not VRE.</p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_vre(i)</span></code> and <code class="docutils literal notranslate"><span class="pre">storage_hybrid_dispatchable(i)</span></code> are important because they drive dispatch, reserve margin, and capacity-credit behavior. VRE-paired storage-hybrids behave like VRE hybrid plants with output availability derated by <code class="docutils literal notranslate"><span class="pre">m_cf</span></code>. Dispatchable-paired storage-hybrids use full nameplate capacity in the hybrid plant energy limit.</p>
+<p>Storage-hybrid technologies also inherit technology-group membership through <code class="docutils literal notranslate"><span class="pre">tg_i(tg,i)</span></code> from their configured generation technology. This keeps downstream group-keyed logic, such as investment grouping and policy aggregation, aware of the hybrid configuration’s generation-side identity.</p>
+</section>
+<section id="cost-and-performance-inheritance">
+<h2>Cost and Performance Inheritance<a class="headerlink" href="#cost-and-performance-inheritance" title="Link to this heading"></a></h2>
+<p>Storage-hybrid cost and performance parameters are composed from the configured generation and storage technologies.</p>
+<section id="capacity-costs">
+<h3>Capacity Costs<a class="headerlink" href="#capacity-costs" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">b_inputs.gms</span></code> first defines component costs:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>cost_cap_storage_hybrid_p = gen-tech capcost
+cost_cap_storage_hybrid_s = storage-tech capcost
+cost_cap_energy           = storage-tech capcost_energy
+</pre></div>
+</div>
+<p>The final <code class="docutils literal notranslate"><span class="pre">cost_cap(i,t)</span></code> depends on whether the storage technology is thermal storage.</p>
+<p>For non-thermal storage configurations:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>cost_cap = gen capex - shared powerblock capex + bcr * storage power capex
+</pre></div>
+</div>
+<p>For thermal-storage configurations:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>cost_cap = gen capex - shared powerblock capex
+         + (1 + bcr) * storage power capex
+         + gridcharge_ratio * heater capex
+</pre></div>
+</div>
+<p>The shared powerblock subtraction is controlled by <code class="docutils literal notranslate"><span class="pre">inputs/storage_hybrid_powerblock_share.csv</span></code>. It currently provides nonzero turbine-generator plus electrical equipment shares for <code class="docutils literal notranslate"><span class="pre">nuclear</span></code> and <code class="docutils literal notranslate"><span class="pre">nuclear-smr</span></code>. Generation technologies without an explicit row default to zero powerblock subtraction.</p>
+<p>Storage energy capacity cost remains separate through <code class="docutils literal notranslate"><span class="pre">cost_cap_energy(i,t)</span></code> and is applied to <code class="docutils literal notranslate"><span class="pre">INV_ENERGY(i,v,r,t)</span></code>.</p>
+</section>
+<section id="fixed-and-variable-o-m">
+<h3>Fixed and Variable O&amp;M<a class="headerlink" href="#fixed-and-variable-o-m" title="Link to this heading"></a></h3>
+<p>Generation-side VOM and FOM are inherited from <code class="docutils literal notranslate"><span class="pre">storage_hybrid_gentech(i,ii)</span></code>. Storage-side VOM, FOM, and energy-capacity FOM are inherited from <code class="docutils literal notranslate"><span class="pre">storage_hybrid_stortech(i,ii)</span></code>.</p>
+<p>The power-capacity FOM composition is:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>cost_fom = gen-side FOM + bcr * storage-side FOM
+</pre></div>
+</div>
+<p>The energy-capacity FOM is stored separately as <code class="docutils literal notranslate"><span class="pre">cost_fom_energy(i,v,r,t)</span></code> and is applied to <code class="docutils literal notranslate"><span class="pre">CAP_ENERGY</span></code> in the objective and reporting.</p>
+</section>
+<section id="financial-multipliers">
+<h3>Financial Multipliers<a class="headerlink" href="#financial-multipliers" title="Link to this heading"></a></h3>
+<p>Storage-hybrid has separate financial multiplier parameters for the generation and storage portions:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter family</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cost_cap_fin_mult_storage_hybrid_p*</span></code></p></td>
+<td><p>Generation-side capital cost multipliers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cost_cap_fin_mult_storage_hybrid_s*</span></code></p></td>
+<td><p>Storage-side capital cost multipliers.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The generation-side multiplier is inherited from the configured generation technology. The storage-side multiplier starts from the configured storage technology, then adjusts financing risk so that the storage side carries the configured generation technology’s financing risk. The storage side still keeps storage-specific items such as IDC and depreciation schedule.</p>
+<p>The aggregate <code class="docutils literal notranslate"><span class="pre">cost_cap_fin_mult(i,r,t)</span></code> for <code class="docutils literal notranslate"><span class="pre">INV</span></code> is a cost-weighted average of the generation-side and storage-side multipliers. Energy investment, <code class="docutils literal notranslate"><span class="pre">INV_ENERGY</span></code>, uses the storage-side multiplier because <code class="docutils literal notranslate"><span class="pre">cost_cap_energy(i,t)</span></code> is purely a storage energy-capacity cost.</p>
+</section>
+<section id="operational-parameters">
+<h3>Operational Parameters<a class="headerlink" href="#operational-parameters" title="Link to this heading"></a></h3>
+<p>Several operating parameters are inherited from component technologies:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Inheritance rule</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ramprate(i)</span></code></p></td>
+<td><p>Configured generation technology.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ramprate_storage_hybrid(i)</span></code></p></td>
+<td><p>Configured storage technology.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cost_opres(i,ortype,t)</span></code></p></td>
+<td><p>Configured storage technology.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">outage_forced_h(i,r,h)</span></code></p></td>
+<td><p>Configured generation technology.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">outage_scheduled_h(i,h)</span></code></p></td>
+<td><p>Configured generation technology.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">storage_eff_storage_hybrid_g(i,t)</span></code></p></td>
+<td><p>Configured storage technology round-trip efficiency.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">storage_eff_storage_hybrid_p(i,t)</span></code></p></td>
+<td><p>Configured storage technology round-trip efficiency, except TES configs use <code class="docutils literal notranslate"><span class="pre">0.99</span></code> for local plant charging.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The TES local-charge efficiency is set near one to avoid degeneracy between dispatching directly from the plant and charging thermal storage from the coupled plant.</p>
+</section>
+</section>
+<section id="dispatch-and-constraints">
+<h2>Dispatch and Constraints<a class="headerlink" href="#dispatch-and-constraints" title="Link to this heading"></a></h2>
+<p>Storage-hybrid dispatch uses the hybrid plant equations in <code class="docutils literal notranslate"><span class="pre">c_supplymodel.gms</span></code>.</p>
+<section id="plant-output-limit">
+<h3>Plant Output Limit<a class="headerlink" href="#plant-output-limit" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">eq_hybrid_plant_energy_limit</span></code> limits generation-side output based on the generation technology type:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>m_cf * CAP &gt;= GEN_PLANT          for VRE-paired storage-hybrids
+CAP        &gt;= GEN_PLANT          for dispatchable-paired storage-hybrids
+</pre></div>
+</div>
+<p>This is the main equation-level split between <code class="docutils literal notranslate"><span class="pre">storage_hybrid_vre(i)</span></code> and <code class="docutils literal notranslate"><span class="pre">storage_hybrid_dispatchable(i)</span></code>.</p>
+</section>
+<section id="local-charging-limit">
+<h3>Local Charging Limit<a class="headerlink" href="#local-charging-limit" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">eq_hybrid_plant_storage_limit</span></code> requires local plant charging to be no larger than generation-side output:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>GEN_PLANT &gt;= STORAGE_IN_PLANT
+</pre></div>
+</div>
+</section>
+<section id="hybrid-plant-capacity-limit">
+<h3>Hybrid Plant Capacity Limit<a class="headerlink" href="#hybrid-plant-capacity-limit" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">eq_plant_capacity_limit</span></code> limits total power moving through the hybrid plant interface. For storage-hybrid, the capacity side is:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>CAP * (1 + bcr)
+</pre></div>
+</div>
+<p>and it must cover generation-side output, local charging, storage discharge, grid charging, and operating reserves.</p>
+</section>
+<section id="storage-power-limit">
+<h3>Storage Power Limit<a class="headerlink" href="#storage-power-limit" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">eq_hybrid_storage_capacity_limit</span></code> limits storage activity to storage-side power capacity:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>CAP * bcr &gt;= GEN_STORAGE + STORAGE_IN_PLANT + STORAGE_IN_GRID
+</pre></div>
+</div>
+</section>
+<section id="grid-charging-limit">
+<h3>Grid Charging Limit<a class="headerlink" href="#grid-charging-limit" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">eq_cap_storage_in_grid</span></code> limits storage charging from the grid:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>CAP * gridcharge_ratio &gt;= STORAGE_IN_GRID
+</pre></div>
+</div>
+<p>A <code class="docutils literal notranslate"><span class="pre">gridcharge_ratio</span></code> of <code class="docutils literal notranslate"><span class="pre">0</span></code> disables grid charging for that configuration.</p>
+</section>
+<section id="storage-state-of-charge">
+<h3>Storage State of Charge<a class="headerlink" href="#storage-state-of-charge" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">eq_storage_level</span></code> tracks state of charge for storage-hybrid using the storage-hybrid local and grid charging efficiencies:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>SOC_next = SOC
+         + storage_eff_storage_hybrid_p * STORAGE_IN_PLANT * hours_daily
+         + storage_eff_storage_hybrid_g * STORAGE_IN_GRID  * hours_daily
+         - GEN_STORAGE * hours_daily
+         - reserve losses
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">eq_storage_duration</span></code> limits <code class="docutils literal notranslate"><span class="pre">STORAGE_LEVEL</span></code> using <code class="docutils literal notranslate"><span class="pre">CAP_ENERGY</span></code> for battery, TES, and storage-hybrid technologies. New storage-hybrid builds also must satisfy the minimum energy duration constraint:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>CAP_ENERGY &gt;= CAP * bcr * min_storage_hybrid_duration
+</pre></div>
+</div>
+<p>The scalar <code class="docutils literal notranslate"><span class="pre">min_storage_hybrid_duration</span></code> is defined in <code class="docutils literal notranslate"><span class="pre">inputs/scalars.csv</span></code>.</p>
+</section>
+<section id="minimum-generation">
+<h3>Minimum Generation<a class="headerlink" href="#minimum-generation" title="Link to this heading"></a></h3>
+<p>For dispatchable-paired storage-hybrid configurations, <code class="docutils literal notranslate"><span class="pre">eq_mingen_fixed</span></code> applies minimum generation to <code class="docutils literal notranslate"><span class="pre">GEN_PLANT</span></code> rather than net <code class="docutils literal notranslate"><span class="pre">GEN</span></code>. This prevents storage charging or discharge from masking the generation-side minimum output constraint.</p>
+</section>
+</section>
+<section id="capacity-credit-and-reserve-margin">
+<h2>Capacity Credit and Reserve Margin<a class="headerlink" href="#capacity-credit-and-reserve-margin" title="Link to this heading"></a></h2>
+<p>Storage-hybrid energy capacity participates in storage capacity-credit logic with battery and TES technologies through <code class="docutils literal notranslate"><span class="pre">CAP_ENERGY</span></code>.</p>
+<p>The capacity credit treatment depends on the generation technology:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_vre(i)</span></code> uses the hybrid capacity-credit derate factor, similar to PVB, because its output is tied to VRE availability.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">storage_hybrid_dispatchable(i)</span></code> does not use the VRE-availability derate and contributes storage capacity through the storage capacity-credit bins.</p></li>
+</ul>
+<p>This distinction appears in both <code class="docutils literal notranslate"><span class="pre">eq_sdbin_power_limit</span></code> and <code class="docutils literal notranslate"><span class="pre">eq_reserve_margin</span></code>.</p>
+</section>
+<section id="objective-function-and-reporting">
+<h2>Objective Function and Reporting<a class="headerlink" href="#objective-function-and-reporting" title="Link to this heading"></a></h2>
+<p>The objective function separates plant-side and storage-side accounting.</p>
+<p>Investment costs include:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">INV</span> <span class="pre">*</span> <span class="pre">cost_cap</span> <span class="pre">*</span> <span class="pre">cost_cap_fin_mult</span></code> for the composed power capacity cost.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">INV_ENERGY</span> <span class="pre">*</span> <span class="pre">cost_cap_energy</span> <span class="pre">*</span> <span class="pre">cost_cap_fin_mult_storage_hybrid_s</span></code> for storage energy capacity.</p></li>
+</ul>
+<p>Operating costs include:</p>
+<ul class="simple">
+<li><p>Plant-side VOM on <code class="docutils literal notranslate"><span class="pre">GEN_PLANT</span></code> using generation-side <code class="docutils literal notranslate"><span class="pre">cost_vom</span></code>.</p></li>
+<li><p>Storage-side VOM on <code class="docutils literal notranslate"><span class="pre">GEN_STORAGE</span></code> using <code class="docutils literal notranslate"><span class="pre">cost_vom_storage_hybrid_s</span></code>.</p></li>
+<li><p>FOM on <code class="docutils literal notranslate"><span class="pre">CAP</span></code> using composed <code class="docutils literal notranslate"><span class="pre">cost_fom</span></code>.</p></li>
+<li><p>Energy-capacity FOM on <code class="docutils literal notranslate"><span class="pre">CAP_ENERGY</span></code> using <code class="docutils literal notranslate"><span class="pre">cost_fom_energy</span></code>.</p></li>
+<li><p>Fuel and emissions on <code class="docutils literal notranslate"><span class="pre">GEN_PLANT</span></code> for fuel-burning generation technologies.</p></li>
+</ul>
+<p>Production tax credit accounting subtracts storage charging from the grid so that credits are not earned on energy imported from the grid and re-exported through storage.</p>
+</section>
+<section id="outputs-to-inspect">
+<h2>Outputs to Inspect<a class="headerlink" href="#outputs-to-inspect" title="Link to this heading"></a></h2>
+<p>Storage-hybrid results appear in the same output files used for other generation and hybrid technologies. Useful files include:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Output file</p></th>
+<th class="head"><p>What to inspect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cap_ivrt.csv</span></code></p></td>
+<td><p>Power capacity, <code class="docutils literal notranslate"><span class="pre">CAP</span></code>, by technology, vintage, region, and year.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cap_energy_ivrt.csv</span></code></p></td>
+<td><p>Storage energy capacity, <code class="docutils literal notranslate"><span class="pre">CAP_ENERGY</span></code>, for battery, TES, and storage-hybrid technologies.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gen_h.csv</span></code></p></td>
+<td><p>Net generation after model-level hybrid accounting.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gen_plant_h.csv</span></code></p></td>
+<td><p>Generation-side output from hybrid plants.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gen_storage_h.csv</span></code></p></td>
+<td><p>Storage discharge from hybrid plants.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">storage_in_plant_h.csv</span></code></p></td>
+<td><p>Charging from the coupled generation technology. Values are reported as negative.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">storage_in_grid_h.csv</span></code></p></td>
+<td><p>Charging from the grid. Values are reported as negative.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">systemcost_techba.csv</span></code></p></td>
+<td><p>Tech/BA-level cost accounting, including storage-hybrid plant and storage-side costs.</p></td>
+</tr>
+</tbody>
+</table>
+<p>For storage-hybrid dispatch plots, <code class="docutils literal notranslate"><span class="pre">gen_plant_h.csv</span></code>, <code class="docutils literal notranslate"><span class="pre">gen_storage_h.csv</span></code>, <code class="docutils literal notranslate"><span class="pre">storage_in_plant_h.csv</span></code>, and <code class="docutils literal notranslate"><span class="pre">storage_in_grid_h.csv</span></code> are usually the most direct files to use.</p>
+</section>
+<section id="adding-a-new-storage-hybrid-scenario">
+<h2>Adding a New Storage-Hybrid Scenario<a class="headerlink" href="#adding-a-new-storage-hybrid-scenario" title="Link to this heading"></a></h2>
+<p>To configure a new storage-hybrid scenario:</p>
+<ol class="arabic simple">
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid</span></code> to <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p></li>
+<li><p>Choose one or more configuration IDs in <code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_Types</span></code>. Valid IDs are <code class="docutils literal notranslate"><span class="pre">1</span></code> through <code class="docutils literal notranslate"><span class="pre">8</span></code>.</p></li>
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_GenTechs</span></code> to the generation technologies to pair with storage.</p></li>
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_StorageTechs</span></code> to the storage technologies to pair with those generation technologies.</p></li>
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_BCR</span></code> to the storage power-to-generation power ratio for each configuration.</p></li>
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_GridCharging</span></code> to the grid-charging power-to-generation power ratio for each configuration.</p></li>
+<li><p>Confirm that all generation and storage technologies resolve to entries in <code class="docutils literal notranslate"><span class="pre">inputs/sets/i.csv</span></code> after case input copying.</p></li>
+<li><p>Run the case and inspect the generated files in <code class="docutils literal notranslate"><span class="pre">runs/&lt;case&gt;/inputs_case/</span></code> to confirm the mappings are what you intended.</p></li>
+</ol>
+<p>The preprocessing validation currently allows storage technology families whose labels begin with <code class="docutils literal notranslate"><span class="pre">battery</span></code>, <code class="docutils literal notranslate"><span class="pre">tes</span></code>, or <code class="docutils literal notranslate"><span class="pre">caes</span></code>, but the exact technology label must still resolve to a valid <code class="docutils literal notranslate"><span class="pre">i</span></code> technology in the copied case inputs.</p>
+</section>
+<section id="design-assumptions-and-current-limitations">
+<h2>Design Assumptions and Current Limitations<a class="headerlink" href="#design-assumptions-and-current-limitations" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Storage-hybrid configurations are generic slots, not separate named technologies for every possible generation-storage pair. The active slot-to-component mapping is controlled by case switches.</p></li>
+<li><p>The implementation supports up to eight active generic configurations without adding more <code class="docutils literal notranslate"><span class="pre">Storage-HybridN</span></code> entries.</p></li>
+<li><p>Each active configuration maps to exactly one generation technology and one storage technology.</p></li>
+<li><p>Generation-side attributes are partly propagated in preprocessing and partly inherited in GAMS through <code class="docutils literal notranslate"><span class="pre">storage_hybrid_gentech(i,ii)</span></code>.</p></li>
+<li><p>Storage-side attributes are inherited in GAMS through <code class="docutils literal notranslate"><span class="pre">storage_hybrid_stortech(i,ii)</span></code>.</p></li>
+<li><p>VRE-paired and dispatchable-paired storage-hybrids branch in several equations; new model logic that handles hybrid plants may need to decide whether it should apply to all storage-hybrids or only one branch.</p></li>
+<li><p>Thermal-storage configurations have special powerblock and efficiency treatment. Non-thermal-storage configurations use the simpler <code class="docutils literal notranslate"><span class="pre">gen</span> <span class="pre">+</span> <span class="pre">bcr</span> <span class="pre">*</span> <span class="pre">storage</span></code> power-capex composition.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">gridcharge_ratio</span></code> limits the ability to charge from the grid, but local charging from the coupled plant is still bounded by plant output and storage power capacity.</p></li>
+</ul>
+</section>
+<section id="key-implementation-files">
+<h2>Key Implementation Files<a class="headerlink" href="#key-implementation-files" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Role</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cases.csv</span></code></p></td>
+<td><p>Defines user-facing <code class="docutils literal notranslate"><span class="pre">GSw_StorageHybrid_*</span></code> switches.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">input_processing/copy_files.py</span></code></p></td>
+<td><p>Writes storage-hybrid mapping files and propagates generation-tech input rows.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">inputs/sets/storage_hybrid_config.csv</span></code></p></td>
+<td><p>Lists the generic <code class="docutils literal notranslate"><span class="pre">Storage-Hybrid1</span></code> through <code class="docutils literal notranslate"><span class="pre">Storage-Hybrid8</span></code> configurations.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">inputs/sets/i.csv</span></code></p></td>
+<td><p>Declares <code class="docutils literal notranslate"><span class="pre">Storage-HybridN</span></code> technologies and component technologies such as <code class="docutils literal notranslate"><span class="pre">tes_ms</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">inputs/tech-subset-table.csv</span></code></p></td>
+<td><p>Places <code class="docutils literal notranslate"><span class="pre">Storage-HybridN</span></code> technologies in storage, hybrid plant, and storage-hybrid subsets.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">inputs/storage_hybrid_powerblock_share.csv</span></code></p></td>
+<td><p>Defines powerblock cost shares for generation technologies that share a powerblock with storage discharge.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">b_inputs.gms</span></code></p></td>
+<td><p>Builds storage-hybrid sets, mappings, cost parameters, efficiencies, ramp rates, and operating parameters.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">d1_financials.gms</span></code></p></td>
+<td><p>Builds generation-side, storage-side, and aggregate financial multipliers.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">d1_temporal_params.gms</span></code></p></td>
+<td><p>Inherits storage-hybrid forced and scheduled outages from the configured generation technology.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">c_supplymodel.gms</span></code></p></td>
+<td><p>Defines dispatch, state-of-charge, grid charging, capacity credit, and reserve margin constraints.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">c_supplyobjective.gms</span></code></p></td>
+<td><p>Accounts for storage-hybrid investment, VOM, FOM, fuel, and tax credits in the objective.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">d3_data_dump.gms</span></code></p></td>
+<td><p>Dumps storage-hybrid energy capacity and investment for reporting/Augur inputs.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">e_report.gms</span></code></p></td>
+<td><p>Reports storage-hybrid generation, charging, storage discharge, and system costs.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="model_documentation.html" class="btn btn-neutral float-left" title="Model Documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="user_guide.html" class="btn btn-neutral float-right" title="User guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, NREL.
+      <span class="lastupdated">Last updated on May 08, 2026.
+      </span></p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
