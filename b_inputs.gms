@@ -6028,9 +6028,9 @@ resourcescaler(i)$csp(i) = CSP_SM(i) / csp_sm_baseline ;
 * storage discharge do not share a common powerblock.
 * Fractions in the CSV reflect ATB 2024 Table 6, GN-COA breakdown
 * (Abou-Jaoude et al. 2024, INL/RPT-24-77048):
-*   Code 23 (Energy Conversion System): Large=3.92%, SMR=3.86%
-*   Code 24 (Electrical Equipment):     Large=6.32%, SMR=9.46%
-*   Combined:                           Large=10.24%, SMR=13.32%
+*   Code 23 (Energy Conversion System): nuclear=3.92%, nuclear-SMR=3.86%
+*   Code 24 (Electrical Equipment):     nuclear=6.32%, nuclear-SMR=9.46%
+*   Combined:                           nuclear=10.24%, nuclear-SMR=13.32%
 parameter powerblock_share_storage_hybrid(i) "--unitless-- combined turbine-generator + electrical equipment cost share for the gen tech in a storage-hybrid plant"
 /
 $offlisting
@@ -6056,9 +6056,9 @@ cost_cap(i,t)$[storage_hybrid(i)$thermal_storage(i)] = (cost_cap_storage_hybrid_
                                  - powerblock_cost_storage_hybrid(i,t)
                                  + (1 + bcr(i)) * cost_cap_storage_hybrid_s(i,t)
                                  + gridcharge_ratio(i) * sum{ii$[storage_hybrid_stortech(i,ii)$heater_char(ii,t,"capcost")], heater_char(ii,t,"capcost") });
-cost_cap(i,t)$[storage_hybrid(i)$(not thermal_storage(i))] = cost_cap_storage_hybrid_p(i,t)
-                                 - powerblock_cost_storage_hybrid(i,t)
+cost_cap(i,t)$[storage_hybrid(i)$(not thermal_storage(i))$(not geo_storage(i))] = cost_cap_storage_hybrid_p(i,t)
                                  + bcr(i) * cost_cap_storage_hybrid_s(i,t) ;
+cost_cap(i,t)$[storage_hybrid(i)$geo_storage(i)] = cost_cap_storage_hybrid_p(i,t) + powerblock_cost_storage_hybrid(i,t)*bcr(i)
 
 * --- Storage Duration ---
 
