@@ -70,10 +70,10 @@ cost_cap_fin_mult_no_credits(i,r,t)$pvb(i) =
     + bcr(i) * (cost_cap_fin_mult_pvb_b_no_credits(i,r,t) - 1) * cost_cap_pvb_b(i,t))
     / (cost_cap_pvb_p(i,t) + bcr(i) * cost_cap_pvb_b(i,t)) + 1 ;
 
-* Assign "cost_cap_fin_mult" for storage_hybrid to be the weighted average of the nuclear and storage portions
+* Assign "cost_cap_fin_mult" for storage_hybrid to be the weighted average of the generation and storage portions
 * The weighting is based on:
-*   (1) the cost of each portion: nuclear=cost_cap_storage_hybrid_p; storage=cost_cap_storage_hybrid_s
-*   (2) the relative size of each portion: nuclear=1; storage=bcr
+*   (1) the cost of each portion: generation=cost_cap_storage_hybrid_p; storage=cost_cap_storage_hybrid_s
+*   (2) the relative size of each portion: generation=1; storage=bcr
 * The "-1" and "+1" values are needed because the multipliers are adjustments off of 1.0
 * cost_cap_fin_mult(i,r,t)$storage_hybrid(i) =
 *     ( (cost_cap_fin_mult_storage_hybrid_p(i,r,t) - 1) * cost_cap_storage_hybrid_p(i,t)
@@ -137,7 +137,7 @@ rsc_fin_mult_noITC(i,r,t)$dr_shed(i) = cost_cap_fin_mult_noITC(i,r,t)* dr_shed_c
 rsc_fin_mult(i,r,t)$ofswind(i) = cost_cap_fin_mult(i,r,t) * ofswind_rsc_mult(t,i) ;
 rsc_fin_mult_noITC(i,r,t)$ofswind(i) = cost_cap_fin_mult_noITC(i,r,t) ;
 
-* Assign the nuclear portion of storage_hybrid the value of nuclear
+* Assign the generation portion of storage_hybrid the configured gen tech multiplier
 * NOTE: This must happen BEFORE the trim step below, because the trim zeros out
 * cost_cap_fin_mult for component techs (nuclear-smr, tes-ms) that may not be
 * independently in valinv_irt for a given region.
@@ -151,10 +151,10 @@ cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t)$storage_hybrid(i) = sum{ii$ stor
 cost_cap_fin_mult_storage_hybrid_s_no_credits(i,r,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), cost_cap_fin_mult_no_credits(ii,r,t)} ;
 
 * The storage multipliers above use the standalone storage tech's financing_risk_mult.
-* For a hybrid nuclear+storage plant, the whole project carries nuclear-level financing risk,
-* so replace the storage tech's financing_risk_mult with the nuclear gentech's.
+* For a storage-hybrid plant, the whole project carries gen-tech-level financing risk,
+* so replace the storage tech's financing_risk_mult with the configured gen tech's.
 * financing_risk_mult is a simple multiplicative factor in cost_cap_fin_mult and _noITC,
-* so the adjustment is: adjusted_s = s * (nuclear_risk / storage_risk).
+* so the adjustment is: adjusted_s = s * (gen_risk / storage_risk).
 * _no_credits does not include financing_risk_mult, so no adjustment is needed.
 * Guard: skip adjustment if the storage tech has no financing_risk_mult (avoids division by zero).
 cost_cap_fin_mult_storage_hybrid_s(i,r,t)$[storage_hybrid(i)$sum{ii$storage_hybrid_stortech(i,ii), financing_risk_mult(ii,t)}] =
@@ -204,10 +204,10 @@ cost_cap_fin_mult(i,r,t)$[gas(i)$valcap_irt(i,r,t)] =
           ng_crf_penalty_nat(i,t) ) ;
 
 
-* Compute cost-weighted average of nuclear and storage financial multipliers.
+* Compute cost-weighted average of generation and storage financial multipliers.
 * The storage multipliers retain the storage tech's ccmult (IDC) and depreciation schedule
-* (5-year MACRS for storage vs 15-year for nuclear), but now carry nuclear financing risk.
-parameter storage_hybrid_cost_p(i,t)  "--$/MW-- nuclear-side cost weight for storage_hybrid"
+* (5-year MACRS for storage vs the gen tech schedule), but now carry gen-tech financing risk.
+parameter storage_hybrid_cost_p(i,t)  "--$/MW-- generation-side cost weight for storage_hybrid"
           storage_hybrid_cost_s(i,t) "--$/MW-- storage-side cost weight for storage_hybrid";
 
 * Default (non-thermal-storage): total capex = gen tech + bcr * storage,

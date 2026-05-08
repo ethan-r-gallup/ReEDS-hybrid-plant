@@ -74,7 +74,6 @@ repgasprice(cendiv,t)              "--$/mmBTU-- NG prices in ReEDS, the calculat
 repgasquant(cendiv,t)              "--mmBTU-- NG fuel usage in ReEDS - used to determine NG price"
 ret_ivrt(i,v,r,t)                  "--MW-- retirements of generation capacity"
 ret(i,v,r)                         "--MW-- retirements of generation capacity"
-rsc_dat_evmc(i,r,sc_cat,rscbin)    "--varies-- EVMC resource supply curve data"
 rsc_dat_filt(i,r,sc_cat,rscbin)    "--$/MW-- capital costs filtered for pumped-hydro so arbitrage value doesn't exceed capital costs"
 storage_eff_filt(i)                "--fraction-- storage efficiency filtered for the next solve year"
 upgrade_to_filt(i,ii)              "--set-- set linking upgrade techs to the tech the upgraded from filtered for existing upgrades"
@@ -269,8 +268,6 @@ minloadfrac_filt(r,i,szn)$[hydro(i)$cap_exist_ir(i,r)$szn_rep(szn)] =
 
 rsc_dat_filt(i,r,"cost",rscbin)$[storage_standalone(i)$cap_exist_ir(i,r)] = rsc_dat(i,r,"cost",rscbin) ;
 
-rsc_dat_evmc(i,r,"cost",rscbin)$evmc(i)  = sum{t$tnext(t), rsc_evmc(i,r,"cost",rscbin,t) };
-
 storage_eff_filt(i)$storage(i) = sum{t$tnext(t), storage_eff(i,t) } ;
 
 upgrade_to_filt(i,ii) = upgrade_to(i,ii)$cap_exist_i(i) ;
@@ -411,7 +408,6 @@ execute_unload 'ReEDS_Augur%ds%augur_data%ds%reeds_data_%cur_year%.gdx'
     ret
     ret_ivrt
     routes_filt
-    rsc_dat_evmc
     rsc_dat_filt
     sdbin
     storage_duration

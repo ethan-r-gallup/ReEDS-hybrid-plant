@@ -43,7 +43,7 @@ eq_ObjFn_inv(t)$tmodel(t)..
                                                         cost_cap_fin_mult(i,r,t) * cost_cap_energy(i,t) * INV_ENERGY(i,v,r,t)
                       }
 
-* storage_hybrid energy investment uses storage-specific multiplier (with nuclear financing risk)
+* storage_hybrid energy investment uses storage-specific multiplier with gen-tech financing risk
 * since cost_cap_energy is purely a storage cost
                   + sum{(i,v,r)$[valinv(i,v,r,t)$storage_hybrid(i)],
                        cost_cap_fin_mult_storage_hybrid_s(i,r,t) * cost_cap_energy(i,t) * INV_ENERGY(i,v,r,t)
@@ -68,10 +68,6 @@ eq_ObjFn_inv(t)$tmodel(t)..
 * However we apply the ITC to all transmission costs to be consistent with LBW format
                   + sum{(i,v,r,rscbin)$[m_rscfeas(r,i,rscbin)$valinv(i,v,r,t)$rsc_i(i)$(not spur_techs(i))],
                       m_rsc_dat(r,i,rscbin,"cost") * rsc_fin_mult(i,r,t) * sum{ii$rsc_agg(i,ii), INV_RSC(ii,v,r,rscbin,t) } }
-
-* ---cost of adopted EVMC---
-                  + sum{(i,v,r,rscbin)$[m_rscfeas(r,i,rscbin)$valinv(i,v,r,t)$evmc(i)],
-                      rsc_evmc(i,r,"cost",rscbin,t) * rsc_fin_mult(i,r,t) * INV_RSC(i,v,r,rscbin,t) }
 
 * ---cost of spur lines modeled explicitly---
 * NOTE: no rsc_fin_mult(i,r,t) here, but it's 1 for upv and wind-ons anyway
@@ -180,11 +176,11 @@ eq_Objfn_op(t)$tmodel(t)..
             + sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom_pvb_b(i,v,r,t)$pvb(i)],
                    hours(h) * cost_vom_pvb_b(i,v,r,t) * GEN_STORAGE(i,v,r,h,t) }$Sw_HybridPlant
 
-* hybrid nuclear (plant)
+* storage-hybrid plant side
             + sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom(i,v,r,t)$storage_hybrid(i)],
                    hours(h) * cost_vom(i,v,r,t) * GEN_PLANT(i,v,r,h,t) }$Sw_HybridPlant
 
-* hybrid nuclear (storage)
+* storage-hybrid storage side
             + sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom_storage_hybrid_s(i,v,r,t)$storage_hybrid(i)],
                    hours(h) * cost_vom_storage_hybrid_s(i,v,r,t) * GEN_STORAGE(i,v,r,h,t) }$Sw_HybridPlant
 

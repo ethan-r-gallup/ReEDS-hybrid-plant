@@ -371,7 +371,7 @@ $onlisting
 
 * Infer some forced outage rates from parent techs
 outage_forced_h(i,r,h)$pvb(i) = outage_forced_h("battery_li",r,h) ;
-outage_forced_h(i,r,h)$storage_hybrid(i) = outage_forced_h("nuclear",r,h) ;
+outage_forced_h(i,r,h)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), outage_forced_h(ii,r,h) } ;
 outage_forced_h(i,r,h)$geo(i) = outage_forced_h("geothermal",r,h) ;
 
 outage_forced_h(i,r,h)$[i_water_cooling(i)$Sw_WaterMain] =
@@ -392,7 +392,7 @@ $onlisting
 
 * Infer some scheduled outage rates from parent techs
 outage_scheduled_h(i,h)$pvb(i) = outage_scheduled_h("battery_li",h) ;
-outage_scheduled_h(i,h)$storage_hybrid(i) = outage_scheduled_h("nuclear",h) ;
+outage_scheduled_h(i,h)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), outage_scheduled_h(ii,h) } ;
 outage_scheduled_h(i,h)$geo(i) = outage_scheduled_h("geothermal",h) ;
 
 outage_scheduled_h(i,h)$[i_water_cooling(i)$Sw_WaterMain] =
@@ -774,19 +774,15 @@ $onlisting
 load_exog(r,allh,t) = 0 ;
 load_exog(r,h,t) = load_allyear(r,h,t) / (1.0 - distloss) ;
 
-* update PRM as needed to address unserved energy in PRAS
-$onempty
-parameter prm_stress(r,t) "--fraction-- planning reserve margin by BA, updated by stress_periods.py"
+parameter prm_year(r) "--fraction-- planning reserve margin for the current solve year"
 / 
 $offlisting
 $ondelim
-$include inputs_case%ds%stress%stress_year%%ds%prm_stress.csv
+$include inputs_case%ds%stress%stress_year%%ds%prm.csv
 $offdelim
 $onlisting
 / ;
-$offempty
-
-prm(r,t)$[prm_stress(r,t)] = prm_stress(r,t) ;
+prm(r,t)$tmodel(t) = prm_year(r) ;
 
 * Stress-period load is scaled up by PRM
 load_exog(r,h,t)$h_stress(h) = load_exog(r,h,t) * (1 + prm(r,t)) ;

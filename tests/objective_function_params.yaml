@@ -144,12 +144,14 @@ cost_vom_pvb_p:
   - hybrid_plant
   excludesets:
   - csp
+  - storage_hybrid
 cost_vom_pvb_b:
   indexsets:
   - valgen
   - hybrid_plant
   excludesets:
   - csp
+  - storage_hybrid
 cost_fom:
   indexsets:
   - valcap

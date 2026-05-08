@@ -1350,6 +1350,30 @@ def write_miscellaneous_files(
         'GSw_StorageHybrid_GenTechs',
     )
 
+    def _canon_i_label(value):
+        return str(value).strip().lower().replace('_', '-').replace(' ', '')
+
+    def _load_i_label_map():
+        techset_path = os.path.join(inputs_case, 'sets', 'i.csv')
+        techs = (
+            pd.read_csv(techset_path, header=None, comment='*', dtype=str, encoding='utf-8-sig')
+            .squeeze(1)
+            .dropna()
+            .astype(str)
+            .map(lambda x: x.strip())
+        )
+        techs = techs[techs != '']
+        return {_canon_i_label(t): t for t in techs}
+
+    storage_hybrid_i_label_map = _load_i_label_map()
+
+    def _storage_hybrid_tech_to_i_name(value, switch_name):
+        tech = str(value).strip()
+        canon = _canon_i_label(tech)
+        if canon in storage_hybrid_i_label_map:
+            return storage_hybrid_i_label_map[canon]
+        raise ValueError(f"{switch_name} entry {tech!r} not found in inputs/sets/i.csv.")
+
     pd.DataFrame(
         {
             '*storage-hybrid_type': [f'Storage-Hybrid{i}' for i in storage_hybrid_types],
@@ -1367,14 +1391,20 @@ def write_miscellaneous_files(
     pd.DataFrame(
         {
             '*storage-hybrid_type': [f'Storage-Hybrid{i}' for i in storage_hybrid_types],
-            'storage_type': [c.replace('-', '_') for c in storage_hybrid_storage_techs],
+            'storage_type': [
+                _storage_hybrid_tech_to_i_name(c, 'GSw_StorageHybrid_StorageTechs')
+                for c in storage_hybrid_storage_techs
+            ],
         }
     ).to_csv(os.path.join(inputs_case, 'storage_hybrid_storagetechs.csv'), index=False)
 
     pd.DataFrame(
         {
             '*storage-hybrid_type': [f'Storage-Hybrid{i}' for i in storage_hybrid_types],
-            'gen_tech': storage_hybrid_gen_techs,
+            'gen_tech': [
+                _storage_hybrid_tech_to_i_name(c, 'GSw_StorageHybrid_GenTechs')
+                for c in storage_hybrid_gen_techs
+            ],
         }
     ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gentechs.csv'), index=False)
 
@@ -1725,16 +1755,35 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
                     return stripped
         return None
 
-    def _read_csv_loose(path):
+    tech_canon_set = set(tech_canon_map.keys())
+
+    def _looks_like_tech_label(value):
+        text = str(value).strip()
+        canon = _canon_label(text)
+        if canon in tech_canon_set:
+            return True
+        if '*' in text:
+            return any(_canon_label(part) in tech_canon_set for part in text.split('*'))
+        return False
+
+    def _line_has_header(header_line):
+        try:
+            first_col = header_line.split(',')[0].strip()
+        except Exception:
+            return True
+        if first_col.lower() in {'i', '*i', 'tech', 'technology'}:
+            return True
+        return not _looks_like_tech_label(first_col)
+
+    def _read_csv_loose(path, has_header):
         return pd.read_csv(
             path,
+            header=0 if has_header else None,
             comment='#',
             dtype=str,
             keep_default_na=False,
             encoding='utf-8-sig',
         )
-
-    tech_canon_set = set(tech_canon_map.keys())
 
     def _looks_like_tech_column(series, min_nonempty=5, min_match_frac=0.6):
         values = series.astype(str).str.strip()
@@ -1798,12 +1847,15 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
             if not header_line:
                 continue
 
+            has_header = _line_has_header(header_line)
+
             try:
-                df = _read_csv_loose(fpath)
+                df = _read_csv_loose(fpath, has_header)
             except Exception:
                 continue
 
-            df = _normalize_headers(df, header_line)
+            if has_header:
+                df = _normalize_headers(df, header_line)
             tech_id_cols = [
                 col for col in df.columns
                 if (str(col).strip().lower() in {'i', '*i'})
@@ -1844,7 +1896,7 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
                     changed = True
 
             if changed:
-                df.to_csv(fpath, index=False)
+                df.to_csv(fpath, index=False, header=has_header)
                 n_files_modified += 1
 
     if n_files_modified:

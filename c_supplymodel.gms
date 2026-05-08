@@ -172,7 +172,6 @@ EQUATION
  eq_growthlimit_relative(i,st,t)          "--MW-- relative growth limit on technologies"
  eq_growthbin_limit(gbin,st,tg,t)         "--MW-- capacity limit for each growth bin"
  eq_growthlimit_absolute(tg,t)            "--MW-- absolute growth limit on technologies"
- eq_nucleargrowthlimit_absolute(i,t)      "--MW-- absolute growth limit on nuclear capacity additions"
 
 eq_interconnection_queues(tg,r,t)         "--MW-- capacity deployment limit based on interconnection queues"  
 
@@ -1034,8 +1033,6 @@ eq_rsc_INVlim(r,i,rscbin,t)$[tmodel(t)
         1$[not rsc_capacity_scalar_i(i)] + rsc_capacity_scalar(i,r,t)$rsc_capacity_scalar_i(i))
 * available hydro upgrade capacity
     + hyd_add_upg_cap(r,i,rscbin,t)$(Sw_HydroCapEnerUpgradeType=1)
-* available EVMC capacity
-    + rsc_evmc(i,r,"cap",rscbin,t)
 
     =g=
 
@@ -1105,25 +1102,6 @@ eq_growthlimit_absolute(tg,t)$[growth_limit_absolute(tg)$tmodel(t)
 * must exceed the total investment
      sum{(i,v,r)$[valinv(i,v,r,t)$tg_i(tg,i)],
           INV(i,v,r,t) }
-;
-
-* ---------------------------------------------------------------------------
-
-eq_nucleargrowthlimit_absolute(i,t)$[tmodel(t)
-                               $Sw_NuclearGrowthAbsCon
-                               $(yeart(t)>=firstyear(i))
-                               $(not Sw_PCM)
-                               $nuclear(i)]..
-
-* the absolute limit of growth (in MW)
-    (sum{tt$[tprev(tt,t)], yeart(tt) } - yeart(t))
-    * nuclear_growth_limit_absolute
-
-     =g=
-
-* must exceed the total investment
-    sum{(v,r)$[valinv(i,v,r,t)$nuclear(i)],
-        INV(i,v,r,t) }
 ;
 
 * ---------------------------------------------------------------------------
@@ -3144,12 +3122,12 @@ eq_storage_level(i,v,r,h,t)$[valgen(i,v,r,t)$storage(i)$tmodel(t)]..
     + storage_eff_pvb_g(i,t) * hours_daily(h) 
       * STORAGE_IN_GRID(i,v,r,h,t)$[pvb(i)$Sw_HybridPlant]
 
-*[plus] energy into hybrid nuclear+storage plant storage
-*nuclear+storage plant: plant charging
+*[plus] energy into storage-hybrid plant storage
+*storage-hybrid plant: plant charging
     + storage_eff_storage_hybrid_p(i,t) * hours_daily(h)
       * STORAGE_IN_PLANT(i,v,r,h,t)$[storage_hybrid(i)$Sw_HybridPlant]
 
-*nuclear+storage plant: grid charging
+*storage-hybrid plant: grid charging
     + storage_eff_storage_hybrid_g(i,t) * hours_daily(h) 
       * STORAGE_IN_GRID(i,v,r,h,t)$[storage_hybrid(i)$Sw_HybridPlant]
 

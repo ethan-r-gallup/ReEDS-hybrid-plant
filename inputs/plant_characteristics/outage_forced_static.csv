@@ -33,14 +33,11 @@ beccs_max,0.09
 CofireOld,0.07
 CofireNew,0.07
 lfill-gas,0.45
-ocean,0.07
 distpv,0
 pumped-hydro,0.04
 pumped-hydro-flex,0.04
 battery_li,0.02
 tes_ms,0.02
-CAES,0.03
-ice,0.01
 hydD,0.07
 hydND,0.07
 hydSD,0.07
