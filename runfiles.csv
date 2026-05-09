@@ -324,6 +324,7 @@ plantchar_fuelcell.csv,inputs/plant_characteristics/{plantchar_fuelcell}.csv,1,i
 plantchar_gas_ccs.csv,inputs/plant_characteristics/{plantchar_gas_ccs}.csv,1,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv
 plantchar_gas.csv,inputs/plant_characteristics/{plantchar_gas}.csv,1,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv
 plantchar_geo.csv,inputs/plant_characteristics/{plantchar_geo}.csv,int(sw.GSw_Geothermal) != 0,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv
+plantchar_flex_geo.csv,inputs/plant_characteristics/{plantchar_flex_geo}.csv,1,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv
 plantchar_h2combustion.csv,inputs/plant_characteristics/{plantchar_h2combustion}.csv,int(sw.GSw_H2Combustion) != 0,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv
 plantchar_hydro.csv,inputs/plant_characteristics/{plantchar_hydro}.csv,1,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv
 plantchar_nuclear_smr.csv,inputs/plant_characteristics/{plantchar_nuclear_smr}.csv,1,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv

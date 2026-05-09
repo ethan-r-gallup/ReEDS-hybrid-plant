@@ -453,6 +453,7 @@ set
   geo_extra(i)         "geothermal technologies not typically considered in model runs",
   geo_egs_allkm(i)     "egs (covering deep egs depths of all km) technologies",
   geo_egs_nf(i)        "egs (near-field) technologies",
+  geo_storage(i)       "in-reservoir geothermal storage technologies",
   h2_combustion(i)     "h2-ct and h2-cc technologies",
   h2_cc(i)             "h2-cc technologies"
   h2_ct(i)             "h2-ct technologies",
@@ -1011,6 +1012,7 @@ geo_egs(i)$(not ban(i))             = yes$i_subsets(i,'geo_egs') ;
 geo_extra(i)$(not ban(i))           = yes$i_subsets(i,'geo_extra') ;
 geo_egs_allkm(i)$(not ban(i))       = yes$i_subsets(i,'geo_egs_allkm') ;
 geo_egs_nf(i)$(not ban(i))          = yes$i_subsets(i,'geo_egs_nf') ;
+geo_storage(i)$(not ban(i))         = yes$i_subsets(i,'geo_storage') ;
 h2_combustion(i)$(not ban(i))       = yes$i_subsets(i,'h2_combustion') ;
 h2_cc(i)$(not ban(i))               = yes$i_subsets(i,'h2_cc') ;
 h2_ct(i)$(not ban(i))               = yes$i_subsets(i,'h2_ct') ;
@@ -1056,6 +1058,9 @@ vre_utility(i)$(not ban(i))         = yes$i_subsets(i,'vre_utility') ;
 vre(i)$(not ban(i))                 = yes$i_subsets(i,'vre') ;
 wind(i)$(not ban(i))                = yes$i_subsets(i,'wind') ;
 
+ban(i)$[geo_storage(i)$(not storage_hybrid(i))] = yes ;
+bannew(i)$[geo_storage(i)$(not storage_hybrid(i))] = yes ;
+
 set coal_noccs(i) "technologies that use coal and do not have CCS, aka unabated coal" ;
 coal_noccs(i)$[coal(i)$(not ccs(i))] = yes ; 
 
@@ -1072,6 +1077,7 @@ tg_i('battery',i)$battery(i) = yes ;
 tg_i('hydro',i)$hydro(i) = yes ;
 tg_i('h2',i)$h2_combustion(i) = yes ;
 tg_i('geothermal',i)$geo(i) = yes ;
+tg_i('geo-storage',i)$geo_storage(i) = yes ;
 tg_i('biomass',i)$bio(i) = yes ;
 tg_i('pumped-hydro',i)$psh(i) = yes ;
 tg_i('dr_shed',i)$dr_shed(i) = yes ;
@@ -1139,6 +1145,8 @@ storage_hybrid_with_tes(i)$(sum(ii$ (storage_hybrid_stortech(i,ii) and thermal_s
 tes(i)$storage_hybrid_with_tes(i) = yes ;
 thermal_storage(i)$storage_hybrid_with_tes(i) = yes ;
 
+geo_storage(i)$[storage_hybrid(i)$sum(ii$[storage_hybrid_stortech(i,ii)$geo_storage(ii)],1)] = yes ;
+
 * Storage-hybrid configs split by gen-tech behavior:
 * - storage_hybrid_vre(i): config's gen tech is variable renewable (uses m_cf for derating)
 * - storage_hybrid_dispatchable(i): config's gen tech is dispatchable (uses raw CAP)
@@ -1154,6 +1162,7 @@ storage_hybrid_dispatchable(i)$[storage_hybrid(i)$(not storage_hybrid_vre(i))] =
 * Inherit tech-group membership from each storage-hybrid config's gen tech so that downstream
 * group-keyed logic (valinv_tg, RPS state aggregations, etc.) recognizes the config.
 tg_i(tg,i)$[storage_hybrid(i)$sum{ii$storage_hybrid_gentech(i,ii), tg_i(tg,ii)}] = yes ;
+tg_i('geo-storage',i)$[storage_hybrid(i)$geo_storage(i)] = yes ;
 
 *add non-numeraire CSPs in index i of already defined set tg_i(tg,i)
 tg_i("csp",i)$[(csp1(i) or csp2(i) or csp3(i) or csp4(i))$Sw_WaterMain] = yes ;
@@ -6058,7 +6067,8 @@ cost_cap(i,t)$[storage_hybrid(i)$thermal_storage(i)] = (cost_cap_storage_hybrid_
                                  + gridcharge_ratio(i) * sum{ii$[storage_hybrid_stortech(i,ii)$heater_char(ii,t,"capcost")], heater_char(ii,t,"capcost") });
 cost_cap(i,t)$[storage_hybrid(i)$(not thermal_storage(i))$(not geo_storage(i))] = cost_cap_storage_hybrid_p(i,t)
                                  + bcr(i) * cost_cap_storage_hybrid_s(i,t) ;
-cost_cap(i,t)$[storage_hybrid(i)$geo_storage(i)] = cost_cap_storage_hybrid_p(i,t) + powerblock_cost_storage_hybrid(i,t)*bcr(i)
+cost_cap(i,t)$[storage_hybrid(i)$geo_storage(i)] = cost_cap_storage_hybrid_p(i,t)
+                                 + powerblock_cost_storage_hybrid(i,t) * bcr(i) ;
 
 * --- Storage Duration ---
 

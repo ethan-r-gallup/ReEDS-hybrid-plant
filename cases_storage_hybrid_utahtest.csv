@@ -12,9 +12,9 @@ GSw_SkipAugurYear,2030
 GSw_StorageHybrid,1
 GSw_StorageHybrid_Types,1_2_3_4_5_6
 GSw_StorageHybrid_GenTechs,nuclear_nuclear-smr_gas-cc_egs-allkm-1_upv-1_wind-ons-1
-GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_battery-li_battery-li_battery-li_battery-li
+GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_battery-li_flex-geo_battery-li_battery-li
 GSw_StorageHybrid_BCR,0.5_0.5_0.5_0.5_0.5_0.5
-GSw_StorageHybrid_GridCharging,0.0_0.0_0.0_0.0_0.0_0.0
+GSw_StorageHybrid_GridCharging,0.0_0.0_0.0_0.5_0.0_0.0
 GSw_Nuclear,1
 GSw_NuclearDemo,0
 GSw_Geothermal,1
@@ -51,6 +51,7 @@ plantchar_nuclear,nuclear_ATB_2024_advanced
 plantchar_nuclear_smr,nuclear-smr_ATB_2024_advanced
 plantchar_gas,gas_ATB_2024_moderate
 plantchar_geo,geo_ATB_2024_advanced
+plantchar_flex_geo,flex_geo_placeholder
 plantchar_upv,upv_ATB_2024_advanced
 plantchar_onswind,ons-wind_ATB_2024_advanced
 plantchar_battery,battery_ATB_2024_advanced

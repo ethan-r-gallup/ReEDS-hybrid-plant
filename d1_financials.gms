@@ -33,6 +33,12 @@ cost_cap_fin_mult_noITC(i,r,t) = ccmult(i,t) / (1.0 - tax_rate(t))
 
 cost_cap_fin_mult_no_credits(i,r,t) = ccmult(i,t) * (1 + reg_cap_cost_diff(i,r)) ;
 
+* flex_geo is a costless storage-side placeholder; all costs come from
+* storage-hybrid scaling in b_inputs.gms, so keep its own multipliers neutral.
+cost_cap_fin_mult(i,r,t)$sameas(i,'flex_geo') = 1 ;
+cost_cap_fin_mult_noITC(i,r,t)$sameas(i,'flex_geo') = 1 ;
+cost_cap_fin_mult_no_credits(i,r,t)$sameas(i,'flex_geo') = 1 ;
+
 * Assign the PV portion of PVB the value of UPV
 cost_cap_fin_mult_pvb_p(i,r,t)$pvb(i) =
     sum{ii$[upv(ii)$rsc_agg(ii,i)], cost_cap_fin_mult(ii,r,t) } ;
@@ -167,6 +173,11 @@ cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t)$[storage_hybrid(i)$sum{ii$storag
     * sum{ii$storage_hybrid_gentech(i,ii), financing_risk_mult(ii,t)}
     / sum{ii$storage_hybrid_stortech(i,ii), financing_risk_mult(ii,t)} ;
 
+* Geo-storage storage-side costs are derived from b_inputs.gms scaling, not from flex_geo.
+cost_cap_fin_mult_storage_hybrid_s(i,r,t)$[storage_hybrid(i)$geo_storage(i)] = 1 ;
+cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t)$[storage_hybrid(i)$geo_storage(i)] = 1 ;
+cost_cap_fin_mult_storage_hybrid_s_no_credits(i,r,t)$[storage_hybrid(i)$geo_storage(i)] = 1 ;
+
 * Trim the cost_cap_fin_mult parameters to reduce file sizes
 cost_cap_fin_mult(i,r,t)$[(not valinv_irt(i,r,t))$(not upgrade(i))
                          $(not sum{(v,rscbin), allow_cap_up(i,v,r,rscbin,t) })
@@ -222,6 +233,10 @@ storage_hybrid_cost_p(i,t)$[storage_hybrid(i)$thermal_storage(i)] = cost_cap_sto
 
 storage_hybrid_cost_s(i,t)$[storage_hybrid(i)$thermal_storage(i)] = (1 + bcr(i)) * cost_cap_storage_hybrid_s(i,t)
     + gridcharge_ratio(i) * sum{ii$[storage_hybrid_stortech(i,ii)$heater_char(ii,t,"capcost")], heater_char(ii,t,"capcost") };
+
+* Geo-storage: align with cost_cap(i,t) composition
+storage_hybrid_cost_p(i,t)$[storage_hybrid(i)$geo_storage(i)] = cost_cap_storage_hybrid_p(i,t);
+storage_hybrid_cost_s(i,t)$[storage_hybrid(i)$geo_storage(i)] = bcr(i) * powerblock_cost_storage_hybrid(i,t);
 
 cost_cap_fin_mult(i,r,t)$[storage_hybrid(i)$valinv_irt(i,r,t)] =
     (storage_hybrid_cost_p(i,t) * cost_cap_fin_mult_storage_hybrid_p(i,r,t)
