@@ -1,4 +1,4 @@
-,storagehybrid_utah
+,geo_adv_con_utah
 timetype,seq
 endyear,2030
 yearset,2010_2020_2030
@@ -49,6 +49,7 @@ ivt_suffix,small
 numhintage,1
 plantchar_nuclear,nuclear_ATB_2024_conservative
 plantchar_nuclear_smr,nuclear-smr_ATB_2024_conservative
+plantchar_gas,gas_ATB_2024_moderate
 plantchar_geo,geo_ATB_2024_advanced
 plantchar_flex_geo,flex_geo_placeholder
 plantchar_upv,upv_ATB_2024_conservative
