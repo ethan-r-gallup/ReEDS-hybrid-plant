@@ -349,6 +349,7 @@ RelativeFilePath,RelativeFolderPath,FileName_new,FileExtension,Description_new,I
 /inputs/plant_characteristics/dr_shed_vom.csv,/inputs/plant_characteristics,dr_shed_vom,.csv,,,,,,
 /inputs/plant_characteristics/evmc_shape_Baseline.csv,/inputs/plant_characteristics,evmc_shape_Baseline,.csv,,,,,,
 /inputs/plant_characteristics/evmc_storage_Baseline.csv,/inputs/plant_characteristics,evmc_storage_Baseline,.csv,,,,,,
+/inputs/plant_characteristics/flex_geo_placeholder.csv,/inputs/plant_characteristics,flex_geo_placeholder,.csv,Costless placeholder plant characteristics for in-reservoir geothermal pressure storage used as a storage-hybrid storage technology,"i,t",2022,N/A,Inputs,
 /inputs/plant_characteristics/gas-ccs_ATB_2024_advanced.csv,/inputs/plant_characteristics,gas-ccs_ATB_2024_advanced,.csv,,,,,,
 /inputs/plant_characteristics/gas-ccs_ATB_2024_conservative.csv,/inputs/plant_characteristics,gas-ccs_ATB_2024_conservative,.csv,,,,,,
 /inputs/plant_characteristics/gas-ccs_ATB_2024_moderate.csv,/inputs/plant_characteristics,gas-ccs_ATB_2024_moderate,.csv,,,,,,

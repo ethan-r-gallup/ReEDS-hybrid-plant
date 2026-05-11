@@ -1,5 +1,6 @@
 i,region_type
 battery_li,p
+flex_geo,p
 biopower,p
 beccs_mod,p
 beccs_max,p

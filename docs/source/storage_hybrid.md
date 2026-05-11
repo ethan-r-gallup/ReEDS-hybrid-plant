@@ -1,6 +1,6 @@
 # Storage-Hybrid Technology
 
-This page documents the `storage-hybrid` technology family in ReEDS. A storage-hybrid technology represents a paired generation and storage resource where the generation technology can be any configured ReEDS generation technology and the storage technology can be any configured storage technology that is valid for the storage-hybrid workflow.
+This page documents the `storage-hybrid` technology family in ReEDS. A storage-hybrid technology represents a paired generation and storage resource where the generation technology can be any configured ReEDS generation technology and the storage technology can be any configured storage technology that is valid for the storage-hybrid workflow. The `geo-storage` subset is a storage-side specialization for in-reservoir geothermal pressure storage, represented by the `flex_geo` placeholder technology.
 
 Storage-hybrid was generalized from an earlier nuclear-plus-storage representation. The current implementation no longer assumes that the plant side is nuclear. Instead, each active storage-hybrid configuration explicitly maps one generic `Storage-HybridN` technology to one generation technology and one storage technology.
 
@@ -40,7 +40,7 @@ Storage-hybrid is configured through the case switches in `cases.csv`:
 | `GSw_StorageHybrid` | Turns storage-hybrid on (`1`) or off (`0`). | `1` |
 | `GSw_StorageHybrid_Types` | `_`-delimited list of configuration IDs from 1 to 8. | `1_2_3` |
 | `GSw_StorageHybrid_GenTechs` | `_`-delimited generation technologies to pair with storage. | `nuclear_nuclear-smr_upv-1` |
-| `GSw_StorageHybrid_StorageTechs` | `_`-delimited storage technologies to pair with generation. | `tes-ms_tes-ms_battery-li` |
+| `GSw_StorageHybrid_StorageTechs` | `_`-delimited storage technologies to pair with generation. | `tes-ms_tes-ms_battery-li_flex-geo` |
 | `GSw_StorageHybrid_BCR` | `_`-delimited storage power capacity ratio relative to generation capacity. | `0.5_0.5_1.0` |
 | `GSw_StorageHybrid_GridCharging` | `_`-delimited grid-charging power capacity ratio relative to generation capacity. | `0.0_0.5_1.0` |
 
@@ -50,9 +50,9 @@ The list-valued switches must either provide one value or the same number of val
 GSw_StorageHybrid,1
 GSw_StorageHybrid_Types,1_2_3_4_5_6
 GSw_StorageHybrid_GenTechs,nuclear_nuclear-smr_gas-cc_egs-allkm-1_upv-1_wind-ons-1
-GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_battery-li_battery-li_battery-li_battery-li
+GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_battery-li_flex-geo_battery-li_battery-li
 GSw_StorageHybrid_BCR,0.5_0.5_0.5_0.5_0.5_0.5
-GSw_StorageHybrid_GridCharging,0.0_0.0_0.0_0.0_0.0_0.0
+GSw_StorageHybrid_GridCharging,0.0_0.0_0.0_0.5_0.0_0.0
 ```
 
 This example activates six configurations:
@@ -62,11 +62,11 @@ This example activates six configurations:
 | `Storage-Hybrid1` | `nuclear` | `tes_ms` | 0.5 | 0.0 |
 | `Storage-Hybrid2` | `nuclear-smr` | `tes_ms` | 0.5 | 0.0 |
 | `Storage-Hybrid3` | `gas-cc` | `battery_li` | 0.5 | 0.0 |
-| `Storage-Hybrid4` | `egs-allkm-1` | `battery_li` | 0.5 | 0.0 |
+| `Storage-Hybrid4` | `egs-allkm-1` | `flex_geo` | 0.5 | 0.5 |
 | `Storage-Hybrid5` | `upv-1` | `battery_li` | 0.5 | 0.0 |
 | `Storage-Hybrid6` | `wind-ons-1` | `battery_li` | 0.5 | 0.0 |
 
-Hyphens and underscores in switch labels are canonicalized during preprocessing. For example, `battery-li` resolves to the `battery_li` technology if that technology exists in `inputs_case/sets/i.csv`.
+Hyphens and underscores in switch labels are canonicalized during preprocessing. For example, `battery-li` resolves to the `battery_li` technology and `flex-geo` resolves to `flex_geo` if those technologies exist in `inputs_case/sets/i.csv`.
 
 ## Preprocessing
 
@@ -106,12 +106,15 @@ The core storage-hybrid sets are built in `b_inputs.gms`.
 | `storage_hybrid_stortech(i,ii)` | Storage technology used by storage-hybrid technology `i`. |
 | `storage_hybrid_active(i)` | Active configs inferred from nonempty `storage_hybrid_gentech(i,ii)`. |
 | `storage_hybrid_with_tes(i)` | Storage-hybrid configs whose storage technology is in `thermal_storage`. |
+| `geo_storage(i)` | Raw `flex_geo` and storage-hybrid configs whose storage technology is in `geo-storage`. |
 | `storage_hybrid_vre(i)` | Storage-hybrid configs whose generation technology is VRE. |
 | `storage_hybrid_dispatchable(i)` | Storage-hybrid configs whose generation technology is not VRE. |
 
 `storage_hybrid_vre(i)` and `storage_hybrid_dispatchable(i)` are important because they drive dispatch, reserve margin, and capacity-credit behavior. VRE-paired storage-hybrids behave like VRE hybrid plants with output availability derated by `m_cf`. Dispatchable-paired storage-hybrids use full nameplate capacity in the hybrid plant energy limit.
 
 Storage-hybrid technologies also inherit technology-group membership through `tg_i(tg,i)` from their configured generation technology. This keeps downstream group-keyed logic, such as investment grouping and policy aggregation, aware of the hybrid configuration's generation-side identity.
+
+Storage-hybrid configurations whose storage technology is in `geo-storage` also enter the `geo-storage` technology group. Raw `flex_geo` is banned from direct builds; it is only intended to act as the storage-side component of a storage-hybrid configuration.
 
 ## Cost and Performance Inheritance
 
@@ -145,6 +148,8 @@ cost_cap = gen capex - shared powerblock capex
 
 The shared powerblock subtraction is controlled by `inputs/storage_hybrid_powerblock_share.csv`. It currently provides nonzero turbine-generator plus electrical equipment shares for `nuclear` and `nuclear-smr`. Generation technologies without an explicit row default to zero powerblock subtraction.
 
+For geo-storage configurations, raw `flex_geo` has no inherent power-capacity cost. The storage-side power-capacity cost is instead represented by `bcr * powerblock_cost_storage_hybrid`, while energy-capacity cost remains separate through `cost_cap_energy(i,t)`.
+
 Storage energy capacity cost remains separate through `cost_cap_energy(i,t)` and is applied to `INV_ENERGY(i,v,r,t)`.
 
 ### Fixed and Variable O&M
@@ -171,6 +176,8 @@ Storage-hybrid has separate financial multiplier parameters for the generation a
 The generation-side multiplier is inherited from the configured generation technology. The storage-side multiplier starts from the configured storage technology, then adjusts financing risk so that the storage side carries the configured generation technology's financing risk. The storage side still keeps storage-specific items such as IDC and depreciation schedule.
 
 The aggregate `cost_cap_fin_mult(i,r,t)` for `INV` is a cost-weighted average of the generation-side and storage-side multipliers. Energy investment, `INV_ENERGY`, uses the storage-side multiplier because `cost_cap_energy(i,t)` is purely a storage energy-capacity cost.
+
+For `flex_geo`, the raw technology financial multipliers are kept neutral at `1`. For storage-hybrid configurations in `geo-storage`, the storage-side financial multiplier families are also kept at `1` because the storage-side costs come from the storage-hybrid scaling rather than from standalone `flex_geo` financial assumptions.
 
 ### Operational Parameters
 
@@ -238,6 +245,8 @@ CAP * gridcharge_ratio >= STORAGE_IN_GRID
 ```
 
 A `gridcharge_ratio` of `0` disables grid charging for that configuration.
+
+Geo-storage storage-hybrid configurations are constrained to charge only from the grid. `eq_storage_hybrid_geo_storage_grid_only` sets `STORAGE_IN_PLANT` to zero for storage-hybrid technologies in `geo_storage(i)`, while `eq_cap_storage_in_grid` still limits grid charging by `gridcharge_ratio`.
 
 ### Storage State of Charge
 
@@ -323,7 +332,7 @@ To configure a new storage-hybrid scenario:
 7. Confirm that all generation and storage technologies resolve to entries in `inputs/sets/i.csv` after case input copying.
 8. Run the case and inspect the generated files in `runs/<case>/inputs_case/` to confirm the mappings are what you intended.
 
-The preprocessing validation currently allows storage technology families whose labels begin with `battery`, `tes`, or `caes`, but the exact technology label must still resolve to a valid `i` technology in the copied case inputs.
+The preprocessing validation currently allows storage technology families whose labels begin with `battery`, `tes`, `caes`, or `flex`, but the exact technology label must still resolve to a valid `i` technology in the copied case inputs.
 
 ## Design Assumptions and Current Limitations
 
@@ -334,7 +343,7 @@ The preprocessing validation currently allows storage technology families whose 
 - Storage-side attributes are inherited in GAMS through `storage_hybrid_stortech(i,ii)`.
 - VRE-paired and dispatchable-paired storage-hybrids branch in several equations; new model logic that handles hybrid plants may need to decide whether it should apply to all storage-hybrids or only one branch.
 - Thermal-storage configurations have special powerblock and efficiency treatment. Non-thermal-storage configurations use the simpler `gen + bcr * storage` power-capex composition.
-- `gridcharge_ratio` limits the ability to charge from the grid, but local charging from the coupled plant is still bounded by plant output and storage power capacity.
+- `gridcharge_ratio` limits the ability to charge from the grid. Local charging from the coupled plant is still bounded by plant output and storage power capacity, except for geo-storage configurations, where local plant charging is disabled.
 
 ## Key Implementation Files
 
@@ -345,6 +354,7 @@ The preprocessing validation currently allows storage technology families whose 
 | `inputs/sets/storage_hybrid_config.csv` | Lists the generic `Storage-Hybrid1` through `Storage-Hybrid8` configurations. |
 | `inputs/sets/i.csv` | Declares `Storage-HybridN` technologies and component technologies such as `tes_ms`. |
 | `inputs/tech-subset-table.csv` | Places `Storage-HybridN` technologies in storage, hybrid plant, and storage-hybrid subsets. |
+| `inputs/plant_characteristics/flex_geo_placeholder.csv` | Defines the costless `flex_geo` placeholder used for geo-storage storage-hybrid configurations. |
 | `inputs/storage_hybrid_powerblock_share.csv` | Defines powerblock cost shares for generation technologies that share a powerblock with storage discharge. |
 | `b_inputs.gms` | Builds storage-hybrid sets, mappings, cost parameters, efficiencies, ramp rates, and operating parameters. |
 | `d1_financials.gms` | Builds generation-side, storage-side, and aggregate financial multipliers. |

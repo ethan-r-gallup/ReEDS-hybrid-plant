@@ -324,6 +324,7 @@ eq_interconnection_queues(tg,r,t)         "--MW-- capacity deployment limit base
  eq_hybrid_plant_storage_limit(i,v,r,allh,t)     "--MW-- storage charging from the plant cannot exceed plant generation"
  eq_pvb_itc_charge_reqt(i,v,r,t)                 "--MWh-- total energy charged from local PV >= ITC qualification fraction * total energy charged"
  eq_cap_storage_in_grid(i,v,r,allh,t)            "--MW-- storage charging from the grid cannot exceed the capacity of the storage system to charge from the grid"
+ eq_storage_hybrid_geo_storage_grid_only(i,v,r,allh,t) "--MW-- in-reservoir geo storage hybrids cannot charge from the coupled plant"
 
 * Canadian imports balance
  eq_Canadian_Imports(r,allszn,t)          "--MWh-- Balance of Canadian imports by season"
@@ -3456,6 +3457,14 @@ eq_cap_storage_in_grid(i,v,r,h,t)$[storage_hybrid(i)$hybrid_plant(i)$(not csp(i)
     =g=
 
     STORAGE_IN_GRID(i,v,r,h,t)
+;
+
+eq_storage_hybrid_geo_storage_grid_only(i,v,r,h,t)$[storage_hybrid(i)$geo_storage(i)$hybrid_plant(i)$(not csp(i))$tmodel(t)$valgen(i,v,r,t)$valcap(i,v,r,t)$Sw_HybridPlant]..
+    STORAGE_IN_PLANT(i,v,r,h,t)
+
+    =e=
+
+    0
 ;
 
 eq_hybrid_storage_capacity_limit(i,v,r,h,t)$[hybrid_plant(i)$(not csp(i))$tmodel(t)$valgen(i,v,r,t)$valcap(i,v,r,t)$Sw_HybridPlant]..
