@@ -146,7 +146,7 @@ GSw_GasCC_H_2x1,Turn on/off both gas-CC_H_2x1 and gas-CC_H_2x1-CCS_mod/max plant
 GSw_GasCT_Aero,Turn on/off gas-CT_aeroderivative technology option,0; 1,0,
 GSw_GasSector,Select sector scope of gas curves,electric_sector; energy_sector,electric_sector,
 GSw_GenMandate,Turn on/off national Gen Requirement. 2 turns on and applies constraint at busbar.,0; 1; 2,0,
-GSw_GenMandateList,Select technology list for national generation standard (see inputs/national_generation/nat_gen_tech_frac.csv),RE; Nuclear; NuclearCCS,RE,
+GSw_GenMandateList,Select technology list for national generation standard (see inputs/national_generation/nat_gen_tech_frac.csv),RE; Nuclear; NuclearCCS; Geo,RE,
 GSw_GenMandateScen,Select trajectory for national generation standard (see inputs/national_generation/gen_mandate_trajectory.csv),N/A,100_2035,
 GSw_Geothermal,"Geothermal can be turned off [0], left to the default representation [1], or have an extended representation [2]",0; 1; 2,1,
 GSw_gopt,Select opt file to be used,N/A,1,
