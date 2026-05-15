@@ -1,0 +1,25 @@
+,Description,Default Value,geo_ctrl_base,geo_test_base,geo_ctrl_cap90,geo_test_cap90,geo_ctrl_demand,geo_test_demand,geo_ctrl_market_opp_low,geo_test_market_opp_low,geo_ctrl_geo_price_adv,geo_test_geo_price_adv,geo_ctrl_mandate,geo_test_mandate
+ignore,"0=run this case, 1=ignore this case",0,,,,,,,,,,,,
+timetype,Sequential or Intertemporal,seq,,,,,,,,,,,,
+GSw_StorageHybrid,,1,0,,0,,0,,0,,0,,0,
+GSw_StorageHybrid_Types,,1_2_3_4_5_6,,,,,,,,,,,,
+GSw_StorageHybrid_StorageTechs,,flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo,,,,,,,,,,,,
+GSw_StorageHybrid_GenTechs,,egs-allkm_egs-allkm_egs-allkm_egs-nearfield_egs-nearfield_egs-nearfield,,,,,,,,,,,,
+GSw_StorageHybrid_BCR,,0.15_0.30_0.60_0.15_0.30_0.60,,,,,,,,,,,,
+GSw_StorageHybrid_GridCharging,,1.0_1.0_1.0_1.0_1.0_1.0,,,,,,,,,,,,
+GSw_GenMandate,,0,,,,,,,,,,,1,1
+GSw_GenMandateList,,Geo,,,,,,,,,,,Geo,Geo
+GSw_interpolate_mandates,,0,,,,,,,,,,,2035-0.06_2050-0.08,2035-0.06_2050-0.08
+GSw_AnnualCap,CO2/CO2e emission cap. Turn off cap (0) or turn on CO2 only cap (1) or turn on CO2e cap (2) or include H2 leakage in CO2e cap (3),0,,,2,2,,,,,,,,
+GSw_AnnualCapScen,Scenario for CO2 cap pathway (see inputs\emission_constraints\co2_cap.csv),default,,,90_by_2050,90_by_2050,,,,,,,,
+GSw_LoadProfiles,Switch to choose electricity profiles,EER2025_IRAlow,,,,,EER2025_100by2050,EER2025_100by2050,,,,,,
+GSw_InterDayLinkage,Turn on (1) or off (0) the ability for interday storage techs (specified in tech-subset-table.csv) to shift energy between representative days (non-interday techs are unaffected),1,,,,,,,,,,,,
+GSw_NewValCapShrink,switch to shrink valcap and related conditioning sets post-solve,1,,,,,,,,,,,,
+GSw_PRM_StressIterateMax,Max number of times to iterate on a given solve year to achieve GSw_PRM_StressThreshold when using stress periods (0 means don't iterate; 1 means 1 extra ReEDS run; etc),3,,,,,,,,,,,,
+plantchar_battery,,battery_ATB_2024_moderate,,,,,,,battery_ATB_2024_advanced,battery_ATB_2024_advanced,,,,
+plantchar_onswind,,ons-wind_ATB_2024_moderate,,,,,,,ons-wind_ATB_2024_advanced,ons-wind_ATB_2024_advanced,,,,
+plantchar_h2combustion,,h2-combustion_ATB_2024_moderate,,,,,,,h2-combustion_ATB_2024_advanced,h2-combustion_ATB_2024_advanced,,,,
+plantchar_upv,,upv_ATB_2024_moderate,,,,,,,upv_ATB_2024_advanced,upv_ATB_2024_advanced,,,,
+plantchar_geo,,geo_ATB_2024_moderate,,,,,,,,,geo_ATB_2024_advanced,geo_ATB_2024_advanced,,
+reg_cap_cost_diff_suffix,,default,,,,,,,,,,,,
+GSw_TransInvMaxLongTerm,[TW-mile/year] maximum transmission capacity investment per year IN/AFTER firstyear_trans_longterm (0 = unlimited),0,,,,,,,,,,,,
