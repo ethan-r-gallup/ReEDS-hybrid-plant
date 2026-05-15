@@ -9,7 +9,7 @@ GSw_StorageHybrid_BCR,,0.15_0.30_0.60_0.15_0.30_0.60,,,,,,,,,,,,
 GSw_StorageHybrid_GridCharging,,1.0_1.0_1.0_1.0_1.0_1.0,,,,,,,,,,,,
 GSw_GenMandate,,0,,,,,,,,,,,1,1
 GSw_GenMandateList,,Geo,,,,,,,,,,,Geo,Geo
-GSw_interpolate_mandates,,0,,,,,,,,,,,2035-0.06_2050-0.08,2035-0.06_2050-0.08
+GSw_GenMandateScen,,0,,,,,,,,,,,focapo_6pct2035_8pct2050,focapo_6pct2035_8pct2050
 GSw_AnnualCap,CO2/CO2e emission cap. Turn off cap (0) or turn on CO2 only cap (1) or turn on CO2e cap (2) or include H2 leakage in CO2e cap (3),0,,,2,2,,,,,,,,
 GSw_AnnualCapScen,Scenario for CO2 cap pathway (see inputs\emission_constraints\co2_cap.csv),default,,,90_by_2050,90_by_2050,,,,,,,,
 GSw_LoadProfiles,Switch to choose electricity profiles,EER2025_IRAlow,,,,,EER2025_100by2050,EER2025_100by2050,,,,,,
