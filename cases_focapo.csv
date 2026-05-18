@@ -2,11 +2,11 @@
 ignore,"0=run this case, 1=ignore this case",0,,,,,,,,,,,,
 timetype,Sequential or Intertemporal,seq,,,,,,,,,,,,
 GSw_StorageHybrid,,1,0,,0,,0,,0,,0,,0,
-GSw_StorageHybrid_Types,,1_2_3_4_5_6,,,,,,,,,,,,
-GSw_StorageHybrid_StorageTechs,,flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo,,,,,,,,,,,,
-GSw_StorageHybrid_GenTechs,,egs-allkm_egs-allkm_egs-allkm_egs-nearfield_egs-nearfield_egs-nearfield,,,,,,,,,,,,
-GSw_StorageHybrid_BCR,,0.15_0.30_0.60_0.15_0.30_0.60,,,,,,,,,,,,
-GSw_StorageHybrid_GridCharging,,1.0_1.0_1.0_1.0_1.0_1.0,,,,,,,,,,,,
+GSw_StorageHybrid_Types,,1_2_3_4_5_6_7_8_9_10_11_12_13_14_15_16_17_18_19_20_21_22_23_24_25_26_27_28_29_30_31_32_33_34_35_36_37_38_39_40_41_42_43_44_45_46_47_48_49_50_51_52_53_54_55_56_57_58_59_60,,,,,,,,,,,,
+GSw_StorageHybrid_StorageTechs,,flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_flex-geo,,,,,,,,,,,,
+GSw_StorageHybrid_GenTechs,,egs_allkm_1_egs_allkm_2_egs_allkm_3_egs_allkm_4_egs_allkm_5_egs_allkm_6_egs_allkm_7_egs_allkm_8_egs_allkm_9_egs_allkm_10_egs_nearfield_1_egs_nearfield_2_egs_nearfield_3_egs_nearfield_4_egs_nearfield_5_egs_nearfield_6_egs_nearfield_7_egs_nearfield_8_egs_nearfield_9_egs_nearfield_10,,,,,,,,,,,,
+GSw_StorageHybrid_BCR,,0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60_0.15_0.30_0.60,,,,,,,,,,,,
+GSw_StorageHybrid_GridCharging,,1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0_1.0,,,,,,,,,,,,
 GSw_GenMandate,,0,,,,,,,,,,,1,1
 GSw_GenMandateList,,Geo,,,,,,,,,,,Geo,Geo
 GSw_GenMandateScen,,0,,,,,,,,,,,focapo_6pct2035_8pct2050,focapo_6pct2035_8pct2050
