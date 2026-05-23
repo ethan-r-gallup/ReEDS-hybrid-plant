@@ -33,11 +33,11 @@ cost_cap_fin_mult_noITC(i,r,t) = ccmult(i,t) / (1.0 - tax_rate(t))
 
 cost_cap_fin_mult_no_credits(i,r,t) = ccmult(i,t) * (1 + reg_cap_cost_diff(i,r)) ;
 
-* flex_geo is a costless storage-side placeholder; all costs come from
-* storage-hybrid scaling in b_inputs.gms, so keep its own multipliers neutral.
-cost_cap_fin_mult(i,r,t)$sameas(i,'flex_geo') = 1 ;
-cost_cap_fin_mult_noITC(i,r,t)$sameas(i,'flex_geo') = 1 ;
-cost_cap_fin_mult_no_credits(i,r,t)$sameas(i,'flex_geo') = 1 ;
+* Raw geo_storage technologies are costless storage-side placeholders; all costs
+* come from storage-hybrid scaling in b_inputs.gms, so keep their multipliers neutral.
+cost_cap_fin_mult(i,r,t)$[geo_storage(i)$(not storage_hybrid(i))] = 1 ;
+cost_cap_fin_mult_noITC(i,r,t)$[geo_storage(i)$(not storage_hybrid(i))] = 1 ;
+cost_cap_fin_mult_no_credits(i,r,t)$[geo_storage(i)$(not storage_hybrid(i))] = 1 ;
 
 * Assign the PV portion of PVB the value of UPV
 cost_cap_fin_mult_pvb_p(i,r,t)$pvb(i) =

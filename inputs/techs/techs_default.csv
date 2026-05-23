@@ -69,3 +69,6 @@ smr,p
 smr_ccs,p
 dac,p
 dac_gas,p
+flex_geo_high,p
+flex_geo_med,p
+flex_geo_low,p

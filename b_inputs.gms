@@ -466,14 +466,6 @@ set
   nondispatch(i)       "technologies that are not dispatchable"
   nuclear(i)           "nuclear technologies",
   storage_hybrid(i)      "generation technologies paired with storage",
-  storage_hybrid1(i)     "generation technologies paired with storage type 1",
-  storage_hybrid2(i)     "generation technologies paired with storage type 2",
-  storage_hybrid3(i)     "generation technologies paired with storage type 3",
-  storage_hybrid4(i)     "generation technologies paired with storage type 4",
-  storage_hybrid5(i)     "generation technologies paired with storage type 5",
-  storage_hybrid6(i)     "generation technologies paired with storage type 6",
-  storage_hybrid7(i)     "generation technologies paired with storage type 7",
-  storage_hybrid8(i)     "generation technologies paired with storage type 8",
   ofswind(i)           "offshore wind technologies",
   ogs(i)               "oil-gas-steam technologies",
   onswind(i)           "onshore wind technologies",
@@ -882,15 +874,6 @@ bannew(i)$[sum{ctt_i_ii(i,'Nuclear'), i_ctt(i,'d') }] = YES ;
 bannew(i)$[sum{ctt_i_ii(i,'coal-CCS_mod'), i_ctt(i,'d') }] = YES ;
 bannew(i)$[sum{ctt_i_ii(i,'coal-CCS_max'), i_ctt(i,'d') }] = YES ;
 bannew(i)$[sum{ctt_i_ii(i,'Nuclear-SMR'), i_ctt(i,'d') }] = YES ;
-bannew(i)$[sum{ctt_i_ii(i,'Storage-Hybrid1'), i_ctt(i,'d') }] = YES ;
-bannew(i)$[sum{ctt_i_ii(i,'Storage-Hybrid2'), i_ctt(i,'d') }] = YES ;
-bannew(i)$[sum{ctt_i_ii(i,'Storage-Hybrid3'), i_ctt(i,'d') }] = YES ;
-bannew(i)$[sum{ctt_i_ii(i,'Storage-Hybrid4'), i_ctt(i,'d') }] = YES ;
-bannew(i)$[sum{ctt_i_ii(i,'Storage-Hybrid5'), i_ctt(i,'d') }] = YES ;
-bannew(i)$[sum{ctt_i_ii(i,'Storage-Hybrid6'), i_ctt(i,'d') }] = YES ;
-bannew(i)$[sum{ctt_i_ii(i,'Storage-Hybrid7'), i_ctt(i,'d') }] = YES ;
-bannew(i)$[sum{ctt_i_ii(i,'Storage-Hybrid8'), i_ctt(i,'d') }] = YES ;
-
 *ban and bannew all non-numeraire techs that are derived from ban numeraire techs
 ban(i)$sum{ii$ban(ii), ctt_i_ii(i,ii) } = YES ;
 bannew(i)$sum{ii$bannew(ii), ctt_i_ii(i,ii) } = YES ;
@@ -1023,15 +1006,7 @@ hydro(i)$(not ban(i))               = yes$i_subsets(i,'hydro') ;
 lfill(i)$(not ban(i))               = yes$i_subsets(i,'lfill') ;
 nondispatch(i)$(not ban(i))         = yes$i_subsets(i,'nondispatch') ;
 nuclear(i)$(not ban(i))             = yes$i_subsets(i,'nuclear') ;
-storage_hybrid(i)$(not ban(i))        = yes$i_subsets(i,'Storage-Hybrid') ;
-storage_hybrid1(i)$(not ban(i))       = yes$i_subsets(i,'Storage-Hybrid1') ;
-storage_hybrid2(i)$(not ban(i))       = yes$i_subsets(i,'Storage-Hybrid2') ;
-storage_hybrid3(i)$(not ban(i))       = yes$i_subsets(i,'Storage-Hybrid3') ;
-storage_hybrid4(i)$(not ban(i))       = yes$i_subsets(i,'Storage-Hybrid4') ;
-storage_hybrid5(i)$(not ban(i))       = yes$i_subsets(i,'Storage-Hybrid5') ;
-storage_hybrid6(i)$(not ban(i))       = yes$i_subsets(i,'Storage-Hybrid6') ;
-storage_hybrid7(i)$(not ban(i))       = yes$i_subsets(i,'Storage-Hybrid7') ;
-storage_hybrid8(i)$(not ban(i))       = yes$i_subsets(i,'Storage-Hybrid8') ;
+storage_hybrid(i)$(not ban(i))      = yes$i_subsets(i,'Storage-Hybrid') ;
 ofswind(i)$(not ban(i))             = yes$i_subsets(i,'ofswind') ;
 ogs(i)$(not ban(i))                 = yes$i_subsets(i,'ogs') ;
 onswind(i)$(not ban(i))             = yes$i_subsets(i,'onswind') ;

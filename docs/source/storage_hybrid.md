@@ -1,12 +1,12 @@
 # Storage-Hybrid Technology
 
-This page documents the `storage-hybrid` technology family in ReEDS. A storage-hybrid technology represents a paired generation and storage resource where the generation technology can be any configured ReEDS generation technology and the storage technology can be any configured storage technology that is valid for the storage-hybrid workflow. The `geo-storage` subset is a storage-side specialization for in-reservoir geothermal pressure storage, represented by the `flex_geo` placeholder technology.
+This page documents the `storage-hybrid` technology family in ReEDS. A storage-hybrid technology represents a paired generation and storage resource where the generation technology can be any configured ReEDS generation technology and the storage technology can be any configured storage technology that is valid for the storage-hybrid workflow. The `geo-storage` subset is a storage-side specialization for in-reservoir geothermal pressure storage, represented by the `flex_geo`, `flex_geo_high`, `flex_geo_med`, and `flex_geo_low` placeholder technologies.
 
-Storage-hybrid was generalized from an earlier nuclear-plus-storage representation. The current implementation no longer assumes that the plant side is nuclear. Instead, each active storage-hybrid configuration explicitly maps one generic `Storage-HybridN` technology to one generation technology and one storage technology.
+Storage-hybrid was generalized from an earlier nuclear-plus-storage representation. The current implementation no longer assumes that the plant side is nuclear and no longer relies on static `Storage-HybridN` source technologies. Instead, preprocessing creates run-specific wrapper technologies for the storage-hybrid configurations requested by the case switches.
 
 ## Conceptual Model
 
-Each storage-hybrid configuration is a technology in `i` named `Storage-Hybrid1` through `Storage-Hybrid8`. The model treats each one as a hybrid plant with:
+Each storage-hybrid configuration is a generated technology in the run's `inputs_case` files. The model treats each generated wrapper as a hybrid plant with:
 
 - A generation-side power capacity, represented by `CAP(i,v,r,t)`.
 - A storage-side charge/discharge power capacity, represented as `bcr(i) * CAP(i,v,r,t)`.
@@ -38,35 +38,39 @@ Storage-hybrid is configured through the case switches in `cases.csv`:
 | Switch | Purpose | Example |
 | --- | --- | --- |
 | `GSw_StorageHybrid` | Turns storage-hybrid on (`1`) or off (`0`). | `1` |
-| `GSw_StorageHybrid_Types` | `_`-delimited list of configuration IDs from 1 to 8. | `1_2_3` |
-| `GSw_StorageHybrid_GenTechs` | `_`-delimited generation technologies to pair with storage. | `nuclear_nuclear-smr_upv-1` |
-| `GSw_StorageHybrid_StorageTechs` | `_`-delimited storage technologies to pair with generation. | `tes-ms_tes-ms_battery-li_flex-geo` |
+| `GSw_StorageHybrid_Types` | `_`-delimited configuration IDs used to create run-specific wrapper names. | `1_2_3` |
+| `GSw_StorageHybrid_GenTechs` | `_`-delimited generation technologies or approved numbered families to pair with storage. | `nuclear_nuclear-smr_egs-allkm` |
+| `GSw_StorageHybrid_StorageTechs` | `_`-delimited storage technologies to pair with generation. | `tes-ms_tes-ms_battery-li_flex-geo-med` |
 | `GSw_StorageHybrid_BCR` | `_`-delimited storage power capacity ratio relative to generation capacity. | `0.5_0.5_1.0` |
 | `GSw_StorageHybrid_GridCharging` | `_`-delimited grid-charging power capacity ratio relative to generation capacity. | `0.0_0.5_1.0` |
 
-The list-valued switches must either provide one value or the same number of values as `GSw_StorageHybrid_Types`. A single value is expanded to all active types. For example:
+The list-valued switches must either provide one value or the same number of values as `GSw_StorageHybrid_Types`. A single value is expanded to all active types. `GSw_StorageHybrid_Types` entries are configuration IDs, not source technology names.
+
+`GSw_StorageHybrid_GenTechs` may name an explicit technology, such as `egs-allkm-1`, or one of the approved numbered families: `upv`, `wind-ofs`, `wind-ons`, `geohydro-allkm`, `egs-allkm`, and `egs-nearfield`. A family token expands to all matching numbered `i` technologies found in `inputs_case/sets/i.csv`. Other numbered-looking families are not expanded.
+
+For example:
 
 ```csv
 GSw_StorageHybrid,1
 GSw_StorageHybrid_Types,1_2_3_4_5_6
-GSw_StorageHybrid_GenTechs,nuclear_nuclear-smr_gas-cc_egs-allkm-1_upv-1_wind-ons-1
-GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_battery-li_flex-geo_battery-li_battery-li
+GSw_StorageHybrid_GenTechs,nuclear_nuclear-smr_gas-cc_egs-allkm_upv-1_wind-ons-1
+GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_battery-li_flex-geo-med_battery-li_battery-li
 GSw_StorageHybrid_BCR,0.5_0.5_0.5_0.5_0.5_0.5
 GSw_StorageHybrid_GridCharging,0.0_0.0_0.0_0.5_0.0_0.0
 ```
 
-This example activates six configurations:
+This example activates six configuration IDs. The fourth ID expands to every `egs_allkm_*` subtype, so preprocessing creates one generated wrapper per EGS subtype for that configuration.
 
 | Config | Generation tech | Storage tech | BCR | Grid-charge ratio |
 | --- | --- | --- | --- | --- |
-| `Storage-Hybrid1` | `nuclear` | `tes_ms` | 0.5 | 0.0 |
-| `Storage-Hybrid2` | `nuclear-smr` | `tes_ms` | 0.5 | 0.0 |
-| `Storage-Hybrid3` | `gas-cc` | `battery_li` | 0.5 | 0.0 |
-| `Storage-Hybrid4` | `egs-allkm-1` | `flex_geo` | 0.5 | 0.5 |
-| `Storage-Hybrid5` | `upv-1` | `battery_li` | 0.5 | 0.0 |
-| `Storage-Hybrid6` | `wind-ons-1` | `battery_li` | 0.5 | 0.0 |
+| `storage-hybrid-1-nuclear` | `nuclear` | `tes_ms` | 0.5 | 0.0 |
+| `storage-hybrid-2-nuclear-smr` | `nuclear-smr` | `tes_ms` | 0.5 | 0.0 |
+| `storage-hybrid-3-gas-cc` | `gas-cc` | `battery_li` | 0.5 | 0.0 |
+| `storage-hybrid-4-egs_allkm_1` ... `storage-hybrid-4-egs_allkm_10` | `egs_allkm_1` ... `egs_allkm_10` | `flex_geo_med` | 0.5 | 0.5 |
+| `storage-hybrid-5-upv_1` | `upv_1` | `battery_li` | 0.5 | 0.0 |
+| `storage-hybrid-6-wind-ons_1` | `wind-ons_1` | `battery_li` | 0.5 | 0.0 |
 
-Hyphens and underscores in switch labels are canonicalized during preprocessing. For example, `battery-li` resolves to the `battery_li` technology and `flex-geo` resolves to `flex_geo` if those technologies exist in `inputs_case/sets/i.csv`.
+Hyphens and underscores in switch labels are canonicalized during preprocessing. For example, `battery-li` resolves to the `battery_li` technology and `flex-geo-med` resolves to `flex_geo_med` if those technologies exist in `inputs_case/sets/i.csv`. Use hyphenated labels in case switches because underscores delimit switch lists.
 
 ## Preprocessing
 
@@ -74,22 +78,23 @@ The storage-hybrid preprocessing happens in `input_processing/copy_files.py`.
 
 ### Generated Case Inputs
 
-`write_miscellaneous_files()` reads the `GSw_StorageHybrid_*` switches and writes four run-specific input files into `inputs_case`:
+`write_miscellaneous_files()` reads the `GSw_StorageHybrid_*` switches, creates run-specific wrapper technologies, and writes storage-hybrid input files into `inputs_case`:
 
 | Generated file | Loaded by | Meaning |
 | --- | --- | --- |
-| `storage_hybrid_bcr.csv` | `b_inputs.gms` | Maps each active `Storage-HybridN` to its storage power capacity ratio. |
-| `storage_hybrid_gridcharging.csv` | `b_inputs.gms` | Maps each active `Storage-HybridN` to its grid-charging capacity ratio. |
-| `storage_hybrid_storagetechs.csv` | `b_inputs.gms` | Maps each active `Storage-HybridN` to its storage technology. |
-| `storage_hybrid_gentechs.csv` | `b_inputs.gms` | Maps each active `Storage-HybridN` to its generation technology. |
+| `storage_hybrid_config.csv` | `b_inputs.gms` | Lists generated wrapper technologies active in the run. |
+| `storage_hybrid_bcr.csv` | `b_inputs.gms` | Maps each generated wrapper to its storage power capacity ratio. |
+| `storage_hybrid_gridcharging.csv` | `b_inputs.gms` | Maps each generated wrapper to its grid-charging capacity ratio. |
+| `storage_hybrid_storagetechs.csv` | `b_inputs.gms` | Maps each generated wrapper to its storage technology. |
+| `storage_hybrid_gentechs.csv` | `b_inputs.gms` | Maps each generated wrapper to its generation technology. |
 
-The full set of possible generic configurations comes from `inputs/sets/storage_hybrid_config.csv`, which currently lists `Storage-Hybrid1` through `Storage-Hybrid8`. Only the configurations listed in `GSw_StorageHybrid_Types` receive generated gen-tech mappings. Configurations without a gen-tech mapping are banned in `b_inputs.gms`.
+Preprocessing also appends generated wrappers to the run-specific `sets/i.csv` and `tech-subset-table.csv`. Repository source files list only real component technologies; generated storage-hybrid wrappers are not source technologies.
 
 ### Technology Row Propagation
 
-`propagate_storage_hybrid_tech_rows()` duplicates relevant input rows and columns from each configured generation technology to the corresponding `Storage-HybridN` technology. This lets storage-hybrid technologies inherit generation-side data that downstream model logic expects to find by technology name.
+`propagate_storage_hybrid_tech_rows()` duplicates relevant input rows and columns from each configured generation technology to the corresponding generated wrapper technology. This lets storage-hybrid technologies inherit generation-side data that downstream model logic expects to find by technology name.
 
-For example, if `GSw_StorageHybrid_GenTechs` maps `gas-cc` to `Storage-Hybrid3`, preprocessing copies applicable `gas-cc` rows or columns to `Storage-Hybrid3` in the case inputs. This is intentionally a generation-side propagation step. Storage-side parameters are inherited explicitly from `storage_hybrid_stortech(i,ii)` in GAMS.
+For example, if configuration ID `3` maps `gas-cc` to battery storage, preprocessing creates `storage-hybrid-3-gas-cc` and copies applicable `gas-cc` rows or columns to that generated wrapper in the case inputs. This is intentionally a generation-side propagation step. Storage-side parameters are inherited explicitly from `storage_hybrid_stortech(i,ii)` in GAMS.
 
 The propagation code avoids files that should not be blindly copied, including selected capacity prescription files, demonstrations, some financial incentive files, `tech-subset-table.csv`, and files that already contain storage-hybrid-specific content.
 
@@ -100,13 +105,12 @@ The core storage-hybrid sets are built in `b_inputs.gms`.
 | Set or parameter | Purpose |
 | --- | --- |
 | `storage_hybrid(i)` | All active storage-hybrid technologies. |
-| `storage_hybrid1(i)` through `storage_hybrid8(i)` | Type-specific subsets for `Storage-Hybrid1` through `Storage-Hybrid8`. |
-| `storage_hybrid_config` | All possible generic configurations from `inputs/sets/storage_hybrid_config.csv`. |
+| `storage_hybrid_config` | Generated wrapper technologies active in the run. |
 | `storage_hybrid_gentech(i,ii)` | Generation technology used by storage-hybrid technology `i`. |
 | `storage_hybrid_stortech(i,ii)` | Storage technology used by storage-hybrid technology `i`. |
 | `storage_hybrid_active(i)` | Active configs inferred from nonempty `storage_hybrid_gentech(i,ii)`. |
 | `storage_hybrid_with_tes(i)` | Storage-hybrid configs whose storage technology is in `thermal_storage`. |
-| `geo_storage(i)` | Raw `flex_geo` and storage-hybrid configs whose storage technology is in `geo-storage`. |
+| `geo_storage(i)` | Raw flex-geo storage placeholders and generated wrappers whose storage technology is in `geo-storage`. |
 | `storage_hybrid_vre(i)` | Storage-hybrid configs whose generation technology is VRE. |
 | `storage_hybrid_dispatchable(i)` | Storage-hybrid configs whose generation technology is not VRE. |
 
@@ -114,7 +118,7 @@ The core storage-hybrid sets are built in `b_inputs.gms`.
 
 Storage-hybrid technologies also inherit technology-group membership through `tg_i(tg,i)` from their configured generation technology. This keeps downstream group-keyed logic, such as investment grouping and policy aggregation, aware of the hybrid configuration's generation-side identity.
 
-Storage-hybrid configurations whose storage technology is in `geo-storage` also enter the `geo-storage` technology group. Raw `flex_geo` is banned from direct builds; it is only intended to act as the storage-side component of a storage-hybrid configuration.
+Storage-hybrid configurations whose storage technology is in `geo-storage` also enter the `geo-storage` technology group. Raw `flex_geo`, `flex_geo_high`, `flex_geo_med`, and `flex_geo_low` technologies are banned from direct builds; they are only intended to act as storage-side components of storage-hybrid configurations.
 
 ## Cost and Performance Inheritance
 
@@ -148,7 +152,7 @@ cost_cap = gen capex - shared powerblock capex
 
 The shared powerblock subtraction is controlled by `inputs/storage_hybrid_powerblock_share.csv`. It currently provides nonzero turbine-generator plus electrical equipment shares for `nuclear` and `nuclear-smr`. Generation technologies without an explicit row default to zero powerblock subtraction.
 
-For geo-storage configurations, raw `flex_geo` has no inherent power-capacity cost. The storage-side power-capacity cost is instead represented by `bcr * powerblock_cost_storage_hybrid`, while energy-capacity cost remains separate through `cost_cap_energy(i,t)`.
+For geo-storage configurations, raw flex-geo storage placeholders have no inherent power-capacity cost. The storage-side power-capacity cost is instead represented by `bcr * powerblock_cost_storage_hybrid`, while energy-capacity cost remains separate through `cost_cap_energy(i,t)`.
 
 Storage energy capacity cost remains separate through `cost_cap_energy(i,t)` and is applied to `INV_ENERGY(i,v,r,t)`.
 
@@ -177,7 +181,7 @@ The generation-side multiplier is inherited from the configured generation techn
 
 The aggregate `cost_cap_fin_mult(i,r,t)` for `INV` is a cost-weighted average of the generation-side and storage-side multipliers. Energy investment, `INV_ENERGY`, uses the storage-side multiplier because `cost_cap_energy(i,t)` is purely a storage energy-capacity cost.
 
-For `flex_geo`, the raw technology financial multipliers are kept neutral at `1`. For storage-hybrid configurations in `geo-storage`, the storage-side financial multiplier families are also kept at `1` because the storage-side costs come from the storage-hybrid scaling rather than from standalone `flex_geo` financial assumptions.
+For raw `geo-storage` placeholders, the technology financial multipliers are kept neutral at `1`. For storage-hybrid configurations in `geo-storage`, the storage-side financial multiplier families are also kept at `1` because the storage-side costs come from storage-hybrid scaling rather than from standalone flex-geo financial assumptions.
 
 ### Operational Parameters
 
@@ -337,8 +341,9 @@ The preprocessing validation currently allows storage technology families whose 
 ## Design Assumptions and Current Limitations
 
 - Storage-hybrid configurations are generic slots, not separate named technologies for every possible generation-storage pair. The active slot-to-component mapping is controlled by case switches.
-- The implementation supports up to eight active generic configurations without adding more `Storage-HybridN` entries.
-- Each active configuration maps to exactly one generation technology and one storage technology.
+- The implementation generates run-specific storage-hybrid wrapper technologies from case switches.
+- Each generated wrapper maps to exactly one generation technology and one storage technology.
+- Approved family tokens in `GSw_StorageHybrid_GenTechs` can expand one configuration ID into several generated wrappers, one per numbered subtype.
 - Generation-side attributes are partly propagated in preprocessing and partly inherited in GAMS through `storage_hybrid_gentech(i,ii)`.
 - Storage-side attributes are inherited in GAMS through `storage_hybrid_stortech(i,ii)`.
 - VRE-paired and dispatchable-paired storage-hybrids branch in several equations; new model logic that handles hybrid plants may need to decide whether it should apply to all storage-hybrids or only one branch.
@@ -351,10 +356,10 @@ The preprocessing validation currently allows storage technology families whose 
 | --- | --- |
 | `cases.csv` | Defines user-facing `GSw_StorageHybrid_*` switches. |
 | `input_processing/copy_files.py` | Writes storage-hybrid mapping files and propagates generation-tech input rows. |
-| `inputs/sets/storage_hybrid_config.csv` | Lists the generic `Storage-Hybrid1` through `Storage-Hybrid8` configurations. |
-| `inputs/sets/i.csv` | Declares `Storage-HybridN` technologies and component technologies such as `tes_ms`. |
-| `inputs/tech-subset-table.csv` | Places `Storage-HybridN` technologies in storage, hybrid plant, and storage-hybrid subsets. |
-| `inputs/plant_characteristics/flex_geo_placeholder.csv` | Defines the costless `flex_geo` placeholder used for geo-storage storage-hybrid configurations. |
+| `inputs/sets/storage_hybrid_config.csv` | Empty source placeholder; preprocessing overwrites the run-specific copy with generated wrappers. |
+| `inputs/sets/i.csv` | Declares source component technologies such as `tes_ms` and flex-geo variants; generated storage-hybrid wrappers are added only in `inputs_case`. |
+| `inputs/tech-subset-table.csv` | Places source technologies in subsets; generated storage-hybrid wrapper rows are added only in `inputs_case`. |
+| `inputs/plant_characteristics/flex_geo_placeholder.csv` | Defines the costless `flex_geo`, `flex_geo_high`, `flex_geo_med`, and `flex_geo_low` placeholders used for geo-storage storage-hybrid configurations. |
 | `inputs/storage_hybrid_powerblock_share.csv` | Defines powerblock cost shares for generation technologies that share a powerblock with storage discharge. |
 | `b_inputs.gms` | Builds storage-hybrid sets, mappings, cost parameters, efficiencies, ramp rates, and operating parameters. |
 | `d1_financials.gms` | Builds generation-side, storage-side, and aggregate financial multipliers. |

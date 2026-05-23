@@ -17,6 +17,320 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import reeds
 
 
+STORAGE_HYBRID_EXPANDABLE_GEN_TECHS = {
+    'upv',
+    'wind-ofs',
+    'wind-ons',
+    'geohydro-allkm',
+    'egs-allkm',
+    'egs-nearfield',
+}
+
+
+def _storage_hybrid_canon_label(value):
+    return str(value).strip().lower().replace('_', '-').replace(' ', '')
+
+
+def _storage_hybrid_expand_to_len(values, n, label, storage_hybrid_types):
+    values = [v for v in values if v != '']
+    if len(values) == 1 and n > 1:
+        values = values * n
+    if len(values) < n:
+        raise ValueError(
+            f"{label} must have 1 value or {n} values "
+            f"(to match GSw_StorageHybrid_Types={storage_hybrid_types})"
+        )
+    return values[:n]
+
+
+def _storage_hybrid_techset_paths(inputs_case):
+    return [
+        os.path.join(inputs_case, 'sets', 'i.csv'),
+        os.path.join(inputs_case, 'i.csv'),
+    ]
+
+
+def _load_storage_hybrid_techs(inputs_case):
+    techs = []
+    for techset_path in _storage_hybrid_techset_paths(inputs_case):
+        if not os.path.exists(techset_path):
+            continue
+        techs = (
+            pd.read_csv(techset_path, header=None, comment='*', dtype=str, encoding='utf-8-sig')
+            .squeeze(1)
+            .dropna()
+            .astype(str)
+            .map(lambda x: x.strip())
+        )
+        techs = [t for t in techs if t != '']
+        if techs:
+            return techs
+    return techs
+
+
+def _load_storage_hybrid_tech_canon_map(inputs_case):
+    return {_storage_hybrid_canon_label(t): t for t in _load_storage_hybrid_techs(inputs_case)}
+
+
+def _storage_hybrid_resolve_i_name(value, tech_canon_map, switch_name):
+    tech = str(value).strip()
+    if not tech:
+        raise ValueError(f"Empty entry in {switch_name}.")
+    canon = _storage_hybrid_canon_label(tech)
+    if canon in tech_canon_map:
+        return tech_canon_map[canon]
+    raise ValueError(f"{switch_name} entry {tech!r} not found in inputs/sets/i.csv.")
+
+
+def _storage_hybrid_numbered_family_members(family_canon, techs):
+    members = []
+    prefix = f'{family_canon}-'
+    for tech in techs:
+        canon = _storage_hybrid_canon_label(tech)
+        if not canon.startswith(prefix):
+            continue
+        suffix = canon[len(prefix):]
+        if suffix.isdigit():
+            members.append((int(suffix), tech))
+    return [tech for _, tech in sorted(members)]
+
+
+def _storage_hybrid_wrapper_name(config_id, gen_tech):
+    config_label = _storage_hybrid_canon_label(config_id)
+    gen_label = str(gen_tech).strip().lower()
+    return f'storage-hybrid-{config_label}-{gen_label}'
+
+
+def build_storage_hybrid_configs(sw, inputs_case):
+    """Return run-specific storage-hybrid wrapper rows for this case."""
+    if 'GSw_StorageHybrid' in sw and int(sw['GSw_StorageHybrid']) == 0:
+        return []
+
+    storage_hybrid_types_raw = str(sw.get('GSw_StorageHybrid_Types', '')).strip()
+    storage_hybrid_types = [t for t in storage_hybrid_types_raw.split('_') if t]
+    if not storage_hybrid_types:
+        return []
+    n_storage_hybrid_types = len(storage_hybrid_types)
+
+    storage_hybrid_bcrs = _storage_hybrid_expand_to_len(
+        str(sw.get('GSw_StorageHybrid_BCR', '')).split('_'),
+        n_storage_hybrid_types,
+        'GSw_StorageHybrid_BCR',
+        storage_hybrid_types_raw,
+    )
+    storage_hybrid_storage_techs = _storage_hybrid_expand_to_len(
+        str(sw.get('GSw_StorageHybrid_StorageTechs', '')).split('_'),
+        n_storage_hybrid_types,
+        'GSw_StorageHybrid_StorageTechs',
+        storage_hybrid_types_raw,
+    )
+    storage_hybrid_gridcharge = _storage_hybrid_expand_to_len(
+        str(sw.get('GSw_StorageHybrid_GridCharging', '')).split('_'),
+        n_storage_hybrid_types,
+        'GSw_StorageHybrid_GridCharging',
+        storage_hybrid_types_raw,
+    )
+    storage_hybrid_gen_techs = _storage_hybrid_expand_to_len(
+        str(sw.get('GSw_StorageHybrid_GenTechs', '')).split('_'),
+        n_storage_hybrid_types,
+        'GSw_StorageHybrid_GenTechs',
+        storage_hybrid_types_raw,
+    )
+
+    techs = _load_storage_hybrid_techs(inputs_case)
+    tech_canon_map = {_storage_hybrid_canon_label(t): t for t in techs}
+    configs = []
+    seen_wrappers = set()
+
+    for config_id, gen_tech, storage_tech, bcr, gridcharge in zip(
+        storage_hybrid_types,
+        storage_hybrid_gen_techs,
+        storage_hybrid_storage_techs,
+        storage_hybrid_bcrs,
+        storage_hybrid_gridcharge,
+    ):
+        gen_canon = _storage_hybrid_canon_label(gen_tech)
+        storage_i = _storage_hybrid_resolve_i_name(
+            storage_tech,
+            tech_canon_map,
+            'GSw_StorageHybrid_StorageTechs',
+        )
+
+        if gen_canon in STORAGE_HYBRID_EXPANDABLE_GEN_TECHS:
+            gen_members = _storage_hybrid_numbered_family_members(gen_canon, techs)
+            if not gen_members:
+                raise ValueError(
+                    f"GSw_StorageHybrid_GenTechs family entry {gen_tech!r} did not match "
+                    "any numbered technologies in inputs/sets/i.csv."
+                )
+            expanded = True
+        else:
+            gen_members = [
+                _storage_hybrid_resolve_i_name(
+                    gen_tech,
+                    tech_canon_map,
+                    'GSw_StorageHybrid_GenTechs',
+                )
+            ]
+            expanded = False
+
+        for gen_i in gen_members:
+            wrapper = _storage_hybrid_wrapper_name(config_id, gen_i)
+            wrapper_canon = _storage_hybrid_canon_label(wrapper)
+            if wrapper_canon in seen_wrappers:
+                raise ValueError(
+                    f"Duplicate generated storage-hybrid technology {wrapper!r}. "
+                    "Use distinct GSw_StorageHybrid_Types entries for repeated gen/storage pairings."
+                )
+            seen_wrappers.add(wrapper_canon)
+            configs.append({
+                'config_id': str(config_id).strip(),
+                'storage_hybrid_tech': wrapper,
+                'gen_tech': gen_i,
+                'storage_tech': storage_i,
+                'bcr': float(bcr),
+                'gridcharge_ratio': float(gridcharge),
+                'expanded': expanded,
+            })
+
+    return configs
+
+
+def write_storage_hybrid_case_inputs(sw, inputs_case):
+    configs = build_storage_hybrid_configs(sw, inputs_case)
+
+    pd.Series(
+        [c['storage_hybrid_tech'] for c in configs],
+        dtype=str,
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_config.csv'), index=False, header=False)
+
+    pd.DataFrame(
+        {
+            '*storage-hybrid_type': [c['storage_hybrid_tech'] for c in configs],
+            'bcr': [c['bcr'] for c in configs],
+        }
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_bcr.csv'), index=False)
+
+    pd.DataFrame(
+        {
+            '*storage-hybrid_type': [c['storage_hybrid_tech'] for c in configs],
+            'gridcharge_ratio': [c['gridcharge_ratio'] for c in configs],
+        }
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gridcharging.csv'), index=False)
+
+    pd.DataFrame(
+        {
+            '*storage-hybrid_type': [c['storage_hybrid_tech'] for c in configs],
+            'storage_type': [c['storage_tech'] for c in configs],
+        }
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_storagetechs.csv'), index=False)
+
+    pd.DataFrame(
+        {
+            '*storage-hybrid_type': [c['storage_hybrid_tech'] for c in configs],
+            'gen_tech': [c['gen_tech'] for c in configs],
+        }
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gentechs.csv'), index=False)
+
+    if configs:
+        append_storage_hybrid_techs_to_i(inputs_case, configs)
+        append_storage_hybrid_subsets(inputs_case, configs)
+
+    return configs
+
+
+def append_storage_hybrid_techs_to_i(inputs_case, configs):
+    new_techs = [c['storage_hybrid_tech'] for c in configs]
+    for techset_path in _storage_hybrid_techset_paths(inputs_case):
+        if not os.path.exists(techset_path):
+            continue
+        with open(techset_path, 'r', encoding='utf-8-sig') as f:
+            lines = f.read().splitlines()
+        existing = {_storage_hybrid_canon_label(line) for line in lines if line.strip()}
+        to_add = [tech for tech in new_techs if _storage_hybrid_canon_label(tech) not in existing]
+        if not to_add:
+            continue
+        with open(techset_path, 'a', encoding='utf-8') as f:
+            if lines and lines[-1].strip():
+                f.write('\n')
+            f.write('\n'.join(to_add))
+            f.write('\n')
+
+
+def append_storage_hybrid_subsets(inputs_case, configs):
+    path = os.path.join(inputs_case, 'tech-subset-table.csv')
+    if not os.path.exists(path):
+        return
+
+    df = pd.read_csv(path, index_col=0, dtype=str, keep_default_na=False).fillna('')
+    required_cols = ['STORAGE', 'HYBRID_PLANT', 'STORAGE-HYBRID']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        raise ValueError(
+            "tech-subset-table.csv is missing required storage-hybrid subset columns: "
+            + ', '.join(missing_cols)
+        )
+
+    for config in configs:
+        tech = config['storage_hybrid_tech']
+        if tech not in df.index:
+            df.loc[tech] = ''
+        df.loc[tech, required_cols] = 'YES'
+
+    df.to_csv(path)
+
+
+def translate_legacy_storage_hybrid_labels(df, sw, inputs_case, filename):
+    if 'i' not in df.columns:
+        return df
+
+    configs = build_storage_hybrid_configs(sw, inputs_case)
+    if not configs:
+        return df
+
+    by_legacy_label = {}
+    for config in configs:
+        legacy_label = f"storage-hybrid{_storage_hybrid_canon_label(config['config_id'])}"
+        by_legacy_label.setdefault(legacy_label, []).append(config['storage_hybrid_tech'])
+
+    replacements = {}
+    for legacy_label, wrappers in by_legacy_label.items():
+        unique_wrappers = sorted(set(wrappers))
+        if len(unique_wrappers) == 1:
+            replacements[legacy_label] = unique_wrappers[0]
+        else:
+            legacy_hits = df['i'].astype(str).map(_storage_hybrid_canon_label) == legacy_label
+            if legacy_hits.any():
+                raise ValueError(
+                    f"{filename} references legacy {legacy_label!r}, but that storage-hybrid "
+                    "configuration expands to multiple generated technologies. Use an explicit "
+                    "generated storage-hybrid technology name in the demonstration plant input."
+                )
+
+    if not replacements:
+        return df
+
+    df = df.copy()
+    i_canon = df['i'].astype(str).map(_storage_hybrid_canon_label)
+    for legacy_label, wrapper in replacements.items():
+        mask = i_canon == legacy_label
+        if not mask.any():
+            continue
+        old_values = df.loc[mask, 'i'].astype(str)
+        df.loc[mask, 'i'] = old_values.map(
+            lambda value: wrapper.lower() if value == value.lower() else wrapper
+        )
+        if 'coolingwatertech' in df.columns:
+            old_prefix = old_values.iloc[0]
+            cooling = df.loc[mask, 'coolingwatertech'].astype(str)
+            df.loc[mask, 'coolingwatertech'] = cooling.map(
+                lambda value: wrapper + value[len(old_prefix):]
+                if value.lower().startswith(old_prefix.lower()) else value
+            )
+
+    return df
+
+
 #%% ===========================================================================
 ### --- General Read Functions---
 ### ===========================================================================
@@ -1231,6 +1545,8 @@ def write_region_indexed_file(
                             regions_and_agglevel=regions_and_agglevel,
                             aggfunc=region_file_entry.aggfunc
                         )
+                if filename == 'demonstration_plants.csv':
+                    df = translate_legacy_storage_hybrid_labels(df, sw, dir_dst, filename)
             case 'unitdata.csv':
                 fips_ba_map = regions_and_agglevel['ba_county'].dropna().set_index('county')['ba']
                 df['reeds_ba'] = df['FIPS'].map(fips_ba_map)
@@ -1315,98 +1631,7 @@ def write_miscellaneous_files(
                 ][0:len(sw['GSw_PVB_Types'].split('_'))]}
     ).to_csv(os.path.join(inputs_case, 'pvb_bir.csv'), index=False)
 
-    storage_hybrid_types = [t for t in sw['GSw_StorageHybrid_Types'].split('_') if t]
-    n_storage_hybrid_types = len(storage_hybrid_types)
-
-    def _expand_to_len(values, n, label):
-        values = [v for v in values if v != '']
-        if len(values) == 1 and n > 1:
-            values = values * n
-        if len(values) < n:
-            raise ValueError(
-                f"{label} must have 1 value or {n} values "
-                f"(to match GSw_StorageHybrid_Types={sw['GSw_StorageHybrid_Types']})"
-            )
-        return values[:n]
-
-    storage_hybrid_bcrs = _expand_to_len(
-        sw['GSw_StorageHybrid_BCR'].split('_'),
-        n_storage_hybrid_types,
-        'GSw_StorageHybrid_BCR',
-    )
-    storage_hybrid_storage_techs = _expand_to_len(
-        sw['GSw_StorageHybrid_StorageTechs'].split('_'),
-        n_storage_hybrid_types,
-        'GSw_StorageHybrid_StorageTechs',
-    )
-    storage_hybrid_gridcharge = _expand_to_len(
-        sw['GSw_StorageHybrid_GridCharging'].split('_'),
-        n_storage_hybrid_types,
-        'GSw_StorageHybrid_GridCharging',
-    )
-    storage_hybrid_gen_techs = _expand_to_len(
-        sw['GSw_StorageHybrid_GenTechs'].split('_'),
-        n_storage_hybrid_types,
-        'GSw_StorageHybrid_GenTechs',
-    )
-
-    def _canon_i_label(value):
-        return str(value).strip().lower().replace('_', '-').replace(' ', '')
-
-    def _load_i_label_map():
-        techset_path = os.path.join(inputs_case, 'sets', 'i.csv')
-        techs = (
-            pd.read_csv(techset_path, header=None, comment='*', dtype=str, encoding='utf-8-sig')
-            .squeeze(1)
-            .dropna()
-            .astype(str)
-            .map(lambda x: x.strip())
-        )
-        techs = techs[techs != '']
-        return {_canon_i_label(t): t for t in techs}
-
-    storage_hybrid_i_label_map = _load_i_label_map()
-
-    def _storage_hybrid_tech_to_i_name(value, switch_name):
-        tech = str(value).strip()
-        canon = _canon_i_label(tech)
-        if canon in storage_hybrid_i_label_map:
-            return storage_hybrid_i_label_map[canon]
-        raise ValueError(f"{switch_name} entry {tech!r} not found in inputs/sets/i.csv.")
-
-    pd.DataFrame(
-        {
-            '*storage-hybrid_type': [f'Storage-Hybrid{i}' for i in storage_hybrid_types],
-            'bcr': [float(c) for c in storage_hybrid_bcrs],
-        }
-    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_bcr.csv'), index=False)
-
-    pd.DataFrame(
-        {
-            '*storage-hybrid_type': [f'Storage-Hybrid{i}' for i in storage_hybrid_types],
-            'gridcharge_ratio': [float(c) for c in storage_hybrid_gridcharge],
-        }
-    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gridcharging.csv'), index=False)
-
-    pd.DataFrame(
-        {
-            '*storage-hybrid_type': [f'Storage-Hybrid{i}' for i in storage_hybrid_types],
-            'storage_type': [
-                _storage_hybrid_tech_to_i_name(c, 'GSw_StorageHybrid_StorageTechs')
-                for c in storage_hybrid_storage_techs
-            ],
-        }
-    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_storagetechs.csv'), index=False)
-
-    pd.DataFrame(
-        {
-            '*storage-hybrid_type': [f'Storage-Hybrid{i}' for i in storage_hybrid_types],
-            'gen_tech': [
-                _storage_hybrid_tech_to_i_name(c, 'GSw_StorageHybrid_GenTechs')
-                for c in storage_hybrid_gen_techs
-            ],
-        }
-    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gentechs.csv'), index=False)
+    write_storage_hybrid_case_inputs(sw, inputs_case)
 
     # Constant value if input is float, otherwise named profile
     # Methane leakage rate:
@@ -1664,48 +1889,8 @@ def generate_maps_gpkg(inputs_case):
 
 def propagate_storage_hybrid_tech_rows(sw, inputs_case):
     """Duplicate generator-tech rows for Storage-Hybrid technologies."""
-
-    def _expand_to_len(values, n, label):
-        values = [v for v in values if v != '']
-        if len(values) == 1 and n > 1:
-            values = values * n
-        if len(values) < n:
-            raise ValueError(
-                f"{label} must have 1 value or {n} values "
-                f"(to match GSw_StorageHybrid_Types={sw['GSw_StorageHybrid_Types']})"
-            )
-        return values[:n]
-
-    def _canon_label(value):
-        return str(value).strip().lower().replace('_', '-').replace(' ', '')
-
-    def _load_tech_canon_map(inputs_case):
-        """Return {canonical-label: original-i-value} from inputs_case/sets/i.csv."""
-        techset_path = os.path.join(inputs_case, 'sets', 'i.csv')
-        if not os.path.exists(techset_path):
-            return {}
-        techs = (
-            pd.read_csv(techset_path, header=None, comment='*', dtype=str, encoding='utf-8-sig')
-            .squeeze(1)
-            .dropna()
-            .astype(str)
-            .map(lambda x: x.strip())
-        )
-        techs = techs[techs != '']
-        return {_canon_label(t): t for t in techs}
-
-    def _storage_hybrid_gen_tech_to_i_name(gen_tech, tech_canon_map):
-        gt = str(gen_tech).strip()
-        if not gt:
-            raise ValueError("Empty entry in GSw_StorageHybrid_GenTechs.")
-        canon = _canon_label(gt)
-        if canon in tech_canon_map:
-            return tech_canon_map[canon]
-        raise ValueError(
-            f"GSw_StorageHybrid_GenTechs entry {gt!r} not found in inputs/sets/i.csv."
-        )
-
-    if 'GSw_StorageHybrid' in sw and int(sw['GSw_StorageHybrid']) == 0:
+    configs = build_storage_hybrid_configs(sw, inputs_case)
+    if not configs:
         return
 
     skip_dirs = ['capacity_exogenous', 'demonstration_files']
@@ -1728,23 +1913,10 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
             ):
                 skip_files.add(fname_lower)
 
-    storage_hybrid_types = [
-        t for t in str(sw.get('GSw_StorageHybrid_Types', '1')).split('_') if t
-    ]
-    if not storage_hybrid_types:
-        return
-
-    tech_canon_map = _load_tech_canon_map(inputs_case)
-
-    gen_techs_raw = str(sw.get('GSw_StorageHybrid_GenTechs', 'nuclear-smr')).split('_')
-    storage_hybrid_gen_techs = _expand_to_len(
-        gen_techs_raw,
-        len(storage_hybrid_types),
-        'GSw_StorageHybrid_GenTechs',
-    )
+    tech_canon_map = _load_storage_hybrid_tech_canon_map(inputs_case)
     tech_map = [
-        (_storage_hybrid_gen_tech_to_i_name(gt, tech_canon_map), f'Storage-Hybrid{nt}')
-        for nt, gt in zip(storage_hybrid_types, storage_hybrid_gen_techs)
+        (config['gen_tech'], config['storage_hybrid_tech'])
+        for config in configs
     ]
 
     def _first_noncomment_line(path):
@@ -1759,11 +1931,11 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
 
     def _looks_like_tech_label(value):
         text = str(value).strip()
-        canon = _canon_label(text)
+        canon = _storage_hybrid_canon_label(text)
         if canon in tech_canon_set:
             return True
         if '*' in text:
-            return any(_canon_label(part) in tech_canon_set for part in text.split('*'))
+            return any(_storage_hybrid_canon_label(part) in tech_canon_set for part in text.split('*'))
         return False
 
     def _line_has_header(header_line):
@@ -1864,10 +2036,10 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
 
             changed = False
             for base_i, stor_i in tech_map:
-                base_canon = _canon_label(base_i)
-                stor_canon = _canon_label(stor_i)
+                base_canon = _storage_hybrid_canon_label(base_i)
+                stor_canon = _storage_hybrid_canon_label(stor_i)
 
-                col_canons = {_canon_label(c): c for c in df.columns}
+                col_canons = {_storage_hybrid_canon_label(c): c for c in df.columns}
                 if (base_canon in col_canons) and (stor_canon not in col_canons):
                     base_col = col_canons[base_canon]
                     stor_col = stor_i.lower() if str(base_col) == str(base_col).lower() else stor_i
