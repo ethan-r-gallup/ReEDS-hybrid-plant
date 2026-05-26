@@ -1080,13 +1080,16 @@ $offdelim
 $onlisting
 / ;
 
-set storage_hybrid_config "set of storage-hybrid configurations"
+$onempty
+set storage_hybrid_config(i) "set of storage-hybrid configurations"
 /
 $offlisting
 $include inputs_case%ds%storage_hybrid_config.csv
 $onlisting
 / ;
+$offempty
 
+$onempty
 set storage_hybrid_stortech(i,ii) "storage tech used by each storage-hybrid config"
 / 
 $offlisting
@@ -1095,7 +1098,9 @@ $include inputs_case%ds%storage_hybrid_storagetechs.csv
 $offdelim
 $onlisting
 / ;
+$offempty
 
+$onempty
 set storage_hybrid_gentech(i,ii) "generation tech used by each storage-hybrid config"
 / 
 $offlisting
@@ -1104,6 +1109,7 @@ $include inputs_case%ds%storage_hybrid_gentechs.csv
 $offdelim
 $onlisting
 / ;
+$offempty
 
 * Ban Storage-Hybrid types not activated by GSw_StorageHybrid_Types.
 * copy_files.py only writes storage_hybrid_gentechs.csv rows for active types, so
@@ -4408,6 +4414,7 @@ bcr(i)$[storage_standalone(i) or csp_storage(i) or hyd_add_pump(i)] = 1 ;
 * --- Storage-Hybrid Configurations ---
 *==================================
 
+$onempty
 parameter bcr_storage_hybrid_config(i) "--unitless-- storage capacity ratio for each storage-hybrid configuration"
 /
 $offlisting
@@ -4416,9 +4423,11 @@ $include inputs_case%ds%storage_hybrid_bcr.csv
 $offdelim
 $onlisting
 / ;
+$offempty
 
 bcr(i)$storage_hybrid(i) = bcr_storage_hybrid_config(i) ;
 
+$onempty
 parameter gridcharge_storage_hybrid_config(i) "--unitless-- ratio of grid charging capacity to generation capacity for each storage-hybrid configuration"
 /
 $offlisting
@@ -4427,6 +4436,7 @@ $include inputs_case%ds%storage_hybrid_gridcharging.csv
 $offdelim
 $onlisting
 / ;
+$offempty
 
 parameter gridcharge_ratio(i) "--unitless-- ratio of grid charging capacity to generation capacity for each storage-hybrid configuration" ;
 gridcharge_ratio(i)$storage_hybrid(i) = gridcharge_storage_hybrid_config(i) ;

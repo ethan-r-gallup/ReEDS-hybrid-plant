@@ -1731,12 +1731,29 @@ def write_miscellaneous_files(
     pd.DataFrame(columns=solveyears).to_csv(
         os.path.join(inputs_case,'modeledyears.csv'), index=False)
 
-    pd.read_csv(
+    gen_mandate_traj = pd.read_csv(
         os.path.join(reeds_path,'inputs','national_generation','gen_mandate_trajectory.csv'),
-        index_col='GSw_GenMandateScen'
-    ).loc[sw['GSw_GenMandateScen']].rename_axis('*t').round(5).to_csv(
-        os.path.join(inputs_case,'gen_mandate_trajectory.csv')
+        index_col='GSw_GenMandateScen',
     )
+    mandate_scen = sw['GSw_GenMandateScen']
+    if mandate_scen in gen_mandate_traj.index:
+        gen_mandate_traj.loc[mandate_scen].rename_axis('*t').round(5).to_csv(
+            os.path.join(inputs_case,'gen_mandate_trajectory.csv')
+        )
+    elif int(sw['GSw_GenMandate']) == 0:
+        # Mandate disabled: write a zero trajectory so b_inputs.gms can still
+        # populate national_gen_frac (the eq_national_gen equation is gated by
+        # Sw_GenMandate and stays inactive).
+        pd.Series(
+            0.0, index=gen_mandate_traj.columns, name=mandate_scen,
+        ).rename_axis('*t').round(5).to_csv(
+            os.path.join(inputs_case,'gen_mandate_trajectory.csv')
+        )
+    else:
+        raise KeyError(
+            f"GSw_GenMandateScen={mandate_scen!r} not found in "
+            "inputs/national_generation/gen_mandate_trajectory.csv"
+        )
 
     pd.read_csv(
         os.path.join(reeds_path,'inputs','national_generation','gen_mandate_tech_list.csv'),
