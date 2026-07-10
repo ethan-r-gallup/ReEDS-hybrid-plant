@@ -413,6 +413,9 @@ execute_unload 'ReEDS_Augur%ds%augur_data%ds%reeds_data_%cur_year%.gdx'
     storage_duration
     storage_eff
     storage_eff_filt
+    storage_eff_storage_hybrid_g
+    storage_eff_storage_hybrid_p
+    storage_hybrid
     storage_standalone
     Sw_VSC
     szn

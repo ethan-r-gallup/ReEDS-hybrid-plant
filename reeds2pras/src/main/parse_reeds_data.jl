@@ -57,14 +57,16 @@ function parse_reeds_data(
 
     @info "reading in ReEDS generator-type forced outage data..."
     forced_outage_data = get_forced_outage_data(ReEDS_data)
-    FOR_dict = Dict(forced_outage_data[!, "ResourceType"] .=> forced_outage_data[!, "FOR"])
+    # Force String keys so long names (e.g. storage-hybrid wrappers) aren't
+    # excluded by InlineString width narrowing.
+    FOR_dict = Dict{String, Float64}(String.(forced_outage_data[!, "ResourceType"]) .=> forced_outage_data[!, "FOR"])
 
     @info "reading hourly forced outage rates"
     forcedoutage_hourly = get_hourly_forced_outage_data(ReEDS_data)
 
     @info "reading in ATB unit size data for use with disaggregation..."
     unitsize_data = get_unitsize_mapping(ReEDS_data)
-    unitsize_dict = Dict(unitsize_data[!, "tech"] .=> unitsize_data[!, "MW"])
+    unitsize_dict = Dict{String, Int64}(String.(unitsize_data[!, "tech"]) .=> unitsize_data[!, "MW"])
 
     scheduled_outage_hourly = nothing
     # read the scheduled_outage CSV file if scheduled_outage

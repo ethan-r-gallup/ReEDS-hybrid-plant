@@ -6,7 +6,6 @@ GSw_Region,st/UT
 GSw_ZoneSet,z132
 GSw_HourlyClusterAlgorithm,user
 GSw_PRM_CapCredit,0
-pras,0
 GSw_PRM_StressIterateMax,0
 GSw_SkipAugurYear,2030
 GSw_StorageHybrid,1
@@ -14,7 +13,7 @@ GSw_StorageHybrid_Types,1_2_3_4_5_6
 GSw_StorageHybrid_GenTechs,nuclear_nuclear-smr_gas-cc_egs-allkm_upv-1_wind-ons-1
 GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_battery-li_flex-geo-med_battery-li_battery-li
 GSw_StorageHybrid_BCR,0.5_0.5_0.5_0.5_0.5_0.5
-GSw_StorageHybrid_GridCharging,0.0_0.0_0.0_0.5_0.0_0.0
+GSw_StorageHybrid_GridCharging,1.0_1.0_1.0_1.0_1.0_1.0
 GSw_Nuclear,1
 GSw_NuclearDemo,0
 GSw_Geothermal,1

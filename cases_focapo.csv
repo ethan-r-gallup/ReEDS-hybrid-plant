@@ -1,5 +1,5 @@
 ,Description,Default Value,geo_ctrl_base,geo_test_base,geo_ctrl_cap90,geo_test_cap90,geo_ctrl_demand,geo_test_demand,geo_ctrl_market_opp_low,geo_test_market_opp_low,geo_ctrl_geo_price_adv,geo_test_geo_price_adv,geo_ctrl_mandate,geo_test_mandate
-ignore,"0=run this case, 1=ignore this case",0,,,,,,,,,,,,
+ignore,"0=run this case, 1=ignore this case",0,1,1,1,1,1,1,1,1,1,,1,1
 timetype,Sequential or Intertemporal,seq,,,,,,,,,,,,
 GSw_StorageHybrid,,1,0,,0,,0,,0,,0,,0,
 GSw_StorageHybrid_Types,,1_2_3_4_5_6,,,,,,,,,,,,
@@ -7,6 +7,7 @@ GSw_StorageHybrid_StorageTechs,,flex-geo_flex-geo_flex-geo_flex-geo_flex-geo_fle
 GSw_StorageHybrid_GenTechs,,egs-allkm_egs-allkm_egs-allkm_egs-nearfield_egs-nearfield_egs-nearfield,,,,,,,,,,,,
 GSw_StorageHybrid_BCR,,0.15_0.30_0.60_0.15_0.30_0.60,,,,,,,,,,,,
 GSw_StorageHybrid_GridCharging,,1.0_1.0_1.0_1.0_1.0_1.0,,,,,,,,,,,,
+GSw_Region,,interconnect/western,,,,,,,,,,,,
 GSw_GenMandate,,0,,,,,,,,,,,1,1
 GSw_GenMandateList,,Geo,,,,,,,,,,,Geo,Geo
 GSw_GenMandateScen,,none,,,,,,,,,,,focapo_6pct2035_8pct2050,focapo_6pct2035_8pct2050
@@ -24,4 +25,4 @@ plantchar_geo,,geo_ATB_2024_moderate,,,,,,,,,geo_ATB_2024_advanced,geo_ATB_2024_
 reg_cap_cost_diff_suffix,,default,,,,,,,,,,,,
 GSw_TransInvMaxLongTerm,[TW-mile/year] maximum transmission capacity investment per year IN/AFTER firstyear_trans_longterm (0 = unlimited),0,,,,,,,,,,,,
 GSw_H2Combustion,,1,,,,,,,,,,,,
-GSw_ZoneSet,,z54,,,,,,,,,,,,
+GSw_GasCurve,,2,,,,,,,,,,,,

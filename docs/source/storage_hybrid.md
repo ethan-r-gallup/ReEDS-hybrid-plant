@@ -87,8 +87,30 @@ The storage-hybrid preprocessing happens in `input_processing/copy_files.py`.
 | `storage_hybrid_gridcharging.csv` | `b_inputs.gms` | Maps each generated wrapper to its grid-charging capacity ratio. |
 | `storage_hybrid_storagetechs.csv` | `b_inputs.gms` | Maps each generated wrapper to its storage technology. |
 | `storage_hybrid_gentechs.csv` | `b_inputs.gms` | Maps each generated wrapper to its generation technology. |
+| `storage_hybrid_rsc_agg.csv` | `b_inputs.gms` | Maps each geothermal wrapper (second column) to its parent geo supply-curve technology (first column) so both share one resource supply curve and spur-line capacity. |
 
 Preprocessing also appends generated wrappers to the run-specific `sets/i.csv` and `tech-subset-table.csv`. Repository source files list only real component technologies; generated storage-hybrid wrappers are not source technologies.
+
+### Geothermal Supply Curves and Spur Lines
+
+Geothermal wrappers (those whose generation technology belongs to the
+`geohydro_allkm`, `egs_allkm`, or `egs_nearfield` supply-curve families) are marked
+`RSC='YES'` in `tech-subset-table.csv` and mapped to their parent geo technology in
+`storage_hybrid_rsc_agg.csv`. In `b_inputs.gms` this mapping is added to `rsc_agg`
+(mirroring the UPV/PVB `tg_rsc_upvagg` construct), the parent's `rsc_dat` and
+`m_rscfeas` are copied to the wrapper, and the wrapper joins `spur_techs` /
+`spurline_sitemap` alongside its parent. As a result:
+
+- The wrapper's investment is split into supply-curve bins (`INV_RSC`) and is bounded
+  by the **same** `eq_rsc_INVlim` as its parent, so standalone geo plus geo-hybrid
+  buildout cannot exceed the shared geothermal supply curve.
+- The wrapper shares the parent's per-site spur-line capacity (`CAP_SPUR`) when the
+  parent uses endogenous reV spur lines.
+- Geohydro discovery scaling and exogenous supply-curve reductions remain applied only
+  to the parent technology; because the binding limit is the parent-generated
+  `eq_rsc_INVlim`, the wrapper inherits those effects through the shared constraint
+  without being added to `geo(i)`, `geo_hydro(i)`, `exog_rsc`, or `prescriptivelink`.
+
 
 ### Technology Row Propagation
 

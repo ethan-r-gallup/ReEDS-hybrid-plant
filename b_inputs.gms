@@ -1244,6 +1244,8 @@ $onlisting
 / ;
 
 min_retire_age(i)$[i_water_cooling(i)$Sw_WaterMain] = sum{ii$ctt_i_ii(i,ii), min_retire_age(ii) } ;
+* storage-hybrid wrappers inherit min_retire_age from their underlying generation technology
+min_retire_age(i)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), min_retire_age(ii) } ;
 * if GSw_Clean_Air_Act is enabled, there is no minimum retire age for coal plants
 min_retire_age(i)$[coal(i)$Sw_Clean_Air_Act] = no ;
 
@@ -1337,6 +1339,22 @@ $offdelim
 $onlisting
 / ;
 
+* Maps each geothermal storage-hybrid wrapper (ii) to its parent geo supply-curve
+* tech (i). Written by copy_files.py; the parent is the FIRST index so the parent's
+* eq_rsc_INVlim sums the wrapper's INV_RSC into a single shared resource limit,
+* exactly as tg_rsc_upvagg links UPV and PVB. (The wrapper also gets a redundant
+* self-limited eq_rsc_INVlim from the sameas init below, matching PVB behavior.)
+$onempty
+set storage_hybrid_geo_rsc_agg(i,ii) "geo storage-hybrid wrappers sharing parent geo supply curve (i=parent, ii=wrapper)"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%storage_hybrid_rsc_agg.csv
+$offdelim
+$onlisting
+/ ;
+$offempty
+
 *initialize rsc aggregation set for 'i'='ii'
 *rsc_agg(i,ii)$[sameas(i,ii)$(not csp(i))$(not csp(ii))$rsc_i(i)$rsc_i(ii)] = yes ;
 rsc_agg(i,ii)$[sameas(i,ii)$rsc_i(i)$rsc_i(ii)] = yes ;
@@ -1344,6 +1362,8 @@ rsc_agg(i,ii)$[sameas(i,ii)$rsc_i(i)$rsc_i(ii)] = yes ;
 rsc_agg(i,ii)$tg_rsc_cspagg(i,ii) = yes ;
 *add upv to rsc aggregation set
 rsc_agg(i,ii)$tg_rsc_upvagg(i,ii) = yes ;
+*add geothermal storage-hybrid wrappers to share their parent geo tech supply curve
+rsc_agg(i,ii)$storage_hybrid_geo_rsc_agg(i,ii) = yes ;
 *All PSH types use the same supply curve
 rsc_agg('pumped-hydro',ii)$psh(ii) = yes ;
 rsc_agg(i,ii)$[ban(i) or ban(ii)] = no ;
@@ -1615,6 +1635,9 @@ $onlisting
 
 ptc_value_scaled(i,v,t)$[i_water_cooling(i)$Sw_WaterMain] =
    sum{ii$ctt_i_ii(i,ii), ptc_value_scaled(ii,v,t) } ;
+* storage-hybrid wrappers inherit ptc_value_scaled from their underlying generation technology
+ptc_value_scaled(i,v,t)$storage_hybrid(i) =
+   sum{ii$storage_hybrid_gentech(i,ii), ptc_value_scaled(ii,v,t) } ;
 
 parameter firstyear_v(i,v) "flag for first year that a new new vintage can be built" ;
 parameter lastyear_v(i,v) "flag for the last year that a new new vintage can be built" ;
@@ -1658,6 +1681,8 @@ firstyear(i)$[i_water_cooling(i)$Sw_WaterMain] = sum{ii$ctt_i_ii(i,ii), firstyea
 firstyear(i)$[not firstyear(i)] = model_builds_start_yr ;
 firstyear(i)$[i_water_cooling(i)$(not Sw_WaterMain)] = NO ;
 firstyear(i)$upgrade(i) = sum{ii$upgrade_to(i,ii), firstyear(ii) } ;
+* storage-hybrid wrappers inherit firstyear from their underlying generation technology
+firstyear(i)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), firstyear(ii) } ;
 
 parameter firstyear_pcat(pcat) ;
 firstyear_pcat(pcat)$[sum{i$[sameas(i,pcat)$(not ban(i))], firstyear(i) }] = sum{i$sameas(i,pcat), firstyear(i) } ;
@@ -1890,6 +1915,8 @@ maxage(i)$[not maxage(i)] = maxage_default ;
 * upgrades and cooling-water techs inherit maxage from the base tech
 maxage(i)$[i_water_cooling(i)$Sw_WaterMain] = sum{ii$ctt_i_ii(i,ii), maxage(ii) } ;
 maxage(i)$upgrade(i) = sum{ii$upgrade_to(i,ii), maxage(ii) } ;
+* storage-hybrid wrappers inherit maxage from their underlying generation technology
+maxage(i)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), maxage(ii) } ;
 
 *loading in capacity mandates here to avoid conflicts in calculation of valcap
 * declared over allt to allow for external data files that extend beyond end_year
@@ -2062,6 +2089,14 @@ Example: "m_rscfeas(r,i,rscbin)" is created for "eq_rsc_inv_account"
 $offtext
 
 rsc_dat(i,r,sc_cat,rscbin)$pvb(i) = sum{ii$[upv(ii)$rsc_agg(ii,i)], rsc_dat(ii,r,sc_cat,rscbin) } ;
+
+*Replicate the parent geothermal supply curve data for geothermal storage-hybrid wrappers.
+*As with PVB above, the wrapper's rsc_dat is not the binding resource constraint (that is
+*enforced on the parent geo tech via storage_hybrid_geo_rsc_agg -> rsc_agg). This copy is
+*needed so rscfeas/m_rscfeas and the INV_RSC supply-curve conditionals get created for the
+*wrapper, covering all sc_cat values (cap, cost, cost_trans, cost_cap).
+rsc_dat(i,r,sc_cat,rscbin)$storage_hybrid(i)
+    = sum{ii$[storage_hybrid_geo_rsc_agg(ii,i)$rsc_i(ii)], rsc_dat(ii,r,sc_cat,rscbin) } ;
 
 *following set indicates which combinations of r and i are possible
 *this is based on whether or not the bin has capacity available
@@ -2352,6 +2387,8 @@ m_rscfeas(r,i,rscbin) = rscfeas(i,r,rscbin) ;
 m_rscfeas(r,i,rscbin)$[csp(i)$(not ban(i))$sum{ii$[(not ban(ii))$tg_rsc_cspagg(ii, i)], m_rscfeas(r,ii,rscbin) }] = yes ;
 * Hybrid PV+battery
 m_rscfeas(r,i,rscbin)$[pvb(i)$(not ban(i))$sum{ii$[(not ban(ii))$tg_rsc_upvagg(ii, i)], m_rscfeas(r,ii,rscbin) }] = yes ;
+* Geothermal storage-hybrid wrappers inherit parent geo feasibility
+m_rscfeas(r,i,rscbin)$[storage_hybrid(i)$(not ban(i))$sum{ii$[(not ban(ii))$storage_hybrid_geo_rsc_agg(ii, i)], m_rscfeas(r,ii,rscbin) }] = yes ;
 
 parameter m_required_prescriptions(pcat,r,t)        "--MW-- required power prescriptions by year (cumulative)" ;
 
@@ -2393,6 +2430,8 @@ $onlisting
 degrade_annual(i)$pvb(i) = sum{ii$[upv(ii)$rsc_agg(ii,i)], degrade_annual(ii) } ;
 
 degrade_annual(i)$[i_water_cooling(i)$Sw_WaterMain] = sum{ii$ctt_i_ii(i,ii), degrade_annual(ii) } ;
+* storage-hybrid wrappers inherit annual degradation from their underlying generation technology
+degrade_annual(i)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), degrade_annual(ii) } ;
 
 degrade(i,t,tt)$[(yeart(tt)>=yeart(t))$(not ban(i))] = 1 ;
 degrade(i,t,tt)$[(yeart(tt)>=yeart(t))$(not ban(i))] = (1-degrade_annual(i))**(yeart(tt)-yeart(t)) ;
@@ -2511,6 +2550,12 @@ $endif.geohydrorev
 $ifthen.egsrev %egssupplycurve% == 'reV'
 spur_techs(i)$(geo_egs_allkm(i)) = yes ;
 $endif.egsrev
+
+* Geothermal storage-hybrid wrappers share their parent geo tech's endogenous spur
+* lines: they join spur_techs and inherit the parent's spurline_sitemap entries so
+* CAP_SPUR at each reV site is shared across the parent geo tech and the wrapper.
+spur_techs(i)$[storage_hybrid(i)$sum{ii$[storage_hybrid_geo_rsc_agg(ii,i)$spur_techs(ii)], 1}] = yes ;
+spurline_sitemap(i,r,rscbin,x)$[storage_hybrid(i)$sum{ii$[storage_hybrid_geo_rsc_agg(ii,i)$spur_techs(ii)], spurline_sitemap(ii,r,rscbin,x) }] = yes ;
 
 $endif.spursites
 
@@ -3362,6 +3407,8 @@ $offdelim
 $onlisting
 / ;
 nat_gen_tech_frac(i)$[i_water_cooling(i)$Sw_WaterMain] = sum{ii$ctt_i_ii(i,ii), nat_gen_tech_frac(ii) } ;
+* storage-hybrid wrappers inherit national-mandate eligibility from their underlying generation technology
+nat_gen_tech_frac(i)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), nat_gen_tech_frac(ii) } ;
 
 *====================
 * --- CSAPR Data ---
@@ -5178,6 +5225,8 @@ $include inputs_case%ds%itc_frac_monetized.csv
 $offdelim
 $onlisting
 / ;
+* storage-hybrid wrappers inherit itc_frac_monetized from their underlying generation technology
+itc_frac_monetized(i,t)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), itc_frac_monetized(ii,t) } ;
 
 $onempty
 parameter itc_energy_comm_bonus(i,r) "energy community tax credit bonus factor"
@@ -5189,6 +5238,8 @@ $offdelim
 $onlisting
 / ;
 $offempty
+* storage-hybrid wrappers inherit itc_energy_comm_bonus from their underlying generation technology
+itc_energy_comm_bonus(i,r)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), itc_energy_comm_bonus(ii,r) } ;
 
 parameter pv_frac_of_depreciation(i,allt) "present value of depreciation, expressed as a fraction of the capital cost of the investment"
 /
@@ -5207,6 +5258,8 @@ $include inputs_case%ds%degradation_adj.csv
 $offdelim
 $onlisting
 / ;
+* storage-hybrid wrappers inherit degradation_adj from their underlying generation technology
+degradation_adj(i,t)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), degradation_adj(ii,t) } ;
 
 parameter financing_risk_mult(i,allt) "multiplier to reflect higher financing costs for riskier assets"
 /
@@ -5216,6 +5269,8 @@ $include inputs_case%ds%financing_risk_mult.csv
 $offdelim
 $onlisting
 / ;
+* storage-hybrid wrappers inherit financing_risk_mult from their underlying generation technology
+financing_risk_mult(i,t)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), financing_risk_mult(ii,t) } ;
 
 parameter reg_cap_cost_diff(i,r) "regional capital cost difference [fraction] (note that wind-ons and upv have separate multiplers in the supply curve cost)"
 /

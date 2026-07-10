@@ -191,6 +191,20 @@ def main(t, casedir, iteration=0):
         trancap_reeds = gdxreeds['cap_trans_energy']
 
     #%%### Efficiencies and storage parameters
+    # Storage-hybrid wrappers (`storage_hybrid` GAMS set) need the same vintage-
+    # collapse and PRAS-export treatment as standalone storage. Build a combined
+    # tech list once and reuse it below. The `storage_hybrid` set is exported from
+    # GAMS via d3_data_dump.gms — fall back to an empty Series if it is missing
+    # so older GDX files (pre-export) still load.
+    _storage_hybrid_techs = (
+        gdxreeds['storage_hybrid'].i if 'storage_hybrid' in gdxreeds
+        else pd.Series([], dtype=str, name='i')
+    )
+    storage_techs_i = pd.concat(
+        [gdxreeds['storage_standalone'].i, _storage_hybrid_techs],
+        ignore_index=True,
+    ).drop_duplicates()
+
     duration = gdxreeds['storage_duration'].loc[
         gdxreeds['storage_duration'].i.isin(gdxreeds['storage_standalone'].i)
     ].set_index('i').Value
@@ -203,14 +217,14 @@ def main(t, casedir, iteration=0):
     )
     ### Reset the vintages of all storage units to 'new1' to reduce model size
     cap_storage_devint = cap_ivr_realvint.loc[
-        cap_ivr_realvint.i.isin(gdxreeds['storage_standalone'].i)].copy()
+        cap_ivr_realvint.i.isin(storage_techs_i)].copy()
     cap_storage_devint['v'] = 'new1'
     cap_storage_devint = (
         cap_storage_devint.groupby(['i','v','r'], as_index=False).Value.sum())
 
     def _devint_storage(dfin):
         dfout = pd.concat([
-            dfin.loc[~dfin.i.isin(gdxreeds['storage_standalone'].i)],
+            dfin.loc[~dfin.i.isin(storage_techs_i)],
             cap_storage_devint
         ], axis=0)
         return dfout
@@ -224,12 +238,12 @@ def main(t, casedir, iteration=0):
     )
     ### Reset the vintages of all storage energy capacity units to 'new1' as well
     cap_energy_ivr_devint = cap_energy_ivr.loc[
-        cap_energy_ivr.i.isin(gdxreeds['storage_standalone'].i)].copy()
+        cap_energy_ivr.i.isin(storage_techs_i)].copy()
     cap_energy_ivr_devint['v'] = 'new1'
     cap_energy_ivr_devint = (
         cap_energy_ivr_devint.groupby(['i','v','r'], as_index=False).Value.sum())
     cap_energy_ivr = pd.concat([
-        cap_energy_ivr.loc[~cap_energy_ivr.i.isin(gdxreeds['storage_standalone'].i)],
+        cap_energy_ivr.loc[~cap_energy_ivr.i.isin(storage_techs_i)],
         cap_energy_ivr_devint
     ], axis=0)
 
@@ -502,6 +516,22 @@ def main(t, casedir, iteration=0):
         ## Only keep standalone storage
         .drop(hybrid_plant, errors='ignore')
     )
+    ## Storage-hybrid wrappers have their own efficiency parameter in GAMS
+    ## (storage_eff_storage_hybrid_g for grid charging — the only mode PRAS models).
+    ## Append wrapper entries so they get a charge_eff value in PRAS.
+    if 'storage_eff_storage_hybrid_g' in gdxreeds:
+        storage_hybrid_eff = (
+            gdxreeds['storage_eff_storage_hybrid_g']
+            .loc[gdxreeds['storage_eff_storage_hybrid_g'].t == t]
+            .set_index('i')
+            .Value
+            .rename('fraction')
+        )
+        ## Drop any wrapper rows that happened to come through storage_eff already
+        storage_eff = pd.concat([
+            storage_eff.drop(storage_hybrid_eff.index, errors='ignore'),
+            storage_hybrid_eff,
+        ])
     ## As in ReEDS LP, storage losses are applied to charging side (none for discharging)
     csvout['charge_eff'] = storage_eff
     csvout['discharge_eff'] = pd.Series(index=storage_eff.index, data=1., name='fraction')

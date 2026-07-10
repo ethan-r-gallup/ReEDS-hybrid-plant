@@ -190,7 +190,12 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths)
     @debug "hd_types is $(union(hyd_disp_types,hyd_non_disp_types))"
 
     storage_types =
-        unique(DataFrames.dropmissing(tech_subset_table, :STORAGE_STANDALONE)[:, "Column1"])
+        unique(vcat(
+            DataFrames.dropmissing(tech_subset_table, :STORAGE_STANDALONE)[:, "Column1"],
+            DataFrames.dropmissing(
+                tech_subset_table, Symbol("STORAGE-HYBRID")
+            )[:, "Column1"],
+        ))
 
     @debug "storage type is $(storage_types)"
 
@@ -745,13 +750,25 @@ function process_storages(
         for polarity in ["charge", "discharge"]
     )
     efficiency = Dict(
-        polarity => Dict(zip(efficiency_in[polarity][!,"i"], efficiency_in[polarity][!,"fraction"]))
+        polarity => Dict{String, Float64}(zip(
+            String.(efficiency_in[polarity][!,"i"]),
+            efficiency_in[polarity][!,"fraction"],
+        ))
         for polarity in keys(efficiency_in)
     )
 
     ## Read {case}/inputs_case/tech-subset-table.csv
     tech_subset_table = get_technology_types(ReEDS_data)
-    battery_types = DataFrames.dropmissing(tech_subset_table, :BATTERY)[:, "Column1"]
+    # Storage-Hybrid wrappers are routed through the lumped Battery(...) path
+    # alongside techs tagged BATTERY. They are not in the GAMS `battery(i)` set,
+    # so we union the BATTERY and STORAGE-HYBRID tech-subset columns here
+    # without touching GAMS subset semantics.
+    battery_types = unique(vcat(
+        DataFrames.dropmissing(tech_subset_table, :BATTERY)[:, "Column1"],
+        DataFrames.dropmissing(
+            tech_subset_table, Symbol("STORAGE-HYBRID")
+        )[:, "Column1"],
+    ))
 
     storages_array = Storage[]
     for (idx, row) in enumerate(eachrow(storage_builds))

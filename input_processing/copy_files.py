@@ -3,6 +3,7 @@
 ### ===========================================================================
 import os
 import sys
+import re
 import datetime
 import numpy as np
 import pandas as pd
@@ -26,9 +27,28 @@ STORAGE_HYBRID_EXPANDABLE_GEN_TECHS = {
     'egs-nearfield',
 }
 
+# Geothermal generation families that carry a resource supply curve (rsc_i) and,
+# where applicable, endogenous spur lines. Storage-hybrid wrappers built on these
+# families share the parent geo tech's supply curve and spur-line capacity rather
+# than being unconstrained (see append_storage_hybrid_subsets and
+# write_storage_hybrid_rsc_agg / b_inputs.gms storage_hybrid_geo_rsc_agg).
+STORAGE_HYBRID_GEO_RSC_FAMILIES = {
+    'geohydro-allkm',
+    'egs-allkm',
+    'egs-nearfield',
+}
+
 
 def _storage_hybrid_canon_label(value):
     return str(value).strip().lower().replace('_', '-').replace(' ', '')
+
+
+def _storage_hybrid_gen_is_geo_rsc(gen_tech):
+    """Return True if `gen_tech` is a numbered geothermal supply-curve family member."""
+    canon = _storage_hybrid_canon_label(gen_tech)
+    match = re.match(r'^(.*)-\d+$', canon)
+    family = match.group(1) if match else canon
+    return family in STORAGE_HYBRID_GEO_RSC_FAMILIES
 
 
 def _storage_hybrid_expand_to_len(values, n, label, storage_hybrid_types):
@@ -232,11 +252,147 @@ def write_storage_hybrid_case_inputs(sw, inputs_case):
         }
     ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gentechs.csv'), index=False)
 
+    # Map each geothermal storage-hybrid wrapper to its parent geo supply-curve tech.
+    # The parent tech is the FIRST index so that eq_rsc_INVlim is generated only for
+    # the parent (mirroring the UPV/PVB tg_rsc_upvagg pattern), and the wrapper's
+    # INV_RSC is summed into the parent's shared resource limit via rsc_agg.
+    geo_rsc_configs = [c for c in configs if _storage_hybrid_gen_is_geo_rsc(c['gen_tech'])]
+    pd.DataFrame(
+        {
+            '*i': [c['gen_tech'] for c in geo_rsc_configs],
+            'ii': [c['storage_hybrid_tech'] for c in geo_rsc_configs],
+        }
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_rsc_agg.csv'), index=False)
+
     if configs:
         append_storage_hybrid_techs_to_i(inputs_case, configs)
         append_storage_hybrid_subsets(inputs_case, configs)
+        append_storage_hybrid_ivt(inputs_case, configs)
 
     return configs
+
+
+def append_storage_hybrid_ivt(inputs_case, configs):
+    """Append a vintage row to ivt.csv for each storage-hybrid wrapper tech.
+
+    ivt.csv is written by runbatch.get_ivt_numclass() before copy_files runs and
+    sources only static rows from inputs/userinput/ivt_{suffix}.csv. The
+    dynamically generated storage-hybrid-{config}-{gentech} wrappers are not in
+    that source, so without this patch they have no ivt(i,newv,t) entries and
+    GAMS never adds them to valcap (see b_inputs.gms valcap rules at L2556+).
+
+    Each wrapper inherits its gen tech's vintage schedule. This keeps newv
+    vintages aligned with the gen tech (whose plant_char, supply curve, and
+    heat_rate the wrapper already inherits) and does not change numclass since
+    the max v index is unchanged.
+
+    ivt.csv stores numbered tech families in GAMS-style condensed range form
+    (e.g. ``egs_allkm_1*egs_allkm_10``) rather than as one row per numbered
+    member. We mirror that convention by emitting one condensed range row per
+    (config_id, gen_tech_family) group when the wrappers cover a contiguous
+    suffix range and share an identical vintage schedule; otherwise we fall
+    back to individual rows.
+    """
+    ivt_path = os.path.join(inputs_case, 'ivt.csv')
+    if not os.path.exists(ivt_path):
+        return
+
+    ivt = pd.read_csv(ivt_path, index_col=0)
+
+    suffix_re = re.compile(r'^(.*)_(\d+)$')
+
+    def _parse_range(index_value):
+        """Return (prefix, lo, hi) if `index_value` is a GAMS range, else None."""
+        text = str(index_value).strip()
+        if '*' not in text:
+            return None
+        left, right = [part.strip() for part in text.split('*', 1)]
+        left_match = suffix_re.match(left)
+        right_match = suffix_re.match(right)
+        if not (left_match and right_match):
+            return None
+        if left_match.group(1) != right_match.group(1):
+            return None
+        return left_match.group(1), int(left_match.group(2)), int(right_match.group(2))
+
+    # Map every individual tech name (including those expanded from ranges) to
+    # its vintage row in ivt.csv so wrappers can look up their gen tech values.
+    tech_to_row = {}
+    covered_techs = set()
+    for ivt_index, row in ivt.iterrows():
+        text = str(ivt_index).strip()
+        parsed = _parse_range(text)
+        if parsed is None:
+            tech_to_row[text] = row
+            covered_techs.add(text)
+        else:
+            prefix, lo, hi = parsed
+            for n in range(lo, hi + 1):
+                name = f'{prefix}_{n}'
+                tech_to_row[name] = row
+                covered_techs.add(name)
+
+    # Group configs by (config_id, gen_tech_family_prefix) so contiguous
+    # numbered wrappers can be emitted as a single condensed range row.
+    grouped = {}
+    singletons = []
+    for config in configs:
+        wrapper = config['storage_hybrid_tech']
+        gen_tech = config['gen_tech']
+        match = suffix_re.match(gen_tech)
+        if match:
+            key = (config['config_id'], match.group(1))
+            grouped.setdefault(key, []).append((int(match.group(2)), wrapper, gen_tech))
+        else:
+            singletons.append((wrapper, gen_tech))
+
+    new_rows = {}
+
+    def _lookup_gen_row(gen_tech, wrapper):
+        if gen_tech not in tech_to_row:
+            raise ValueError(
+                f"Cannot extend ivt.csv for storage-hybrid wrapper {wrapper!r}: "
+                f"underlying gen tech {gen_tech!r} has no row in ivt.csv."
+            )
+        return tech_to_row[gen_tech]
+
+    for (config_id, gen_prefix), members in grouped.items():
+        members.sort(key=lambda item: item[0])
+        suffixes = [item[0] for item in members]
+        contiguous = suffixes == list(range(suffixes[0], suffixes[-1] + 1))
+        rows = [_lookup_gen_row(item[2], item[1]) for item in members]
+        identical = all(row.equals(rows[0]) for row in rows)
+        wrapper_prefix = (
+            f'storage-hybrid-{_storage_hybrid_canon_label(config_id)}-{gen_prefix}'
+        )
+
+        if contiguous and identical:
+            lo_wrapper = f'{wrapper_prefix}_{suffixes[0]}'
+            hi_wrapper = f'{wrapper_prefix}_{suffixes[-1]}'
+            if all(f'{wrapper_prefix}_{n}' in covered_techs for n in suffixes):
+                continue
+            range_index = (
+                lo_wrapper if lo_wrapper == hi_wrapper
+                else f'{lo_wrapper}*{hi_wrapper}'
+            )
+            new_rows[range_index] = rows[0]
+        else:
+            for suffix, wrapper, gen_tech in members:
+                if wrapper in covered_techs:
+                    continue
+                new_rows[wrapper] = tech_to_row[gen_tech]
+
+    for wrapper, gen_tech in singletons:
+        if wrapper in covered_techs:
+            continue
+        new_rows[wrapper] = _lookup_gen_row(gen_tech, wrapper)
+
+    if not new_rows:
+        return
+
+    appended = pd.DataFrame.from_dict(new_rows, orient='index', columns=ivt.columns)
+    appended.index.name = ivt.index.name
+    pd.concat([ivt, appended]).to_csv(ivt_path)
 
 
 def append_storage_hybrid_techs_to_i(inputs_case, configs):
@@ -276,6 +432,17 @@ def append_storage_hybrid_subsets(inputs_case, configs):
         if tech not in df.index:
             df.loc[tech] = ''
         df.loc[tech, required_cols] = 'YES'
+        # Geothermal storage-hybrid wrappers carry a resource supply curve so their
+        # buildout is bounded by the shared parent geo supply curve. Marking RSC='YES'
+        # puts the wrapper in rsc_i(i); the actual binding limit is enforced on the
+        # parent tech via storage_hybrid_geo_rsc_agg -> rsc_agg in b_inputs.gms.
+        if _storage_hybrid_gen_is_geo_rsc(config['gen_tech']):
+            if 'RSC' not in df.columns:
+                raise ValueError(
+                    "tech-subset-table.csv is missing the 'RSC' column required to "
+                    "enable geothermal storage-hybrid supply curves."
+                )
+            df.loc[tech, 'RSC'] = 'YES'
 
     df.to_csv(path)
 
@@ -1931,8 +2098,19 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
                 skip_files.add(fname_lower)
 
     tech_canon_map = _load_storage_hybrid_tech_canon_map(inputs_case)
+    # For each Storage-Hybrid config, list (source_techs, wrapper) where
+    # source_techs is a precedence-ordered list of techs to try when cloning
+    # rows into the wrapper. The paired storage tech is tried first so that
+    # PRAS-pipeline files (unitsize_atb.csv, mttr.csv, outage_forced_static.csv,
+    # etc.) inherit from the storage device; the gen tech is the fallback for
+    # parameter files where gen-side characteristics are the natural source.
+    # Only the first matching source is used per file/column, so no row is ever
+    # cloned twice for the same wrapper.
     tech_map = [
-        (config['gen_tech'], config['storage_hybrid_tech'])
+        (
+            [config['storage_tech'], config['gen_tech']],
+            config['storage_hybrid_tech'],
+        )
         for config in configs
     ]
 
@@ -2052,17 +2230,30 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
             ]
 
             changed = False
-            for base_i, stor_i in tech_map:
-                base_canon = _storage_hybrid_canon_label(base_i)
+            for source_techs, stor_i in tech_map:
                 stor_canon = _storage_hybrid_canon_label(stor_i)
 
+                # Column-name propagation: if any source tech appears as a
+                # column header, clone that column under the wrapper name.
+                # First match wins to avoid duplicate columns.
                 col_canons = {_storage_hybrid_canon_label(c): c for c in df.columns}
-                if (base_canon in col_canons) and (stor_canon not in col_canons):
-                    base_col = col_canons[base_canon]
-                    stor_col = stor_i.lower() if str(base_col) == str(base_col).lower() else stor_i
-                    df[stor_col] = df[base_col]
-                    changed = True
+                if stor_canon not in col_canons:
+                    for source_i in source_techs:
+                        source_canon = _storage_hybrid_canon_label(source_i)
+                        if source_canon in col_canons:
+                            base_col = col_canons[source_canon]
+                            stor_col = (
+                                stor_i.lower()
+                                if str(base_col) == str(base_col).lower()
+                                else stor_i
+                            )
+                            df[stor_col] = df[base_col]
+                            changed = True
+                            break
 
+                # Row propagation: for each tech-identifier column, find rows
+                # matching a source tech (first match in precedence order wins)
+                # and append clones keyed by the wrapper name.
                 for col in tech_id_cols:
                     series_canon = (
                         df[col]
@@ -2074,8 +2265,14 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
                     )
                     if stor_canon in set(series_canon):
                         continue
-                    mask = series_canon == base_canon
-                    if not mask.any():
+                    mask = None
+                    for source_i in source_techs:
+                        source_canon = _storage_hybrid_canon_label(source_i)
+                        candidate_mask = series_canon == source_canon
+                        if candidate_mask.any():
+                            mask = candidate_mask
+                            break
+                    if mask is None:
                         continue
                     base_rows = df.loc[mask].copy()
                     example = str(df.loc[mask, col].iloc[0])

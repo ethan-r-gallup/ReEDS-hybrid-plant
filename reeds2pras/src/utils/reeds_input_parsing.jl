@@ -136,7 +136,7 @@ end
 function get_MTTR_data(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "mttr.csv")
     df = DataFrames.DataFrame(CSV.File(filepath))
-    return Dict(df[!, "tech"] .=> df[!, "hours"])
+    return Dict{String, Int64}(String.(df[!, "tech"]) .=> df[!, "hours"])
 end
 
 
