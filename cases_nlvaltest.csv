@@ -1,0 +1,17 @@
+,aj_boak_lo
+timetype,seq
+endyear,2035
+GSw_NuclearCapMandate,2
+GSw_NuclearCapMandateScen,abou_jaoude
+GSw_NuclearCapMandate_Scale,1
+GSw_NuclearLearning,1
+GSw_NuclearLearning_LR_large,0.0800
+GSw_NuclearLearning_LR_smr,0.0950
+GSw_NuclearLearning_BOAK_large,5250
+GSw_NuclearLearning_BOAK_smr,5500
+GSw_NuclearLearning_Vendors,4
+GSw_NuclearLearning_Spillover,0.5
+GSw_NuclearLearning_Convention,0
+GSw_NuclearLearning_CES_rho,0
+GSw_NuclearLearning_Dur_Lambda,0.5
+GSw_NuclearLearning_ForeignScen,mid

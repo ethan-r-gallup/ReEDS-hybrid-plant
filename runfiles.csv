@@ -75,6 +75,10 @@ co2_tax.csv,,int(sw.GSw_CarbTax) != 0,ignore,ignore,,,,0,,,,,,,
 coal_price.csv,inputs/fuelprices/coal_{coalscen}.csv,1,ignore,ignore,wide_cendiv,year,,1,0,,,,,,
 construction_schedules.csv,inputs/financials/construction_schedules_{construction_schedules_suffix}.csv,1,ignore,ignore,,,,1,0,,,,,,
 construction_times.csv,inputs/financials/construction_times_{construction_times_suffix}.csv,1,ignore,ignore,,,,,0,,,,,,
+inl_duration_curves.csv,inputs/nuclear_learning/inl_duration_curves.csv,int(sw.GSw_NuclearLearning) == 1,ignore,ignore,,,,,0,,,,,,
+foreign_experience.csv,inputs/nuclear_learning/foreign_experience_{GSw_NuclearLearning_ForeignScen}.csv,int(sw.GSw_NuclearLearning) == 1,ignore,ignore,,,,,0,,,,,,
+historical_stock.csv,inputs/nuclear_learning/historical_stock.csv,int(sw.GSw_NuclearLearning) == 1,ignore,ignore,,,,,0,,,,,,
+nuclear_cap_trajectory.csv,inputs/nuclear_learning/nuclear_cap_trajectory_{GSw_NuclearCapMandateScen}.csv,int(sw.GSw_NuclearCapMandate) != 0,ignore,ignore,,,,,0,,,,,,
 consume_char.csv,inputs/consume/consume_char_{GSw_H2_Inputs}.csv,int(sw.GSw_H2) != 0,ignore,ignore,,"*i,t,parameter",,0,0,,,,,,
 consumecat.csv,inputs/sets/consumecat.csv,1,ignore,ignore,,,,,,,,,consumecat,,
 consumechardac.csv,,1,ignore,ignore,,"*i,t,variable",,0,0,,,,,,
@@ -104,7 +108,7 @@ dac_elec.csv,inputs/consume/dac_elec_{dacscen}.csv,int(sw.GSw_DAC) != 0,ignore,i
 dac_gas.csv,inputs/consume/dac_gas_{GSw_DAC_Gas_Case}.csv,int(sw.GSw_DAC) != 0,ignore,ignore,,,,1,0,,1,,,,
 deflator.csv,inputs/financials/deflator.csv,1,ignore,ignore,,,,,0,,,,,,
 degradation_annual.csv,inputs/degradation/degradation_annual_{degrade_suffix}.csv,1,ignore,ignore,,,,,0,,,,,,
-demonstration_plants.csv,inputs/capacity_exogenous/demonstration_plants.csv,int(sw.GSw_NuclearDemo) != 0,sum,ignore,r,"t,i,coolingwatertech,ctt,wst,notes",i,0,0,,,,,,
+demonstration_plants.csv,inputs/capacity_exogenous/demonstration_plants_{GSw_NuclearDemoScen}.csv,int(sw.GSw_NuclearDemo) != 0,sum,ignore,r,"t,i,coolingwatertech,ctt,wst,notes",i,0,0,,,,,,
 depreciation_schedules.csv,inputs/financials/depreciation_schedules_{depreciation_schedules_suffix}.csv,1,ignore,ignore,,,,1,0,,,,,,
 diagnose.gms,postprocessing/diagnose/diagnose.gms,1,ignore,ignore,,,,,,,,,,,
 disagg_geosize.csv,,1,ignore,ignore,,,,,0,,,,,,
@@ -315,6 +319,7 @@ plantchar_ccsflex_perf.csv,inputs/plant_characteristics/{ccsflexscen}_perf.csv,(
 plantchar_coal_ccs.csv,inputs/plant_characteristics/{plantchar_coal_ccs}.csv,1,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv
 plantchar_coal.csv,inputs/plant_characteristics/{plantchar_coal}.csv,1,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv
 plantchar_battery.csv,inputs/plant_characteristics/{plantchar_battery}.csv,int(sw.GSw_Storage) != 0,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv
+plantchar_tes.csv,inputs/plant_characteristics/{plantchar_tes}.csv,1,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv
 plantchar_csp.csv,inputs/plant_characteristics/{plantchar_csp}.csv,1,ignore,ignore,,,,,0,,,,,,used to define plantcharout.csv
 plantchar_dr_shed.csv,inputs/plant_characteristics/dr_shed_capcost_scalars_{dr_shedscen}.csv,int(sw.GSw_DRShed) != 0,ignore,ignore,r,"tech,wide",,1,0,,,,,,used to define plantcharout.csv
 plantchar_dr_shed_vom.csv,inputs/plant_characteristics/dr_shed_vom_{dr_shedscen}.csv,int(sw.GSw_DRShed) != 0,ignore,ignore,r,"tech,wide",,1,0,,,,,,used to define plantcharout.csv
@@ -531,4 +536,5 @@ max_hintage_number.txt,,1,ignore,ignore,,,,,0,,,,,,
 raw_value_streams.py,raw_value_streams.py,1,ignore,ignore,,,,,,,,,,,
 runbatch.py,runbatch.py,1,ignore,ignore,,,,,,,,,,,
 tc_phaseout.py,tc_phaseout.py,1,ignore,ignore,,,,,,,,,,,
+nuclear_learning.py,nuclear_learning.py,1,ignore,ignore,,,,,,,,,,,
 valuestreams.py,valuestreams.py,1,ignore,ignore,,,,,,,,,,,

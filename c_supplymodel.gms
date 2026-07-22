@@ -217,6 +217,8 @@ eq_interconnection_queues(tg,r,t)         "--MW-- capacity deployment limit base
  eq_CSAPR_Budget(csapr_group,t)           "--metric tons NOx-- CSAPR trading group emissions cannot exceed the budget cap"
  eq_CSAPR_Assurance(st,t)                 "--metric tons NOx-- CSAPR state emissions cannot exceed the assurance cap"
  eq_BatteryMandate(st,t)                  "--MW-- battery storage capacity must be greater than indicated level"
+ eq_nuclear_cap_mandate(t)                "--MW-- total nuclear capacity (incl. storage-hybrid nuclear) must be at least the mandated national trajectory"
+ eq_nuclear_cap_mandate_ub(t)             "--MW-- with Sw_NuclearCapMandate=2, total nuclear capacity must also not exceed the mandated trajectory (equality mode)"
  eq_cdr_cap(t)                            "--metric tons CO2-- CO2 removal (DAC and BECCS) can only offset emissions from fossil+CCS and methane leakage"
  eq_caa_max_cf(i,v,r,t)                   "--MWh-- maximum capacity factors for new gas plants (CCs and CTs) under Clean Air Act Section 111 (BSER)"
  eq_caa_rate_standard(st,t)               "--metric tons CO2-- maximum coal emissions per state under Clean Air Act Section 111 (rate-based emissions standard)"
@@ -1768,6 +1770,15 @@ eq_reserve_margin(r,ccseason,t)
           cc_storage(i,sdbin) * CAP_SDBIN(i,v,r,ccseason,sdbin,t)
          }
 
+*[plus] firm capacity from the dispatchable generation side of storage-hybrid plants
+*the storage side is credited through CAP_SDBIN above; eq_plant_capacity_limit allows
+*(1 + bcr)*CAP of simultaneous grid delivery, so the two terms together stay within
+*the plant's deliverable capacity (gen <= CAP, storage discharge <= bcr*CAP)
+    + sum{(i,v)$[storage_hybrid_dispatchable(i)$valcap(i,v,r,t)$(not forced_retire(i,r,t))],
+          CAP(i,v,r,t)
+          * (1 + ccseason_cap_frac_delta(i,v,r,ccseason,t))
+         }
+
 *[plus] average capacity credit times capacity of VRE and storage
 *used in rolling window and full intertemporal solve (otherwise cc_int = 0)
     + sum{(i,v)$[(vre(i) or storage(i))$valcap(i,v,r,t)$(not forced_retire(i,r,t))],
@@ -2868,6 +2879,46 @@ eq_batterymandate(st,t)
 
 * ---------------------------------------------------------------------------
 
+* Nuclear capacity mandate (GSw_NuclearCapMandate): total nuclear capacity —
+* standalone nuclear/nuclear-smr plus the gen-side nameplate of storage-hybrid
+* nuclear wrappers — must follow the mandated national trajectory (the US
+* deployment schedules of mc_nuclear_smr_learning.ipynb, scaled by
+* Sw_NuclearCapMandate_Scale for sub-national runs). This constrains CAPACITY,
+* unlike eq_national_gen which constrains generation share. Not applied before
+* new nuclear can be built (firstyear_nuclear), where a rising trajectory
+* would be infeasible by construction.
+
+eq_nuclear_cap_mandate(t)
+    $[tmodel(t)$nuclear_cap_trajectory(t)$(yeart(t)>=firstyear_nuclear)
+    $Sw_NuclearCapMandate
+    $(not Sw_PCM)]..
+
+    sum{(i,v,r)$[valcap(i,v,r,t)$(nuclear(i) or nuclear_learning_shtech(i))], CAP(i,v,r,t) }
+
+    =g=
+
+    nuclear_cap_trajectory(t)
+;
+
+* Equality mode (Sw_NuclearCapMandate=2): also cap capacity at the trajectory,
+* so deployment CONFORMS to the schedule rather than treating it as a floor.
+* Note prescribed builds and lumpy existing capacity can make this infeasible
+* if they exceed the (scaled) trajectory.
+
+eq_nuclear_cap_mandate_ub(t)
+    $[tmodel(t)$nuclear_cap_trajectory(t)$(yeart(t)>=firstyear_nuclear)
+    $(Sw_NuclearCapMandate=2)
+    $(not Sw_PCM)]..
+
+    sum{(i,v,r)$[valcap(i,v,r,t)$(nuclear(i) or nuclear_learning_shtech(i))], CAP(i,v,r,t) }
+
+    =l=
+
+    nuclear_cap_trajectory(t)
+;
+
+* ---------------------------------------------------------------------------
+
 eq_national_gen(t)$[tmodel(t)$national_gen_frac(t)$Sw_GenMandate$(yeart(t)>=Sw_StartMarkets)]..
 
 *generation from renewables (already post-curtailment)
@@ -3470,7 +3521,9 @@ eq_storage_hybrid_geo_storage_grid_only(i,v,r,h,t)$[storage_hybrid(i)$geo_storag
 eq_hybrid_storage_capacity_limit(i,v,r,h,t)$[hybrid_plant(i)$(not csp(i))$tmodel(t)$valgen(i,v,r,t)$valcap(i,v,r,t)$Sw_HybridPlant]..
 
 *[plus] storage capacity
-    + CAP(i,v,r,t) * bcr(i)$storage_hybrid(i)
+*bcr is defined for both pvb and storage_hybrid configs; the equation is already
+*restricted to hybrid_plant (excluding csp), so no further conditional is needed
+    + CAP(i,v,r,t) * bcr(i)
 
     =g=
 

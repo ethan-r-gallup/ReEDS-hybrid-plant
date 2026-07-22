@@ -52,6 +52,7 @@ parameter
 acp_price(st,t)$acp_price(st,t) = round(acp_price(st,t),2) ;
 avail_retire_exog_rsc(i,v,r,t)$valcap(i,v,r,t) = round(avail_retire_exog_rsc(i,v,r,t),3) ;
 batterymandate(st,t)$batterymandate(st,t) = round(batterymandate(st,t),2) ;
+nuclear_cap_trajectory(t)$nuclear_cap_trajectory(t) = round(nuclear_cap_trajectory(t),2) ;
 bcr(i)$bcr(i) = round(bcr(i),4) ;
 biosupply(usda_region,bioclass,"price") = round(biosupply(usda_region,bioclass,"price"),2) ;
 biosupply(usda_region,bioclass,"cap") = round(biosupply(usda_region,bioclass,"cap"),3) ;

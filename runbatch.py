@@ -588,6 +588,10 @@ def solvestring_sequential(
             'GSw_StateCO2ImportLevel',
             'GSw_StartMarkets',
             'GSw_ValStr',
+            'GSw_NuclearLearning',
+            'GSw_NuclearLearning_OCC',
+            'GSw_NuclearLearning_Duration',
+            'GSw_NuclearLearning_AnchorYear',
             'solver',
             'debug',
             'startyear',
@@ -672,6 +676,11 @@ def setup_sequential(
         ### Write the tax credit phaseout call
         OPATH.writelines(f"python tc_phaseout.py {cur_year} {casedir}\n\n")
 
+        ### Write the endogenous nuclear learning call (between-years OCC + construction duration)
+        if int(caseSwitches['GSw_NuclearLearning']):
+            OPATH.writelines(f"python nuclear_learning.py {cur_year} {casedir}\n")
+            OPATH.writelines(writescripterrorcheck(f"nuclear_learning.py_{cur_year}"))
+
         ### Write the GAMS LP and Augur calls
         if int(caseSwitches['GSw_PRM_StressIterateMax']):
             OPATH.writelines(
@@ -699,6 +708,12 @@ def setup_sequential(
         OPATH.writelines(
             f"python {os.path.join('ReEDS_Augur','diagnostic_plots.py')} "
             f"--reeds_path={reeds_path} --casedir={casedir} --t={cur_year} &\n")
+
+    ### Verify the endogenous nuclear learning loop end-to-end after the final year
+    ### (engine-written values vs GAMS-applied values vs the INV experience dump)
+    if int(caseSwitches['GSw_NuclearLearning']):
+        OPATH.writelines(f"\npython nuclear_learning.py check {casedir}\n")
+        OPATH.writelines(writescripterrorcheck('nuclear_learning.py_check'))
 
 
 def setup_intertemporal(
@@ -1184,6 +1199,7 @@ def write_batch_script(
     os.makedirs(os.path.join(casedir, 'lstfiles'), exist_ok=True)
     os.makedirs(os.path.join(casedir, 'outputs', 'figures'), exist_ok=True)
     os.makedirs(os.path.join(casedir, 'outputs', 'tc_phaseout_data'), exist_ok=True)
+    os.makedirs(os.path.join(casedir, 'outputs', 'nuclear_learning_data'), exist_ok=True)
 
     if int(caseSwitches['diagnose']):
         os.makedirs(os.path.join(casedir, 'outputs', 'model_diagnose'), exist_ok=True)
@@ -1408,6 +1424,13 @@ def write_batch_script(
         ################################
         #    -- CORE MODEL SETUP --    #
         ################################
+        if int(caseSwitches.get('GSw_NuclearLearning', 0)) and caseSwitches['timetype'] != 'seq':
+            raise ValueError(
+                "GSw_NuclearLearning=1 requires timetype=seq. The endogenous between-years "
+                "learning mechanism (nuclear_learning.py + d_solveoneyear.gms overrides) is "
+                f"not applied for timetype={caseSwitches['timetype']}, so learning would be "
+                "silently ignored. Set timetype=seq or GSw_NuclearLearning=0."
+            )
         if caseSwitches['timetype'] == 'seq':
             setup_sequential(
                 caseSwitches, reeds_path, hpc,

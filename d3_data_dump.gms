@@ -433,3 +433,26 @@ execute_unload 'ReEDS_Augur%ds%augur_data%ds%reeds_data_%cur_year%.gdx'
 execute_unload "outputs%ds%tc_phaseout_data%ds%emit_for_tc_phaseout_calc_%cur_year%.gdx"
   emit_nat_tc, emit_r_tc
 ;
+
+*** dump cumulative post-anchor nuclear investment for endogenous learning
+* Read by nuclear_learning.py in the next solve year to build the experience stock.
+* Uses INV.l (gross investment, retained across sequential solve years in the restart)
+* rather than CAP so that retirements never shrink the cumulative build experience.
+$ifthene.nuclearn %GSw_NuclearLearning%==1
+parameter nuc_inv_by_tech(i)      "--MW-- cumulative post-anchor gross investment for nuclear-learning experience techs" ;
+* As-applied values (post-override, post-solve) so `nuclear_learning.py check` can
+* verify end-to-end that the learned OCC/ccmult actually reached the LP's parameters.
+parameter nuc_cost_cap_applied(i) "--2004$/MW-- cost_cap in effect for this solve year"
+          nuc_ccmult_applied(i)   "--unitless-- ccmult in effect for this solve year"
+          nuc_sh_p_applied(i)     "--2004$/MW-- storage-hybrid gen-side cost in effect for this solve year" ;
+nuc_inv_by_tech(i)$nuclear_learning_exptech(i) =
+    sum{(v,r,tt)$[valinv(i,v,r,tt)
+                 $(yeart(tt) > %GSw_NuclearLearning_AnchorYear%)
+                 $(yeart(tt) <= %cur_year%)], INV.l(i,v,r,tt) } ;
+nuc_cost_cap_applied(i)$nuclear_learning_basetech(i) = cost_cap(i,"%cur_year%") ;
+nuc_ccmult_applied(i)$nuclear_learning_basetech(i) = ccmult(i,"%cur_year%") ;
+nuc_sh_p_applied(i)$nuclear_learning_shtech(i) = cost_cap_storage_hybrid_p(i,"%cur_year%") ;
+execute_unload "outputs%ds%nuclear_learning_data%ds%cumulative_inv_%cur_year%.gdx"
+  nuc_inv_by_tech, nuc_cost_cap_applied, nuc_ccmult_applied, nuc_sh_p_applied
+;
+$endif.nuclearn

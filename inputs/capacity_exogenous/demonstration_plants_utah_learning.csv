@@ -1,0 +1,6 @@
+t,r,i,coolingwatertech,ctt,wst,value,notes
+2035,p49035,nuclear,nuclear_r_fsu,r,fsu,1000,"Synthetic Utah prescription for the nuclear-learning golden test (cases_nuclearlearning.csv). One 1000-MW large unit online 2035 in Salt Lake County (upscales to BA p25); years chosen as solve years of the default yearset and >= nuclear firstyear (2033)."
+2041,p49035,nuclear,nuclear_r_fsu,r,fsu,1000,"Second 1000-MW large unit online 2041 (cumulative 2 units by the 2044 solve)."
+2035,p49035,nuclear-SMR,nuclear-SMR_r_fsu,r,fsu,1200,"Four 300-MW SMR units online 2035."
+2038,p49035,nuclear-SMR,nuclear-SMR_r_fsu,r,fsu,1200,"Four more SMR units online 2038 (cumulative 8)."
+2041,p49035,nuclear-SMR,nuclear-SMR_r_fsu,r,fsu,600,"Two more SMR units online 2041 (cumulative 10 = one per-vendor doubling at m=5; advances the INL duration series from 2 to 3 at the 2044 solve)."

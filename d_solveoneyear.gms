@@ -188,6 +188,62 @@ $endif.tcheck
 *** Calculate financial multipliers
 * These are calculated here because the ITC phaseout can influence these parameters,
 * and the timing of the phaseout is not known beforehand.
+
+* ===========================================================================
+* Endogenous nuclear learning: apply learned OCC and construction financing
+* (written by nuclear_learning.py for this solve year). This MUST precede
+* d1_financials.gms so that (a) cost_cap_fin_mult picks up the learned ccmult
+* and (b) the storage-hybrid gen-side financial multiplier re-weights from the
+* learned base-nuclear multiplier. Sequential mode only (see nuclear_learning.py
+* guards). No override is applied before the anchor year.
+* ===========================================================================
+$ifthene.nuclearn %GSw_NuclearLearning%==1
+$ifthene.nucanchor %cur_year%>=%GSw_NuclearLearning_AnchorYear%
+
+* --- Overnight capital cost (OCC) channel ---
+$ifthene.nucocc %GSw_NuclearLearning_OCC%==1
+$gdxin outputs%ds%nuclear_learning_data%ds%nuclear_learning_%cur_year%.gdx
+$loaddcr learning_cost_cap
+$gdxin
+* Base nuclear techs: update plant_char0 (so the storage-hybrid recomposition and
+* cost_cap both reflect the learned OCC) and cost_cap for the current solve year.
+plant_char0(i,"%cur_year%","capcost")$[nuclear_learning_basetech(i)$learning_cost_cap(i,"%cur_year%")] =
+    learning_cost_cap(i,"%cur_year%") ;
+cost_cap(i,"%cur_year%")$[nuclear_learning_basetech(i)$learning_cost_cap(i,"%cur_year%")] =
+    learning_cost_cap(i,"%cur_year%") ;
+* Storage-hybrid nuclear wrappers: recompose cost_cap from the learned gen-tech OCC,
+* mirroring the composition in b_inputs.gms (plant-side, powerblock, and the
+* thermal-storage vs non-thermal branches; geo-storage cannot pair with nuclear).
+cost_cap_storage_hybrid_p(i,"%cur_year%")$nuclear_learning_shtech(i) =
+    sum{ii$storage_hybrid_gentech(i,ii), plant_char0(ii,"%cur_year%","capcost") } ;
+powerblock_cost_storage_hybrid(i,"%cur_year%")$nuclear_learning_shtech(i) =
+    sum{ii$storage_hybrid_gentech(i,ii),
+        cost_cap_storage_hybrid_p(i,"%cur_year%") * powerblock_share_storage_hybrid(ii) } ;
+cost_cap(i,"%cur_year%")$[nuclear_learning_shtech(i)$thermal_storage(i)] =
+    cost_cap_storage_hybrid_p(i,"%cur_year%")
+    - powerblock_cost_storage_hybrid(i,"%cur_year%")
+    + (1 + bcr(i)) * cost_cap_storage_hybrid_s(i,"%cur_year%")
+    + gridcharge_ratio(i) * sum{ii$[storage_hybrid_stortech(i,ii)$heater_char(ii,"%cur_year%","capcost")],
+                                heater_char(ii,"%cur_year%","capcost") } ;
+cost_cap(i,"%cur_year%")$[nuclear_learning_shtech(i)$(not thermal_storage(i))$(not geo_storage(i))] =
+    cost_cap_storage_hybrid_p(i,"%cur_year%")
+    + bcr(i) * cost_cap_storage_hybrid_s(i,"%cur_year%") ;
+$endif.nucocc
+
+* --- Construction-duration (interest-during-construction) channel ---
+* Override ccmult for base nuclear techs; the storage-hybrid gen-side financial
+* multiplier inherits this automatically via d1_financials.gms.
+$ifthene.nucdur %GSw_NuclearLearning_Duration%==1
+$gdxin outputs%ds%nuclear_learning_data%ds%nuclear_learning_%cur_year%.gdx
+$loaddcr learning_ccmult
+$gdxin
+ccmult(i,"%cur_year%")$[nuclear_learning_basetech(i)$learning_ccmult(i,"%cur_year%")] =
+    learning_ccmult(i,"%cur_year%") ;
+$endif.nucdur
+
+$endif.nucanchor
+$endif.nuclearn
+
 $include d1_financials.gms
 
 

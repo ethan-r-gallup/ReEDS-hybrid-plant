@@ -116,7 +116,7 @@ RelativeFilePath,RelativeFolderPath,FileName_new,FileExtension,Description_new,I
 /inputs/canada_imports/can_imports_quarter_frac.csv,/inputs/canada_imports,can_imports_quarter_frac,.csv,Fraction of annual imports from Canada by season,N/A,,,Input,rate (unitless)
 /inputs/capacity_exogenous/cappayments.csv,/inputs/capacity_exogenous,cappayments,.csv,,,,,,
 /inputs/capacity_exogenous/cappayments_ba.csv,/inputs/capacity_exogenous,cappayments_ba,.csv,,,,,,
-/inputs/capacity_exogenous/demonstration_plants.csv,/inputs/capacity_exogenous,demonstration_plants,.csv,Nuclear-smr demonstration plants; active when GSw_NuclearDemo=1,"t,r,i,coolingwatertech,ctt,wst,value",,See 'notes' column in the file and https://www.energy.gov/oced/advanced-reactor-demonstration-projects-0,Prescribed capacity,MW
+/inputs/capacity_exogenous/demonstration_plants_default.csv,/inputs/capacity_exogenous,demonstration_plants_default,.csv,Nuclear-smr demonstration plants; active when GSw_NuclearDemo=1,"t,r,i,coolingwatertech,ctt,wst,value",,See 'notes' column in the file and https://www.energy.gov/oced/advanced-reactor-demonstration-projects-0,Prescribed capacity,MW
 /inputs/capacity_exogenous/exog_cap_geohydro_allkm_reference.csv,/inputs/capacity_exogenous,exog_cap_geohydro_allkm_reference,.csv,,,,,,
 /inputs/capacity_exogenous/exog_cap_geohydro_reference.csv,/inputs/capacity_exogenous,exog_cap_geohydro_reference,.csv,,,,,,
 /inputs/capacity_exogenous/exog_cap_upv_limited.csv,/inputs/capacity_exogenous,exog_cap_upv_limited,.csv,,,,,,

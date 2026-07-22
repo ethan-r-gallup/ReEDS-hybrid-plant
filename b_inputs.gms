@@ -1934,6 +1934,27 @@ $offempty
 scalar firstyear_battery "--year-- the first year battery technologies can be built, used to enforce storage mandate" ;
 firstyear_battery = smin(i$battery(i),firstyear(i)) ;
 
+* National nuclear capacity mandate trajectory (GSw_NuclearCapMandate;
+* eq_nuclear_cap_mandate in c_supplymodel.gms). Scenario file selected by
+* GSw_NuclearCapMandateScen (the US deployment schedules of
+* mc_nuclear_smr_learning.ipynb); empty file when the mandate is off.
+$onempty
+parameter nuclear_cap_trajectory(allt) "--MW-- national nuclear capacity mandate trajectory (existing + new, net-path basis)"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%nuclear_cap_trajectory.csv
+$offdelim
+$onlisting
+/ ;
+$offempty
+
+* Sub-national runs apply a fraction of the national trajectory
+nuclear_cap_trajectory(allt) = nuclear_cap_trajectory(allt) * Sw_NuclearCapMandate_Scale ;
+
+scalar firstyear_nuclear "--year-- the first year new nuclear can be built, used to enforce the nuclear capacity mandate" ;
+firstyear_nuclear = smin(i$nuclear(i),firstyear(i)) ;
+
 $onempty
 table offshore_cap_req(st,allt) "--MW-- offshore wind capacity requirement by state"
 $offlisting
@@ -6109,6 +6130,26 @@ cost_cap(i,t)$[storage_hybrid(i)$(not thermal_storage(i))$(not geo_storage(i))] 
                                  + bcr(i) * cost_cap_storage_hybrid_s(i,t) ;
 cost_cap(i,t)$[storage_hybrid(i)$geo_storage(i)] = cost_cap_storage_hybrid_p(i,t)
                                  + powerblock_cost_storage_hybrid(i,t) * bcr(i) ;
+
+* ===========================================================================
+* Endogenous nuclear learning (GSw_NuclearLearning) -- sets and override params
+* ===========================================================================
+* nuclear_learning.py writes per-year learned overrides that d_solveoneyear.gms
+* re-reads (before the d1_financials.gms include) when GSw_NuclearLearning=1.
+* These sets identify the base nuclear techs and the storage-hybrid wrappers whose
+* generation tech is nuclear, so both the OCC override and the cumulative-investment
+* dump (d3_data_dump.gms) act on the full nuclear reactor family.
+set nuclear_learning_basetech(i) "base nuclear techs subject to endogenous learning" ;
+nuclear_learning_basetech(i)$nuclear(i) = yes ;
+
+set nuclear_learning_shtech(i) "storage-hybrid wrappers whose generation tech is nuclear" ;
+nuclear_learning_shtech(i)$[storage_hybrid(i)$sum{ii$[storage_hybrid_gentech(i,ii)$nuclear(ii)], 1 }] = yes ;
+
+set nuclear_learning_exptech(i) "all techs whose builds count as nuclear-learning experience" ;
+nuclear_learning_exptech(i)$[nuclear_learning_basetech(i) or nuclear_learning_shtech(i)] = yes ;
+
+parameter learning_cost_cap(i,allt) "--2004$/MW-- learned overnight capital cost override for nuclear techs" ;
+parameter learning_ccmult(i,allt)   "--unitless-- learned construction financing multiplier override for nuclear techs" ;
 
 * --- Storage Duration ---
 

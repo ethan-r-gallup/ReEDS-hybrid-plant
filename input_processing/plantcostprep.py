@@ -218,6 +218,9 @@ csp_stack = csp_stack[['t','capcost','fom','vom','i']]
 battery = pd.read_csv(os.path.join(inputs_case,'plantchar_battery.csv'))
 battery = deflate_func(battery, sw.plantchar_battery)
 
+tes = pd.read_csv(os.path.join(inputs_case,'plantchar_tes.csv'))
+tes = deflate_func(tes, sw.plantchar_tes)
+
 flex_geo = pd.read_csv(os.path.join(inputs_case,'plantchar_flex_geo.csv'))
 flex_geo = deflate_func(flex_geo, sw.plantchar_flex_geo)
 
@@ -230,7 +233,7 @@ evmc_shape = deflate_func(evmc_shape, 'evmc_shape_' + sw.evmcscen)
 #    -- Concat all data --    #
 ###############################
 
-alldata = pd.concat([conv,upv_stack,wind_stack,geo_stack,csp_stack,battery,flex_geo,
+alldata = pd.concat([conv,upv_stack,wind_stack,geo_stack,csp_stack,battery,tes,flex_geo,
                      evmc_storage,evmc_shape,beccs,ccsflex,h2combustion],sort=False)
 
 if sw.upgradescen != 'default':

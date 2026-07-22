@@ -962,7 +962,12 @@ cap_firm(i,r,ccseason,t)$[valcap_irt(i,r,t)$[not consume(i)]$tmodel_new(t)$Sw_PR
     + sum{v$[hydro_d(i)$valcap(i,v,r,t)],
          CAP.l(i,v,r,t) * cap_hyd_ccseason_adj(i,ccseason,r) * (1 + hydro_capcredit_delta(i,t)) }
     + sum{(v,sdbin)$[valcap(i,v,r,t)$(storage_standalone(i) or hyd_add_pump(i))], CAP_SDBIN.l(i,v,r,ccseason,sdbin,t) * cc_storage(i,sdbin) }
-    + sum{(v,sdbin)$[valcap(i,v,r,t)$hybrid_plant(i)], CAP_SDBIN.l(i,v,r,ccseason,sdbin,t) * cc_storage(i,sdbin) * hybrid_cc_derate(i,r,ccseason,sdbin,t) } ;
+* VRE-availability derate applies only to VRE-paired hybrids (pvb and storage_hybrid_vre),
+* matching eq_reserve_margin; dispatchable storage-hybrids take cc_storage undiluted
+    + sum{(v,sdbin)$[valcap(i,v,r,t)$hybrid_plant(i)$(not storage_hybrid_dispatchable(i))], CAP_SDBIN.l(i,v,r,ccseason,sdbin,t) * cc_storage(i,sdbin) * hybrid_cc_derate(i,r,ccseason,sdbin,t) }
+    + sum{(v,sdbin)$[valcap(i,v,r,t)$storage_hybrid_dispatchable(i)], CAP_SDBIN.l(i,v,r,ccseason,sdbin,t) * cc_storage(i,sdbin) }
+* firm credit for the dispatchable generation side of storage-hybrid plants (matches eq_reserve_margin)
+    + sum{v$[storage_hybrid_dispatchable(i)$valcap(i,v,r,t)], CAP.l(i,v,r,t) * (1 + ccseason_cap_frac_delta(i,v,r,ccseason,t)) } ;
 
 * Capacity trading to meet PRM
 captrade(r,rr,trtype,ccseason,t)$[routes(r,rr,trtype,t)$routes_prm(r,rr)$tmodel_new(t)] = PRMTRADE.l(r,rr,trtype,ccseason,t) ;
