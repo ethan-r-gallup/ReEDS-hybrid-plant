@@ -3452,13 +3452,16 @@ eq_plant_total_gen(i,v,r,h,t)$[hybrid_plant(i)$(not csp(i))$tmodel(t)$valgen(i,v
 *capacity factor is adjusted to include inverter losses, clipping losses, and low voltage losses.
 * For storage-hybrid configs paired with VRE gen techs (upv, wind-ons), the gen tech's
 * m_cf derates the available output. For configs paired with dispatchable gen techs
-* (nuclear, gas-cc, geothermal, etc.), output is capped at full nameplate (CAP).
+* (nuclear, gas-cc, geothermal, etc.), output is derated by avail(i,r,h) (forced +
+* scheduled outage rates inherited from the gen tech), mirroring eq_capacity_limit for
+* standalone dispatchable techs and eq_mingen_fixed. Without this derate the plant could
+* dispatch at full nameplate every hour, reaching a ~100% capacity factor.
 eq_hybrid_plant_energy_limit(i,v,r,h,t)$[hybrid_plant(i)$(not csp(i))$tmodel(t)$valgen(i,v,r,t)$valcap(i,v,r,t)$Sw_HybridPlant]..
 
 * [plus] plant output
     m_cf(i,v,r,h,t) * CAP(i,v,r,t)$(pvb(i) or storage_hybrid_vre(i))
 
-    + CAP(i,v,r,t)$storage_hybrid_dispatchable(i)
+    + avail(i,r,h) * CAP(i,v,r,t)$storage_hybrid_dispatchable(i)
 
     =g=
 
