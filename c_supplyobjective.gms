@@ -164,8 +164,10 @@ eq_Objfn_op(t)$tmodel(t)..
          pvf_onm(t) * (
 
 * --- variable O&M costs---
-* all technologies except hybrid plant and DAC
-              sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom(i,v,r,t)$(not hybrid_plant(i))],
+* all technologies except non-CSP hybrid plants and DAC
+* (CSP is in hybrid_plant(i) but its VOM is billed here on GEN, since the
+*  pvb/storage-hybrid GEN_PLANT/GEN_STORAGE terms below do not cover it)
+              sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom(i,v,r,t)$(not hybrid_plant(i)$(not csp(i)))],
                    hours(h) * cost_vom(i,v,r,t) * GEN(i,v,r,h,t) }
 
 * hybrid plant (plant)
@@ -371,10 +373,14 @@ eq_Objfn_op(t)$tmodel(t)..
                               (crf(t) / crf_co2_incentive(t)) * co2_captured_incentive(i,v,r,t) * hours(h) * PRODUCE(p,i,v,r,h,t)}
 
 * --- PTC value for electric power generation ---
+* storage-hybrid wrappers are credited on gross generator output (GEN_PLANT),
+* matching a standalone generator with separately-metered storage; grid-charged
+* energy never enters GEN_PLANT so no STORAGE_IN_GRID netting is needed
               - sum{(i,v,r,h)$[valgen(i,v,r,t)$ptc_value_scaled(i,v,t)],
-                    hours(h) * ptc_value_scaled(i,v,t) * tc_phaseout_mult(i,v,t) * 
-                    (GEN(i,v,r,h,t) - STORAGE_IN_GRID(i,v,r,h,t)$[pvb(i)$Sw_PVB]
-                                    - STORAGE_IN_GRID(i,v,r,h,t)$[storage_hybrid(i)$Sw_StorageHybrid])
+                    hours(h) * ptc_value_scaled(i,v,t) * tc_phaseout_mult(i,v,t) *
+                    (GEN(i,v,r,h,t)$[not (storage_hybrid(i)$Sw_HybridPlant)]
+                     + GEN_PLANT(i,v,r,h,t)$[storage_hybrid(i)$Sw_HybridPlant]
+                     - STORAGE_IN_GRID(i,v,r,h,t)$[pvb(i)$Sw_PVB])
                    }
 
 * --- PTC value for hydrogen production ---

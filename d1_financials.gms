@@ -6,6 +6,12 @@ $gdxin
 
 tc_phaseout_mult_t(i,t)$tload(t) = tc_phaseout_mult_t_load(i,t) ;
 
+* Storage-hybrid wrappers take the gen tech's phaseout multiplier: the wrapper
+* rows in incentives.csv are unreliable (group-label cloning; SMR wrappers get
+* safe_harbor=0), so the python-side wrapper multipliers phase out too early
+tc_phaseout_mult_t(i,t)$[storage_hybrid(i)$tload(t)]
+    = sum{ii$storage_hybrid_gentech(i,ii), tc_phaseout_mult_t(ii,t) } ;
+
 * If tcphaseout is enabled, overwrite initialization
 * This requires re-calculating cost_cap_fin_mult and its various permutations
 if(Sw_TCPhaseout > 0,

@@ -2766,8 +2766,11 @@ m_capacity_exog(i,v,r,t)$[forced_retire(i,r,t)$coal_noccs(i)
 valcap(i,v,r,t)$[upgrade(i)$ban(i)] = no ;
 
 *Restrict valcap for nuclear in BAs that are impacted By state nuclear bans
+*storage-hybrid wrappers with a nuclear gen tech are reactors too and must honor the ban
 if(Sw_NukeStateBan = 1,
   valcap(i,v,r,t)$[nuclear(i)$newv(v)$nuclear_ba_ban(r)] = no ;
+  valcap(i,v,r,t)$[storage_hybrid(i)$newv(v)$nuclear_ba_ban(r)
+                  $sum{ii$storage_hybrid_gentech(i,ii), nuclear(ii)}] = no ;
 ) ;
 
 $ifthene.hydEDban %GSw_hydED% == 0
@@ -3250,6 +3253,13 @@ RPSCat_i("RPS_Solar",i,st)$[(pv(i) or pvb(i))$(not techs_banned_rps(i,st))$valca
 *We allow CCS techs and upgrades to be eligible for CES policies
 *CCS contribution is limited based on the amount of emissions captured later on down
 RPSCat_i("CES",i,st)$[(RPSCAT_i("RPS_All",i,st) or nuclear(i) or hydro(i) or ccs(i) or canada(i))
+                     $(not techs_banned_ces(i,st))
+                     $valcap_i(i)] = yes ;
+
+*storage-hybrid wrappers inherit CES eligibility from their configured gen tech
+*(REC accounting uses net GEN, so storage round-trip losses are correctly not credited)
+RPSCat_i("CES",i,st)$[storage_hybrid(i)
+                     $sum{ii$storage_hybrid_gentech(i,ii), RPSCat_i("CES",ii,st)}
                      $(not techs_banned_ces(i,st))
                      $valcap_i(i)] = yes ;
 
@@ -4048,6 +4058,12 @@ winter_cap_ratio(i,newv,r)$h2_cc(i) = winter_cap_ratio('gas-cc',newv,r) ;
 
 * Assign additional nuclear techs to have the same winter_cap_ratio as 'nuclear'
 winter_cap_ratio(i,newv,r)$nuclear(i) = winter_cap_ratio('nuclear',newv,r) ;
+
+* Storage-hybrid wrappers inherit the gen tech's winter_cap_ratio
+* (guarded so a gen tech with no value cannot zero out the initialized 1.0)
+winter_cap_ratio(i,newv,r)$[storage_hybrid(i)
+                           $sum{ii$storage_hybrid_gentech(i,ii), winter_cap_ratio(ii,newv,r)}]
+    = sum{ii$storage_hybrid_gentech(i,ii), winter_cap_ratio(ii,newv,r)} ;
 
 * Upgraded plant have the same winter_cap_ratio as what they are upgraded from
 winter_cap_ratio(i,newv,r)$upgrade(i) = sum{ii$upgrade_from(i,ii), winter_cap_ratio(ii,newv,r) } ;
@@ -5017,10 +5033,11 @@ ramprate(i)$geo(i) = ramprate("geothermal") ;
 
 *if running with flexible nuclear, set ramp rate of nuclear to that of coal
 ramprate(i)$[nuclear(i)$Sw_NukeFlex] = ramprate("coal-new") ;
-ramprate(i)$[storage_hybrid(i)] = sum{ii$storage_hybrid_gentech(i,ii), ramprate(ii) } ;
-
-parameter ramprate_storage_hybrid(i) "--fraction/min-- storage ramp rate of storage-hybrid plants" ;
-ramprate_storage_hybrid(i)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), ramprate(ii)};
+*storage-hybrid wrappers take the STORAGE component's ramp rate: all ramping,
+*capacity flexibility, and ancillary services from the plant are modulated by
+*the storage/powerblock while the generator runs flat behind it (the generator
+*differs only in never running out of energy). reserve_frac then follows below.
+ramprate(i)$[storage_hybrid(i)] = sum{ii$ storage_hybrid_stortech(i,ii), ramprate(ii) } ;
 
 ramprate(i)$[i_water_cooling(i)$Sw_WaterMain] =
   sum{ii$ctt_i_ii(i,ii), ramprate(ii) } ;
@@ -5052,8 +5069,14 @@ cost_opres(i,ortype,t)$geo(i) = cost_opres("geothermal",ortype,t) ;
 * Assign hybrid PV+battery the same value as battery_li
 cost_opres(i,ortype,t)$pvb(i) = cost_opres("battery_li",ortype,t) ;
 
-* Assign storage-hybrid operating reserve cost from the configured storage tech
-cost_opres(i,ortype,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), cost_opres(ii,ortype,t)};
+* TES takes the operating reserve costs of CSP, which operates an onsite TES
+cost_opres(i,ortype,t)$[tes(i)$(not storage_hybrid(i))] = cost_opres("csp1_1",ortype,t) ;
+
+* Storage-hybrid wrappers take the storage component's reserve cost unconditionally:
+* reserves are delivered by the storage/powerblock modulating output, not by
+* cycling the generator, so the generator's reserve cost does not apply
+cost_opres(i,ortype,t)$storage_hybrid(i)
+    = sum{ii$ storage_hybrid_stortech(i,ii), cost_opres(ii,ortype,t)};
 
 * add heat rate penalty for providing reserves (currently only applied to spin)
 * input data calculated based on heat rates in the PLEXOS EI database as of Dec. 2020
@@ -5301,6 +5324,12 @@ $include inputs_case%ds%reg_cap_cost_diff.csv
 $offdelim
 $onlisting
 / ;
+
+* Storage-hybrid wrappers take the gen tech's regional capital-cost difference.
+* Deterministic inheritance: the CSV path relied on the row cloner matching
+* group-labeled column headers, which only worked when the gen tech's name
+* happened to equal its group label (SMR wrappers silently got 0).
+reg_cap_cost_diff(i,r)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), reg_cap_cost_diff(ii,r) } ;
 
 parameter eval_period_adj_mult(i,allt) "adjustment multiplier for the capital costs of techs with non-standard evaluation periods"
 /
@@ -5995,11 +6024,18 @@ parameter storage_eff_storage_hybrid_p(i,t) "--fraction-- efficiency of storage-
 
 * when charging from the coupled generation tech, TES storage-hybrid systems have higher effective efficiency
 storage_eff_storage_hybrid_p(i,t)$[storage_hybrid(i)$(not storage_hybrid_with_tes(i))] = sum{ii$storage_hybrid_stortech(i,ii), plant_char0(ii,t,'rte')};
-*set efficiency to 0.99 if the storage tech is tes to prevent degeneracy with dispatching from the plant
-storage_eff_storage_hybrid_p(i,t)$storage_hybrid_with_tes(i) = 0.99;
+*set efficiency to 0.999 if the storage tech is tes to prevent degeneracy with dispatching from the plant
+storage_eff_storage_hybrid_p(i,t)$storage_hybrid_with_tes(i) = 0.999;
 
 *when charging from the grid the efficiency will be the same as standalone storage
 storage_eff_storage_hybrid_g(i,t)$storage_hybrid(i) = sum{ii$storage_hybrid_stortech(i,ii), plant_char0(ii,t,'rte')};
+
+*storage-hybrid wrappers report/charge losses at the actual plant-charging
+*efficiency: storage_eff(i,t) for wrappers is used only in the reg-reserve
+*energy-loss terms of eq_storage_level/eq_storage_opres, which otherwise
+*would bill the storage tech's standalone round-trip RTE (e.g. 0.47-0.55 for
+*tes_ms) against reserves the plant actually provides at ~0.999 efficiency
+storage_eff(i,t)$storage_hybrid(i) = storage_eff_storage_hybrid_p(i,t) ;
 
 *upgrade plants assume the same as what theyre upgraded to
 storage_eff(i,t)$upgrade(i) = sum{ii$upgrade_to(i,ii), storage_eff(ii,t) } ;
@@ -6223,6 +6259,11 @@ cc_storage(i,sdbin)$(cc_storage(i,sdbin) > 1) = 1 ;
 * for battery, the capacity credit for each bin is always 1,
 * since the duration of continuous battery will be automatically greater than the sdbin duration.
 cc_storage(i,sdbin)$(battery(i)) = 1 ;
+
+* storage-hybrid wrappers have no storage_duration entry (energy capacity is endogenous
+* via CAP_ENERGY, which limits bin assignment in eq_sdbin_power_energy_link), so treat
+* them like battery: full credit in every bin
+cc_storage(i,sdbin)$storage_hybrid(i) = 1 ;
 
 * The 8760 bin is included as a safety valve so that the model can build additional storage
 * beyond what is available for diurnal peaking capacity
@@ -6584,6 +6625,12 @@ valret(i,v)$[(Sw_Retire=2)$initv(v)$(not noretire(i))
 valret(i,v)$[((Sw_Retire=3) or (Sw_Retire=5))$(not noretire(i))
             $(coal(i) or gas(i) or nuclear(i) or ogs(i) or h2_combustion(i) or h2(i))] = yes ;
 
+*storage-hybrid wrappers are retirable when their configured gen tech is
+*(wrappers only exist as new vintages, so the initv-only rules never apply to them)
+valret(i,v)$[((Sw_Retire=3) or (Sw_Retire=5))$(not noretire(i))
+            $sum{ii$storage_hybrid_gentech(i,ii),
+                 coal(ii) or gas(ii) or nuclear(ii) or ogs(ii) or h2_combustion(ii) or h2(ii)}] = yes ;
+
 *new and existings plants of any technology can be retired if Sw_Retire = 4
 valret(i,v)$[(Sw_Retire=4)$(not noretire(i))] = yes ;
 
@@ -6594,7 +6641,10 @@ retiretech(i,v,r,t)$[((Sw_Retire=3) or (Sw_Retire=5))$initv(v)$(not noretire(i))
                     $(coal(i) or gas(i) or nuclear(i) or ogs(i) or h2_combustion(i) or h2(i))] = no ;
 
 * for sw_retire=5, don't allow nuclear to retire until 2030
+* (including nuclear-gen-tech storage-hybrid wrappers)
 retiretech(i,v,r,t)$[(Sw_Retire=5)$nuclear(i)$(yeart(t)<=2030)] = no ;
+retiretech(i,v,r,t)$[(Sw_Retire=5)$(yeart(t)<=2030)
+                    $sum{ii$storage_hybrid_gentech(i,ii), nuclear(ii)}] = no ;
 
 *several states have subsidies for nuclear power, so do not allow nuclear to retire in these states
 *before the year specified (see https://www.eia.gov/todayinenergy/detail.php?id=41534)
@@ -6614,8 +6664,11 @@ $offempty
 retiretech(i,initv,r,t)$[(yeart(t) < sum{st$r_st(r,st), nuclear_subsidies(st) })$valcap(i,initv,r,t)$nuclear(i)] = no ;
 
 * if Sw_NukeNoRetire is enabled, don't allow nuclear to retire through Sw_NukeNoRetireYear
+* (including nuclear-gen-tech storage-hybrid wrappers)
 if(Sw_NukeNoRetire = 1,
          retiretech(i,v,r,t)$[nuclear(i)$(yeart(t)<=Sw_NukeNoRetireYear)] = no ;
+         retiretech(i,v,r,t)$[(yeart(t)<=Sw_NukeNoRetireYear)
+                             $sum{ii$storage_hybrid_gentech(i,ii), nuclear(ii)}] = no ;
 ) ;
 
 
@@ -7099,6 +7152,9 @@ cc_excess(i,r,ccseason,t) = 0 ;
 cc_old(i,r,ccseason,t) = 0 ;
 m_cc_mar(i,r,ccseason,t) = 0 ;
 hybrid_cc_derate(i,r,ccseason,sdbin,t)$[pvb(i)$valcap_irt(i,r,t)] = 1 ;
+* VRE-paired storage-hybrid wrappers take the same derate treatment as pvb;
+* without this initialization their CAP_SDBIN term in eq_reserve_margin is zeroed
+hybrid_cc_derate(i,r,ccseason,sdbin,t)$[storage_hybrid_vre(i)$valcap_irt(i,r,t)] = 1 ;
 
 * Trim some of the largest matrices to reduce file sizes
 cost_vom(i,v,r,t)$[not valgen(i,v,r,t)] = 0 ;

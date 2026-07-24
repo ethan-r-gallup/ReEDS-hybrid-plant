@@ -970,8 +970,14 @@ eq_forceprescription_energy(pcat,r,t)
             noncumulative_prescriptions_energy(pcat,r,tt)}
 
 * plus any extra energy buildouts (no penalty here - used as free slack)
-* only on or after the first year the techs are available
-    + EXTRA_PRESCRIP_ENERGY(pcat,r,t)$[yeart(t)>=firstyear_pcat(pcat)]
+* only on or after the first year the techs are available,
+* or when a nonzero POWER prescription exists at this (pcat,r,t) with no
+* corresponding energy prescription (e.g. a demonstration storage-hybrid plant
+* prescribed in MW only) - without the slack, this equality would force zero
+* energy capacity while eq_battery_minduration requires a nonzero minimum
+    + EXTRA_PRESCRIP_ENERGY(pcat,r,t)$[(yeart(t)>=firstyear_pcat(pcat))
+                                       or sum{tt$[(yeart(tt)<=yeart(t))$(tmodel(tt) or tfix(tt))],
+                                              noncumulative_prescriptions(pcat,r,tt)}]
 ;
 
 * ---------------------------------------------------------------------------
@@ -2423,9 +2429,12 @@ eq_emit_accounting(etype,e,r,t)$[emit_modeled(e,r,t)$tmodel(t)]..
 
     =e=
 
+*for hybrid plants emissions follow fuel burn (GEN_PLANT), not net output (GEN):
+*storage round-trip losses are combusted fuel too
     sum{(i,v,h)$[valgen(i,v,r,t)$h_rep(h)],
         hours(h) * emit_rate(etype,e,i,v,r,t)
-        * (GEN(i,v,r,h,t)
+        * (GEN(i,v,r,h,t)$[not hybrid_plant(i)$(not csp(i))]
+           + GEN_PLANT(i,v,r,h,t)$[hybrid_plant(i)$(not csp(i))$Sw_HybridPlant]
            + CCSFLEX_POW(i,v,r,h,t)$[ccsflex(i)$(Sw_CCSFLEX_BYP OR Sw_CCSFLEX_STO OR Sw_CCSFLEX_DAC)])
        }
 
@@ -2651,12 +2660,15 @@ eq_REC_Generation(RPSCat,i,st,t)$[stfeas(st)$(not tfirst(t))$tmodel(t)
 *hydro is the only technology adjusted by RPSTechMult
 *because GEN can only generate a H2 PTC credit or a REC, not both, subtract out the generation which produces a hydrogen PTC credit
 *because GEN from pvb(i) includes grid charging, subtract out its grid charging
+*storage-hybrid wrappers are credited on gross generator output (GEN_PLANT),
+*matching a standalone generator with separately-metered storage; grid-charged
+*energy never enters GEN_PLANT so no STORAGE_IN_GRID netting is needed
     + sum{(v,r,h)$[valgen(i,v,r,t)$r_st(r,st)$h_rep(h)],
           RPSTechMult(RPSCat,i,st) * hours(h)
-          * (GEN(i,v,r,h,t) 
-          - CREDIT_H2PTC(i,v,r,h,t)$[valgen_h2ptc(i,v,r,t)$Sw_H2_PTC] 
-          - STORAGE_IN_GRID(i,v,r,h,t)$[pvb(i)$Sw_PVB] 
-          - STORAGE_IN_GRID(i,v,r,h,t)$[storage_hybrid(i)$Sw_StorageHybrid])
+          * (GEN(i,v,r,h,t)$[not (storage_hybrid(i)$Sw_HybridPlant)]
+          + GEN_PLANT(i,v,r,h,t)$[storage_hybrid(i)$Sw_HybridPlant]
+          - CREDIT_H2PTC(i,v,r,h,t)$[valgen_h2ptc(i,v,r,t)$Sw_H2_PTC]
+          - STORAGE_IN_GRID(i,v,r,h,t)$[pvb(i)$Sw_PVB])
          }
 
      =g=
@@ -3203,10 +3215,19 @@ eq_storage_level(i,v,r,h,t)$[valgen(i,v,r,t)$storage(i)$tmodel(t)]..
 *there must be sufficient energy in storage to provide operating reserves
 eq_storage_opres(i,v,r,h,t)
     $[valgen(i,v,r,t)$tmodel(t)$Sw_OpRes$opres_h(h)
-    $(storage_standalone(i) or hybrid_plant(i)$(not thermal_storage(i)) or hyd_add_pump(i))]..
+*the exclusion protects CSP+TES (handled elsewhere); TES-paired storage-hybrid wrappers
+*are in thermal_storage(i) but must still back their reserves with stored energy
+    $(storage_standalone(i) or hybrid_plant(i)$(not csp(i)) or hyd_add_pump(i))]..
 
 *[plus] initial storage level
     STORAGE_LEVEL(i,v,r,h,t)
+
+*[plus] unused generator headroom of dispatchable storage-hybrid plants:
+*the coupled generator cannot run out of energy, so plant capability not
+*already dispatched in this timeslice backs reserves without pre-stored TES
+*energy (reserves are still delivered through the storage/powerblock)
+    + (hours_daily(h) * (avail(i,r,h) * CAP(i,v,r,t) - GEN_PLANT(i,v,r,h,t))
+      )$[storage_hybrid_dispatchable(i)$Sw_HybridPlant]
 
 *[minus] generation that occurs during this timeslice
     - hours_daily(h) * GEN(i,v,r,h,t) $[not hybrid_plant(i)$(not csp(i))]
@@ -3216,7 +3237,7 @@ eq_storage_opres(i,v,r,h,t)
 
 *[minus] losses from reg reserves (only half because only charging half
 *the time while providing reg reserves)
-    - hours_daily(h) * (OPRES("reg",i,v,r,h,t)$[Sw_OpRes = 1] + OPRES("combo",i,v,r,h,t)$[Sw_OpRes = 2])  
+    - hours_daily(h) * (OPRES("reg",i,v,r,h,t)$[Sw_OpRes = 1] + OPRES("combo",i,v,r,h,t)$[Sw_OpRes = 2])
     * (1 - storage_eff(i,t)) / 2 * reg_energy_frac
 
     =g=
@@ -3295,7 +3316,9 @@ eq_battery_minduration(i,v,r,t)$[valcap(i,v,r,t)$tmodel(t)$newv(v)$(battery(i) o
 
     CAP(i,v,r,t) * minbatteryduration$battery(i)
 
-    + CAP(i,v,r,t) * mintesduration$tes(i)
+*TES-paired storage-hybrid wrappers are in tes(i) but take the bcr-scaled
+*storage-hybrid minimum below instead (otherwise the two terms stack)
+    + CAP(i,v,r,t) * mintesduration$[tes(i)$(not storage_hybrid(i))]
 
     + CAP(i,v,r,t) * bcr(i) * min_storage_hybrid_duration$storage_hybrid(i)
 ;
@@ -3493,7 +3516,10 @@ eq_plant_capacity_limit(i,v,r,h,t)$[hybrid_plant(i)$(not csp(i))$tmodel(t)$valge
     + GEN_PLANT(i,v,r,h,t)
 
 * [minus] energy to storage from hybrid plant
-    + STORAGE_IN_PLANT(i,v,r,h,t)
+* (charging energy is already inside GEN_PLANT, and plant->storage flow never crosses
+*  the grid interconnect; simultaneous charge/discharge is prevented on the storage
+*  side by eq_storage_capacity / eq_hybrid_storage_capacity_limit)
+    - STORAGE_IN_PLANT(i,v,r,h,t)
 
 * [plus] Output form storage
     + GEN_STORAGE(i,v,r,h,t)

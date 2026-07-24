@@ -499,6 +499,10 @@ def main(t, casedir, iteration=0):
             max_cap.loc[energy_cap.index] < sw['storcap_cutoff']].index.tolist()
         + max_cap.loc[max_cap < sw['storcap_cutoff']/2].index.tolist()
     ))
+    ## Never drop storage-hybrid wrappers here: they become GeneratorStorages in PRAS,
+    ## and dropping the row would delete the generator side of a real plant
+    _sh_techs_set = set(_storage_hybrid_techs)
+    too_small_storage = [idx for idx in too_small_storage if idx[0] not in _sh_techs_set]
 
     csvout['energy_cap'] = energy_cap.drop(too_small_storage, errors='ignore')
     csvout['max_cap'] = max_cap.drop(too_small_storage, errors='ignore')
@@ -516,25 +520,51 @@ def main(t, casedir, iteration=0):
         ## Only keep standalone storage
         .drop(hybrid_plant, errors='ignore')
     )
-    ## Storage-hybrid wrappers have their own efficiency parameter in GAMS
-    ## (storage_eff_storage_hybrid_g for grid charging — the only mode PRAS models).
-    ## Append wrapper entries so they get a charge_eff value in PRAS.
-    if 'storage_eff_storage_hybrid_g' in gdxreeds:
-        storage_hybrid_eff = (
-            gdxreeds['storage_eff_storage_hybrid_g']
-            .loc[gdxreeds['storage_eff_storage_hybrid_g'].t == t]
-            .set_index('i')
-            .Value
-            .rename('fraction')
-        )
-        ## Drop any wrapper rows that happened to come through storage_eff already
-        storage_eff = pd.concat([
-            storage_eff.drop(storage_hybrid_eff.index, errors='ignore'),
-            storage_hybrid_eff,
-        ])
     ## As in ReEDS LP, storage losses are applied to charging side (none for discharging)
+    ## (storage-hybrid wrappers are NOT included here: they are modeled as PRAS
+    ## GeneratorStorages, whose efficiency comes from hybrid_config below)
     csvout['charge_eff'] = storage_eff
     csvout['discharge_eff'] = pd.Series(index=storage_eff.index, data=1., name='fraction')
+
+    ### Storage-hybrid wrapper configuration for the PRAS GeneratorStorage builder.
+    ## charge_eff: plant-charging configs use storage_eff_storage_hybrid_p (0.99 for
+    ## TES); grid-charge-only configs (flexible geothermal) use _g. Written directly
+    ## (not via csvout) because it carries string columns.
+    hybrid_config_cols = ['i', 'gentech', 'stortech', 'bcr', 'gridcharge_ratio', 'charge_eff']
+    hybrid_config = pd.DataFrame(columns=hybrid_config_cols)
+    if len(_storage_hybrid_techs):
+        def _read_sh_map(fname, valcol):
+            return (
+                pd.read_csv(os.path.join(casedir, 'inputs_case', fname))
+                .rename(columns={'*storage-hybrid_type': 'i'})
+                .set_index('i')[valcol]
+            )
+        _sh_gentech = _read_sh_map('storage_hybrid_gentechs.csv', 'gen_tech').str.lower()
+        _sh_stortech = _read_sh_map('storage_hybrid_storagetechs.csv', 'storage_type').str.lower()
+        _sh_bcr = _read_sh_map('storage_hybrid_bcr.csv', 'bcr')
+        _sh_grid = _read_sh_map('storage_hybrid_gridcharging.csv', 'gridcharge_ratio')
+        def _sh_eff(symbol):
+            return (
+                gdxreeds[symbol]
+                .loc[gdxreeds[symbol].t == t]
+                .set_index('i').Value
+            )
+        _eff_p = _sh_eff('storage_eff_storage_hybrid_p')
+        _eff_g = _sh_eff('storage_eff_storage_hybrid_g')
+        hybrid_config = pd.DataFrame({'i': sorted(_sh_techs_set)})
+        hybrid_config['gentech'] = hybrid_config.i.map(_sh_gentech)
+        hybrid_config['stortech'] = hybrid_config.i.map(_sh_stortech)
+        hybrid_config['bcr'] = hybrid_config.i.map(_sh_bcr).fillna(0.)
+        hybrid_config['gridcharge_ratio'] = hybrid_config.i.map(_sh_grid).fillna(0.)
+        _plant_charging = ~hybrid_config.stortech.fillna('').str.startswith('flex_geo')
+        hybrid_config['charge_eff'] = (
+            hybrid_config.i.map(_eff_p).where(_plant_charging, hybrid_config.i.map(_eff_g))
+        ).fillna(1.)
+    ## Write even when empty (header only) so the reeds2pras file check passes
+    hybrid_config[hybrid_config_cols].to_csv(
+        os.path.join(casedir, 'ReEDS_Augur', 'augur_data', f'hybrid_config_{t}.csv'),
+        index=False,
+    )
 
     #%% Planning reserve margin in MW (sometimes used during unit disaggregation)
     csvout['max_unitsize'] = (

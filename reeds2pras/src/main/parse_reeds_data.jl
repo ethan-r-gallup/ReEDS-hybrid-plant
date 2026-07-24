@@ -52,7 +52,7 @@ function parse_reeds_data(
         "splitting thermal, storage, variable and hydro generator types from installed " *
         "ReEDS capacities..."
     )
-    thermal_builds, storage, hydro_disp_gens, hydro_non_disp_gens =
+    thermal_builds, storage, storage_hybrids, hydro_disp_gens, hydro_non_disp_gens =
         split_generator_types(ReEDS_data)
 
     @info "reading in ReEDS generator-type forced outage data..."
@@ -128,8 +128,17 @@ function parse_reeds_data(
         hydro_energylim = hydro_energylim,
     )
 
-    #@info "Processing GeneratorStorages"
-    #genstor_array = process_genstors(genstor_array, get_name.(regions), timesteps)
+    @info "Processing storage-hybrid GeneratorStorages..."
+    genstor_array = process_storage_hybrids(
+        genstor_array,
+        storage_hybrids,
+        FOR_dict,
+        forcedoutage_hourly,
+        ReEDS_data,
+        timesteps,
+        mttr_dict,
+        scheduled_outage_hourly = scheduled_outage_hourly,
+    )
 
     return lines, regions, gens_array, storage_array, genstor_array
 end

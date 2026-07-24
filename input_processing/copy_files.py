@@ -2161,6 +2161,12 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
         return
 
     skip_dirs = ['capacity_exogenous', 'demonstration_files']
+    # incentives.csv and reg_cap_cost_diff.csv are never cloned: their wrapper
+    # values are inherited deterministically from the component techs in GAMS
+    # (tc_phaseout_mult_t in d1_financials.gms; reg_cap_cost_diff in
+    # b_inputs.gms). Cloning them here matched group-labeled rows/columns
+    # (e.g. NUCLEAR, TES|CSP) nondeterministically -- "Nuclear" happened to
+    # match its group label while "Nuclear-SMR" matched nothing.
     skip_files = {
         'emission_constraints/emitrate.csv',
         'financials/cap_penalty.csv',
@@ -2168,6 +2174,11 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
         'unitdata.csv',
         'sets/tg.csv',
         'tech-subset-table.csv',
+        'incentives.csv',
+        'reg_cap_cost_diff.csv',
+        # the wide, group-labeled source copied into inputs_case by runfiles;
+        # calc_financial_inputs.py stacks it into reg_cap_cost_diff.csv
+        'regional_cap_cost_diff.csv',
     }
 
     financials_dir = os.path.join(inputs_case, 'financials')
@@ -2176,19 +2187,16 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
             fname_lower = fname.lower()
             if fname_lower.endswith('.csv') and (
                 fname_lower.startswith('incentives_')
-                or fname_lower.startswith('ref_cap_cost_diff_')
+                or fname_lower.startswith('reg_cap_cost_diff_')
             ):
                 skip_files.add(fname_lower)
 
     tech_canon_map = _load_storage_hybrid_tech_canon_map(inputs_case)
     # For each Storage-Hybrid config, list (source_techs, wrapper) where
     # source_techs is a precedence-ordered list of techs to try when cloning
-    # rows into the wrapper. The paired storage tech is tried first so that
-    # PRAS-pipeline files (unitsize_atb.csv, mttr.csv, outage_forced_static.csv,
-    # etc.) inherit from the storage device; the gen tech is the fallback for
-    # parameter files where gen-side characteristics are the natural source.
-    # Only the first matching source is used per file/column, so no row is ever
-    # cloned twice for the same wrapper.
+    # rows into the wrapper. The paired storage tech is tried first by default;
+    # the gen tech is the fallback. Only the first matching source is used per
+    # file/column, so no row is ever cloned twice for the same wrapper.
     tech_map = [
         (
             [config['storage_tech'], config['gen_tech']],
@@ -2196,6 +2204,18 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
         )
         for config in configs
     ]
+
+    # Outage/unit-characteristic files take GEN-FIRST precedence: the wrapper is
+    # modeled as one unit whose storage side shares the generator's forced/scheduled
+    # outage behavior (in the LP, d1_temporal_params.gms re-inherits avail from the
+    # gen tech; in PRAS the wrapper GeneratorStorage uses these rows directly).
+    gen_first_files = {
+        'outage_forced_static.csv',
+        'outage_scheduled_static.csv',
+        'mttr.csv',
+        'unitsize.csv',
+        'unitsize_atb.csv',
+    }
 
     def _first_noncomment_line(path):
         with open(path, 'r', encoding='utf-8-sig') as f:
@@ -2313,7 +2333,10 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
             ]
 
             changed = False
+            gen_first = fname.lower() in gen_first_files
             for source_techs, stor_i in tech_map:
+                if gen_first:
+                    source_techs = list(reversed(source_techs))
                 stor_canon = _storage_hybrid_canon_label(stor_i)
 
                 # Column-name propagation: if any source tech appears as a

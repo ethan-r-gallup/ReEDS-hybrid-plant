@@ -539,7 +539,13 @@ def check(case):
             and int(sw.get('GSw_NuclearDemo', 0)) == 1):
         demo = pd.read_csv(demo_path)
         demo.columns = [str(c).strip().lstrip('﻿*') for c in demo.columns]
-        nuke_demo = demo[demo['i'].map(_canon).isin(BASE_TECHS)]
+        # Base-tech demo rows always count; storage-hybrid wrapper demo rows
+        # count via their gen tech when hybrid experience pooling is on
+        # (otherwise their INV is genuinely not recorded as experience).
+        demo_tech = demo['i'].map(_canon)
+        is_base = demo_tech.isin(BASE_TECHS)
+        is_pooled_wrapper = demo_tech.isin(wrapper_gentech) if pool_hybrid else False
+        nuke_demo = demo[is_base | is_pooled_wrapper]
         tprev_final = int(years[years < years.max()].max())
         expected = nuke_demo.loc[
             (nuke_demo['t'] > anchor) & (nuke_demo['t'] <= tprev_final), 'value'].sum()
