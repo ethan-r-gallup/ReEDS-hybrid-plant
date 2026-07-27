@@ -379,7 +379,7 @@ def main(cur_year, case):
             'overrides or ensure nuclear/nuclear-smr appear in plantcharout.csv.')
 
     # --- Apply the learning engine per parent ---
-    occ_rows, ccmult_rows, diag = [], [], []
+    occ_rows, ccmult_rows, factor_rows, diag = [], [], [], []
     for itech, parent in BASE_TECHS.items():
         N = n_units[parent]
         other = 'smr' if parent == 'large' else 'large'
@@ -399,12 +399,16 @@ def main(cur_year, case):
 
         if do_occ and np.isfinite(learned_occ):
             occ_rows.append({'i': itech, 't': str(cur_year), 'learning_cost_cap': round(learned_occ, 2)})
+            # OCC learning ratio (learned/BOAK) for the GSw_NuclearLearning_TESIsland
+            # path: d_solveoneyear.gms scales the wrapper's shared TES power-cycle
+            # capex by the gen tech's factor so the turbine island learns with the plant
+            factor_rows.append({'i': itech, 't': str(cur_year), 'learning_factor': round(factor, 6)})
         if do_dur:
             ccmult_rows.append({'i': itech, 't': str(cur_year), 'learning_ccmult': round(ccm, 6)})
         diag.append({
             'year': cur_year, 'tech': itech, 'parent': parent,
             'experience_mw': round(exp_mw[parent], 1), 'N_units': round(N, 3),
-            'N_other_units': round(n_other, 3), 'occ_factor': round(factor, 5),
+            'N_other_units': round(n_other, 3), 'occ_factor': round(factor, 6),
             'boak_2004usd_per_mw': round(boak[parent], 2),
             'learned_occ_2004usd_per_mw': round(learned_occ, 2),
             'series': series, 'duration_months': round(dur_mo, 2), 'ccmult': round(ccm, 6),
@@ -419,6 +423,7 @@ def main(cur_year, case):
     data = {}
     if occ_rows:
         data['learning_cost_cap'] = pd.DataFrame(occ_rows)[['i', 't', 'learning_cost_cap']]
+        data['learning_factor'] = pd.DataFrame(factor_rows)[['i', 't', 'learning_factor']]
     if ccmult_rows:
         data['learning_ccmult'] = pd.DataFrame(ccmult_rows)[['i', 't', 'learning_ccmult']]
     if data:
@@ -445,7 +450,8 @@ def _read_applied(case, year):
         return None
     dfs = gdxpds.to_dataframes(gdx)
     out = {}
-    for sym in ('nuc_cost_cap_applied', 'nuc_ccmult_applied', 'nuc_sh_p_applied'):
+    for sym in ('nuc_cost_cap_applied', 'nuc_ccmult_applied', 'nuc_sh_p_applied',
+                'nuc_sh_s_applied'):
         df = dfs.get(sym)
         out[sym] = ({} if df is None or not len(df)
                     else {_canon(r[df.columns[0]]): float(r[df.columns[-1]]) for _, r in df.iterrows()})
@@ -473,6 +479,29 @@ def check(case):
         for _, r in gt.iterrows():
             if _canon(r['gen_tech']) in BASE_TECHS:
                 wrapper_gentech[_canon(r['storage-hybrid_type'])] = _canon(r['gen_tech'])
+    except FileNotFoundError:
+        pass
+
+    # wrapper -> storage-tech map + frozen (unlearned) storage capcost by year,
+    # for the GSw_NuclearLearning_TESIsland check
+    tes_island = int(sw.get('GSw_NuclearLearning_TESIsland', 1)) == 1
+    wrapper_stortech = {}
+    try:
+        st = pd.read_csv(os.path.join(case, 'inputs_case', 'storage_hybrid_storagetechs.csv'))
+        st.columns = [c.lstrip('*') for c in st.columns]
+        wrapper_stortech = {
+            _canon(r.iloc[0]): _canon(r.iloc[1]) for _, r in st.iterrows()
+        }
+    except FileNotFoundError:
+        pass
+    frozen_capcost = {}
+    try:
+        pc = pd.read_csv(os.path.join(case, 'inputs_case', 'plantcharout.csv'))
+        pc.columns = [c.lstrip('*') for c in pc.columns]
+        pc = pc[pc['variable'] == 'capcost']
+        frozen_capcost = {
+            (_canon(r['i']), int(r['t'])): float(r['value']) for _, r in pc.iterrows()
+        }
     except FileNotFoundError:
         pass
 
@@ -522,6 +551,26 @@ def check(case):
                             print(f'FAIL {y} {wrap}: SH gen-side cost {val} != learned '
                                   f'{row["learned_occ_2004usd_per_mw"]} ({itech})')
                             fails += 1
+            # (3b) storage-hybrid TES power-cycle cost: frozen storage capcost scaled
+            # by the gen tech's occ_factor when GSw_NuclearLearning_TESIsland=1,
+            # or exactly frozen when 0
+            if applied is not None and do_occ:
+                for wrap, val in applied.get('nuc_sh_s_applied', {}).items():
+                    if wrapper_gentech.get(wrap) != itech:
+                        continue
+                    base = frozen_capcost.get((wrapper_stortech.get(wrap), y))
+                    if base is None:
+                        continue
+                    expected = base * row['occ_factor'] if tes_island else base
+                    checks += 1
+                    # occ_factor is rounded to 6 decimals in diagnostics, so allow
+                    # the corresponding absolute slack on a ~1e6 $/MW base
+                    if abs(val - expected) > max(0.5, 2e-6 * base):
+                        print(f'FAIL {y} {wrap}: SH TES-side cost {val} != expected '
+                              f'{expected:.2f} (frozen {base:.2f} x factor '
+                              f'{row["occ_factor"] if tes_island else 1.0}, '
+                              f'TESIsland={int(tes_island)})')
+                        fails += 1
             # (4) occ_factor non-increasing while experience is non-decreasing
             checks += 1
             prev = last_factor.get(itech)

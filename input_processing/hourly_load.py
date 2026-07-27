@@ -735,6 +735,16 @@ def main(reeds_path, inputs_case):
     #    -- Data Write-Out --    #
     ##############################
 
+    ## Fail fast on non-finite load: a NaN here (observed once under simultaneous
+    ## multi-case input processing reading the shared demand profiles) otherwise
+    ## surfaces years later as a cryptic IntCastingNaNError in ReEDS_Augur/prep_data
+    if not np.isfinite(regional_load_hourly.values).all():
+        nan_years = sorted(set(
+            regional_load_hourly.index.get_level_values('year')[
+                regional_load_hourly.isna().any(axis=1)
+            ]
+        ))
+        raise ValueError(f'load.h5 build produced non-finite values in years {nan_years}')
     reeds.io.write_profile_to_h5(regional_load_hourly, 'load.h5', inputs_case)
     peakload.to_csv(os.path.join(inputs_case,'peakload.csv'))
     ### Write peak demand by NERC region to use in firm net import constraint

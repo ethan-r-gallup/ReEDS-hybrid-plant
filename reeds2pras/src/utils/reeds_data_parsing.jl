@@ -801,7 +801,11 @@ function process_storages(
         name = "$(name)|"#append for later matching
         mttr = Int64(mttr_dict[string(row.i)])
 
-        storage_duration = energy_cap_dict[(String(row.i), String(row.r))] / row.MW
+        energy_mwh = get(energy_cap_dict, (String(row.i), String(row.r)), 0.0)
+        if energy_mwh == 0.0
+            @warn "$(row.i)|$(row.r) has no CAP_ENERGY; its storage holds zero energy in PRAS"
+        end
+        storage_duration = energy_mwh / row.MW
         if string(row.i) in battery_types
             push!(
                 storages_array,

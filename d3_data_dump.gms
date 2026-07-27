@@ -444,7 +444,8 @@ parameter nuc_inv_by_tech(i)      "--MW-- cumulative post-anchor gross investmen
 * verify end-to-end that the learned OCC/ccmult actually reached the LP's parameters.
 parameter nuc_cost_cap_applied(i) "--2004$/MW-- cost_cap in effect for this solve year"
           nuc_ccmult_applied(i)   "--unitless-- ccmult in effect for this solve year"
-          nuc_sh_p_applied(i)     "--2004$/MW-- storage-hybrid gen-side cost in effect for this solve year" ;
+          nuc_sh_p_applied(i)     "--2004$/MW-- storage-hybrid gen-side cost in effect for this solve year"
+          nuc_sh_s_applied(i)     "--2004$/MW-- storage-hybrid TES power-cycle cost in effect for this solve year (learned when GSw_NuclearLearning_TESIsland=1)" ;
 nuc_inv_by_tech(i)$nuclear_learning_exptech(i) =
     sum{(v,r,tt)$[valinv(i,v,r,tt)
                  $(yeart(tt) > %GSw_NuclearLearning_AnchorYear%)
@@ -452,7 +453,8 @@ nuc_inv_by_tech(i)$nuclear_learning_exptech(i) =
 nuc_cost_cap_applied(i)$nuclear_learning_basetech(i) = cost_cap(i,"%cur_year%") ;
 nuc_ccmult_applied(i)$nuclear_learning_basetech(i) = ccmult(i,"%cur_year%") ;
 nuc_sh_p_applied(i)$nuclear_learning_shtech(i) = cost_cap_storage_hybrid_p(i,"%cur_year%") ;
+nuc_sh_s_applied(i)$nuclear_learning_shtech(i) = cost_cap_storage_hybrid_s(i,"%cur_year%") ;
 execute_unload "outputs%ds%nuclear_learning_data%ds%cumulative_inv_%cur_year%.gdx"
-  nuc_inv_by_tech, nuc_cost_cap_applied, nuc_ccmult_applied, nuc_sh_p_applied
+  nuc_inv_by_tech, nuc_cost_cap_applied, nuc_ccmult_applied, nuc_sh_p_applied, nuc_sh_s_applied
 ;
 $endif.nuclearn

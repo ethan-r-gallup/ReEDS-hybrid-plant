@@ -452,9 +452,25 @@ def calc_financial_inputs(inputs_case):
 
     # Write out the ITC fractions, for use in retail rate calculations
     itc_df = incentive_df[incentive_df['itc_frac']!=0]
-    itc_df[
-        ['i', 'country', 't', 'itc_frac', 'itc_tax_equity_penalty']
-    ].to_csv(os.path.join(inputs_case, 'itc_fractions.csv'), index=False)
+    itc_out = itc_df[['i', 'country', 't', 'itc_frac', 'itc_tax_equity_penalty']]
+    # Storage-hybrid wrappers earn ITC in the LP (cost_cap_fin_mult composed
+    # from component techs in d1_financials.gms) but match no incentive group
+    # here, so without these rows the retail rate module's inner merge on 'i'
+    # assigns wrapper capex zero ITC. Clone the gen tech's rows: exact for the
+    # reactor share of wrapper capex, a slight understatement overall because
+    # the storage component's ITC is higher (e.g. 29.9% vs a 31.7% blend).
+    gentech_map_file = os.path.join(inputs_case, 'storage_hybrid_gentechs.csv')
+    if os.path.isfile(gentech_map_file):
+        gentech_map = pd.read_csv(gentech_map_file)
+        gentech_map.columns = ['wrapper', 'gen_tech']
+        wrapper_itc = []
+        for _, row in gentech_map.iterrows():
+            gen_rows = itc_out[itc_out['i'] == row['gen_tech']].copy()
+            gen_rows['i'] = row['wrapper']
+            wrapper_itc.append(gen_rows)
+        if wrapper_itc:
+            itc_out = pd.concat([itc_out] + wrapper_itc, ignore_index=True)
+    itc_out.to_csv(os.path.join(inputs_case, 'itc_fractions.csv'), index=False)
 
     # CRF used in sequential case for calculating pvf_onm values (pvf)
     crf_df = financials_sys[financials_sys['t']==financials_sys['modeled_year']].copy()

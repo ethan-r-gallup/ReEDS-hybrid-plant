@@ -947,6 +947,9 @@ stor_energy_cap(i,v,r,t)$[tmodel_new(t)$valcap(i,v,r,t)] =
         storage_duration(i) * CAP.l(i,v,r,t) * (1$CSP_Storage(i) + 1$psh(i) + bcr(i)$pvb(i))
         + CAP_ENERGY.l(i,v,r,t)$(battery(i) or tes(i) or storage_hybrid(i)) ;
 
+* assign cap_energy_ivrt from the solved energy capacity for endogenous-energy techs
+* (previously only populated as a side effect of d3_data_dump's workfile values)
+cap_energy_ivrt(i,v,r,t)$[valcap(i,v,r,t)$(battery(i) or tes(i) or storage_hybrid(i))] = CAP_ENERGY.l(i,v,r,t) ;
 * add PSH energy capacity to cap_energy_ivrt
 cap_energy_ivrt(i,v,r,t)$[valcap(i,v,r,t)$psh(i)] = CAP.l(i,v,r,t) * storage_duration(i) ;
 
@@ -1224,7 +1227,10 @@ costnew('cost_fuel',i,r,t)$[valnew('MW',i,r,t)$sum{v$valinv(i,v,r,t), heat_rate(
 * PTC credit attributed to new builds (reported as positive = cost reduction)
 costnew('cost_ptc',i,r,t)$[valnew('MW',i,r,t)$sum{v$valinv(i,v,r,t), ptc_value_scaled(i,v,t)}] =
   sum{(v,h)$[valinv(i,v,r,t)$ptc_value_scaled(i,v,t)$h_rep(h)],
-      ptc_value_scaled(i,v,t) * tc_phaseout_mult(i,v,t) * hours(h) * GEN.l(i,v,r,h,t)
+      ptc_value_scaled(i,v,t) * tc_phaseout_mult(i,v,t) * hours(h) *
+      (GEN.l(i,v,r,h,t)$[not (storage_hybrid(i)$Sw_HybridPlant)]
+       + GEN_PLANT.l(i,v,r,h,t)$[storage_hybrid(i)$Sw_HybridPlant]
+       - STORAGE_IN_GRID.l(i,v,r,h,t)$[pvb(i)$Sw_PVB])
   } * valnew('inv_cap_ratio',i,r,t) ;
 
 * POI (intra-zone network reinforcement) capital cost attributed to new builds
@@ -1465,9 +1471,18 @@ systemcost_techba("inv_investment_water_access",i,r,t)$tmodel_new(t) =
 * DOES NOT INCLUDE COSTS NOT INDEXED BY TECH (e.g., ACP COMPLIANCE)
 
 systemcost_techba("op_vom_costs",i,r,t)$tmodel_new(t)  =
-*variable O&M costs (non-hybrid and non-storage_hybrid)
-              sum{(v,h)$[valgen(i,v,r,t)$cost_vom(i,v,r,t)$(not storage_hybrid(i))],
+*variable O&M costs (same guard as the objective: all techs except non-CSP
+*hybrids, whose VOM is billed on the GEN_PLANT/GEN_STORAGE terms below)
+              sum{(v,h)$[valgen(i,v,r,t)$cost_vom(i,v,r,t)$(not hybrid_plant(i)$(not csp(i)))],
                    hours(h) * cost_vom(i,v,r,t) * GEN.l(i,v,r,h,t) }
+
+* pvb plant-side VOM (uses GEN_PLANT, matching objective function)
+              + sum{(v,h)$[valgen(i,v,r,t)$cost_vom_pvb_p(i,v,r,t)$pvb(i)],
+                   hours(h) * cost_vom_pvb_p(i,v,r,t) * GEN_PLANT.l(i,v,r,h,t) }$Sw_HybridPlant
+
+* pvb battery-side VOM (uses GEN_STORAGE, matching objective function)
+              + sum{(v,h)$[valgen(i,v,r,t)$cost_vom_pvb_b(i,v,r,t)$pvb(i)],
+                   hours(h) * cost_vom_pvb_b(i,v,r,t) * GEN_STORAGE.l(i,v,r,h,t) }$Sw_HybridPlant
 
 * storage_hybrid plant-side VOM (uses GEN_PLANT, matching objective function)
               + sum{(v,h)$[valgen(i,v,r,t)$cost_vom(i,v,r,t)$storage_hybrid(i)],
@@ -1489,7 +1504,8 @@ systemcost_techba("op_fom_costs",i,r,t)$tmodel_new(t)  =
 *fixed O&M costs for generation capacity
               + sum{v$[valcap(i,v,r,t)$((not one_newv(i)) or retiretech(i,v,r,t))],
                    cost_fom(i,v,r,t) * cap_ivrt(i,v,r,t) * ilr(i) }
-            + sum{v$[valcap(i,v,r,t)$storage_hybrid(i)$((not one_newv(i)) or retiretech(i,v,r,t))],
+*energy-capacity FOM for all techs billed on CAP_ENERGY in the objective
+            + sum{v$[valcap(i,v,r,t)$(battery(i) or tes(i) or storage_hybrid(i))$((not one_newv(i)) or retiretech(i,v,r,t))],
                 cost_fom_energy(i,v,r,t) * cap_energy_ivrt(i,v,r,t) * ilr(i) }
 *for technologies with only one newv that are not allowed to retire,
 *use the investments rather than the capacity to calculate FOM costs
@@ -1584,9 +1600,14 @@ systemcost_techba("op_co2_incentive_negative",i,r,t)$tmodel_new(t) =
 ;
 
 * PTC for generation
+* (same basis as the objective: gross GEN_PLANT for storage-hybrid wrappers,
+*  grid-charged energy netted out for pvb)
 systemcost_techba('op_ptc_payments_negative',i,r,t)$tmodel_new(t) =
     - sum{(v,h)$[valgen(i,v,r,t)$ptc_value_scaled(i,v,t)],
-          hours(h) * ptc_value_scaled(i,v,t) * tc_phaseout_mult(i,v,t) * GEN.l(i,v,r,h,t) }
+          hours(h) * ptc_value_scaled(i,v,t) * tc_phaseout_mult(i,v,t) *
+          (GEN.l(i,v,r,h,t)$[not (storage_hybrid(i)$Sw_HybridPlant)]
+           + GEN_PLANT.l(i,v,r,h,t)$[storage_hybrid(i)$Sw_HybridPlant]
+           - STORAGE_IN_GRID.l(i,v,r,h,t)$[pvb(i)$Sw_PVB]) }
 ;
 
 * PTC value for hydrogen production
@@ -1850,6 +1871,11 @@ error_check('z') = (
         - pvf_onm(t) * sum{(i,v,r)$[valcap(i,v,r,t)$retiretech(i,v,r,t)$Sw_RetirePenalty],
             cost_fom(i,v,r,t) * retire_penalty(t)
             * (CAP.l(i,v,r,t) - INV.l(i,v,r,t) - INV_REFURB.l(i,v,r,t)$[refurbtech(i)$Sw_Refurb] - UPGRADES.l(i,v,r,t)$[upgrade(i)$Sw_Upgrades]) }
+* Retirement penalty on energy capacity (matches objective)
+        - pvf_onm(t) * sum{(i,v,r)$[valcap(i,v,r,t)$retiretech(i,v,r,t)$Sw_RetirePenalty
+                                   $(battery(i) or tes(i) or hybrid_plant(i))$cost_fom_energy(i,v,r,t)],
+            cost_fom_energy(i,v,r,t) * retire_penalty(t)
+            * (CAP_ENERGY.l(i,v,r,t) - INV_ENERGY.l(i,v,r,t)) }
 * Revenue from purchases of curtailed VRE
         - pvf_onm(t) * sum{(r,h), CURT.l(r,h,t) * hours(h) * cost_curt(t) }$Sw_CurtMarket
 * Hurdle costs
@@ -2104,8 +2130,10 @@ gen_objcoef(i,v,r,allh,t)$[
                 co2_captured_incentive(i,v,r,t)
             ]
 
+*the objective puts wrapper PTC on GEN_PLANT, not GEN, so it is not part of
+*the wrapper's implied GEN coefficient
         - (ptc_value_scaled(i,v,t) * tc_phaseout_mult(i,v,t))$[
-                ptc_value_scaled(i,v,t)
+                ptc_value_scaled(i,v,t)$(not (storage_hybrid(i)$Sw_HybridPlant))
             ]
 ;
 

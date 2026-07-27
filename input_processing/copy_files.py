@@ -2167,18 +2167,32 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
     # b_inputs.gms). Cloning them here matched group-labeled rows/columns
     # (e.g. NUCLEAR, TES|CSP) nondeterministically -- "Nuclear" happened to
     # match its group label while "Nuclear-SMR" matched nothing.
+    # NOTE on emitrate.csv: deliberately NOT skipped. Wrappers inherit the gen
+    # tech's upstream-fuel emission rates (CH4/N2O for nuclear) by cloning, which
+    # gives standalone-generator parity under CO2e accounting (Sw_AnnualCap=2).
+    # There is no GAMS-side emit-rate inheritance, so removing the cloned rows
+    # would silently zero wrapper upstream emissions.
+    # All entries are basenames: runfiles flattens run-copies to the inputs_case
+    # root, so dir-qualified paths (e.g. 'financials/cap_penalty.csv') never
+    # matched the copies that matter. The match below checks both fname and rel.
     skip_files = {
-        'emission_constraints/emitrate.csv',
-        'financials/cap_penalty.csv',
-        'national_generation/gbin_min.csv',
+        'cap_penalty.csv',
+        'gbin_min.csv',
         'unitdata.csv',
-        'sets/tg.csv',
+        'tg.csv',
         'tech-subset-table.csv',
         'incentives.csv',
         'reg_cap_cost_diff.csv',
         # the wide, group-labeled source copied into inputs_case by runfiles;
         # calc_financial_inputs.py stacks it into reg_cap_cost_diff.csv
         'regional_cap_cost_diff.csv',
+        # parent-link files: the tech-name column ('ii') holds the numeraire
+        # PARENT of each cooling variant, not a tech row to clone. Cloning
+        # substituted wrapper names into the parent column, which under
+        # GSw_WaterMain=1 made wrappers numeraires (valcap removed) and
+        # multi-counted every ctt_i_ii parameter sum for standalone variants.
+        'i_coolingtech_watersource_link.csv',
+        'i_coolingtech_watersource_upgrades_link.csv',
     }
 
     financials_dir = os.path.join(inputs_case, 'financials')

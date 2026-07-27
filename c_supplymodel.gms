@@ -154,6 +154,8 @@ EQUATION
  eq_cap_init_retub(i,v,r,t)               "--MW-- Existing capacity that can be retired is less than or equal to exogenously-specified amount"
  eq_cap_new_noret(i,v,r,t)                "--MW-- New power capacity that cannot be retired is equal to sum of all previous years investment"
  eq_cap_energy_new_noret(i,v,r,t)         "--MWh-- New energy capacity that cannot be retired is equal to sum of all previous years investment"
+ eq_cap_energy_new_retub(i,v,r,t)         "--MWh-- New energy capacity that can be retired is less than or equal to all previous years investment"
+ eq_cap_energy_new_retmo(i,v,r,t)         "--MWh-- New energy capacity that can be retired must be monotonically decreasing unless increased by investment"
  eq_cap_new_retmo(i,v,r,t)                "--MW-- New capacity that can be retired must be monotonically decreasing unless increased by investment"
  eq_cap_new_retub(i,v,r,t)                "--MW-- New capacity that can be retired is less than or equal to all previous years investment"
  eq_cap_rsc(i,v,r,rscbin,t)               "--MW-- Capacity accounting for techs with exogenous capacity tracked by rscbin"
@@ -729,8 +731,9 @@ eq_cap_new_noret(i,v,r,t)$[valcap(i,v,r,t)$tmodel(t)$newv(v)$(not upgrade(i))
 
 * ---------------------------------------------------------------------------
 
-eq_cap_energy_new_noret(i,v,r,t)$[valcap(i,v,r,t)$tmodel(t)$(battery(i) or tes(i) or hybrid_plant(i))$(not Sw_PCM)]..
-    
+eq_cap_energy_new_noret(i,v,r,t)$[valcap(i,v,r,t)$tmodel(t)$(battery(i) or tes(i) or hybrid_plant(i))
+                                 $(not retiretech(i,v,r,t))$(not Sw_PCM)]..
+
     sum{tt$[inv_cond(i,v,r,t,tt)$(tmodel(tt) or tfix(tt))$valcap(i,v,r,tt)],
               degrade(i,tt,t) * INV_ENERGY(i,v,r,tt)
         }
@@ -738,6 +741,52 @@ eq_cap_energy_new_noret(i,v,r,t)$[valcap(i,v,r,t)$tmodel(t)$(battery(i) or tes(i
     + m_capacity_exog_energy(i,v,r,t)
 
     =e=
+
+    CAP_ENERGY(i,v,r,t)
+
+;
+
+* ---------------------------------------------------------------------------
+
+* Energy capacity for retirable techs (storage-hybrid wrappers under Sw_Retire):
+* the ub/mo pair mirrors eq_cap_new_retub/retmo so CAP_ENERGY can retire with the
+* plant instead of persisting forever (energy FOM then stops accruing). Storage
+* techs without a retirable power side (battery/tes standalone) never have
+* retiretech and stay on the strict-equality path above.
+eq_cap_energy_new_retub(i,v,r,t)$[valcap(i,v,r,t)$tmodel(t)$(battery(i) or tes(i) or hybrid_plant(i))
+                                 $retiretech(i,v,r,t)$(not Sw_PCM)]..
+
+    sum{tt$[inv_cond(i,v,r,t,tt)$(tmodel(tt) or tfix(tt))$valcap(i,v,r,tt)],
+              degrade(i,tt,t) * INV_ENERGY(i,v,r,tt)
+        }
+
+    + m_capacity_exog_energy(i,v,r,t)
+
+    =g=
+
+    CAP_ENERGY(i,v,r,t)
+
+;
+
+* ---------------------------------------------------------------------------
+
+* NOTE: the m_capacity_exog_energy term makes energy retirement non-monotone
+* (retired exog energy could resurrect in a later year). Currently unreachable:
+* every tech with exogenous energy capacity (existing batteries, init-1) is in
+* noretire, so retiretech never selects an exog-energy tuple. Revisit if a
+* retirable tech ever carries exogenous energy capacity.
+eq_cap_energy_new_retmo(i,v,r,t)$[valcap(i,v,r,t)$tmodel(t)$(battery(i) or tes(i) or hybrid_plant(i))
+                                 $retiretech(i,v,r,t)$(not Sw_PCM)]..
+
+    sum{tt$[tprev(t,tt)$valcap(i,v,r,tt)],
+         degrade(i,tt,t) * CAP_ENERGY(i,v,r,tt)
+        }
+
+    + INV_ENERGY(i,v,r,t)$valinv(i,v,r,t)
+
+    + m_capacity_exog_energy(i,v,r,t)
+
+    =g=
 
     CAP_ENERGY(i,v,r,t)
 
@@ -1537,9 +1586,14 @@ eq_ramping(i,r,h,hh,t)
 *generation must occur at some point during the szn (i.e., day)
 *in order to procure operating reserves from that resource
 *ORPRES for storage is limited by the storage capacity per the constraint "eq_storage_capacity"
+*storage-hybrid wrappers are excluded like standalone storage: their reserves are
+*storage-delivered and already limited by eq_storage_opres (energy backing incl.
+*reactor headroom) and eq_plant_capacity_limit (capacity envelope). Keying them
+*on net GEN here would forbid reserves in hours when the TES is net-charging.
 eq_ORCap_large_res_frac(ortype,i,v,r,h,t)
     $[tmodel(t)$valgen(i,v,r,t)$Sw_OpRes$opres_model(ortype)$opres_h(h)
-    $(reserve_frac(i,ortype)>0.5)$(not storage_standalone(i))$(not hyd_add_pump(i))]..
+    $(reserve_frac(i,ortype)>0.5)$(not storage_standalone(i))$(not hyd_add_pump(i))
+    $(not storage_hybrid(i)$Sw_HybridPlant)]..
 
 *the reserve_frac times...
     reserve_frac(i,ortype) * (
@@ -1560,7 +1614,8 @@ eq_ORCap_large_res_frac(ortype,i,v,r,h,t)
 *in which reserves are provided
 eq_ORCap_small_res_frac(ortype,i,v,r,h,t)
     $[tmodel(t)$valgen(i,v,r,t)$Sw_OpRes$opres_model(ortype)$opres_h(h)
-    $(reserve_frac(i,ortype)<=0.5)$reserve_frac(i,ortype)]..
+    $(reserve_frac(i,ortype)<=0.5)$reserve_frac(i,ortype)
+    $(not storage_hybrid(i)$Sw_HybridPlant)]..
 
 *generation
     GEN(i,v,r,h,t)
@@ -3111,12 +3166,11 @@ eq_storage_capacity(i,v,r,h,t)$[valgen(i,v,r,t)
     $tmodel(t)]..
 
 * [plus] Capacity of all storage technologies
+* (storage-hybrid wrapper TES discharges through the shared powerblock, so plant
+*  availability and the seasonal capacity swing apply to it like any other storage)
     (CAP(i,v,r,t) * bcr(i) * avail(i,r,h)
        * (1 + sum{szn, h_szn(h,szn) * seas_cap_frac_delta(i,v,r,szn,t)})
-    )$[valcap(i,v,r,t)$(not storage_hybrid(i))]
-
-    + (CAP(i,v,r,t) * bcr(i)
-    )$[valcap(i,v,r,t)$storage_hybrid(i)]
+    )$[valcap(i,v,r,t)]
 
     =g=
 
@@ -3484,7 +3538,11 @@ eq_hybrid_plant_energy_limit(i,v,r,h,t)$[hybrid_plant(i)$(not csp(i))$tmodel(t)$
 * [plus] plant output
     m_cf(i,v,r,h,t) * CAP(i,v,r,t)$(pvb(i) or storage_hybrid_vre(i))
 
-    + avail(i,r,h) * CAP(i,v,r,t)$storage_hybrid_dispatchable(i)
+* seasonal capacity swing included so dispatch sees the same winter uprate the
+* reserve-margin constraint credits via ccseason_cap_frac_delta
+    + (avail(i,r,h) * CAP(i,v,r,t)
+       * (1 + sum{szn, h_szn(h,szn) * seas_cap_frac_delta(i,v,r,szn,t)})
+      )$storage_hybrid_dispatchable(i)
 
     =g=
 

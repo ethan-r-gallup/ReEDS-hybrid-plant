@@ -592,6 +592,7 @@ def solvestring_sequential(
             'GSw_NuclearLearning_OCC',
             'GSw_NuclearLearning_Duration',
             'GSw_NuclearLearning_AnchorYear',
+            'GSw_NuclearLearning_TESIsland',
             'solver',
             'debug',
             'startyear',

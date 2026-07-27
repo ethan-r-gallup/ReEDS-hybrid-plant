@@ -2,6 +2,7 @@ order,color,marker
 Thermal,#820000,X
 Nuclear,#820000,p
 Nuclear-SMR,#D40000,p
+Nuclear-TES Hybrid,#FF8C00,p
 Coal,#000000,X
 Coal-CCS-Flex,#666666,P
 Coal-CCS,#666666,P

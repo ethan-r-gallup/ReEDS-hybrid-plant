@@ -204,6 +204,7 @@ $ifthene.nucanchor %cur_year%>=%GSw_NuclearLearning_AnchorYear%
 $ifthene.nucocc %GSw_NuclearLearning_OCC%==1
 $gdxin outputs%ds%nuclear_learning_data%ds%nuclear_learning_%cur_year%.gdx
 $loaddcr learning_cost_cap
+$loaddcr learning_factor
 $gdxin
 * Base nuclear techs: update plant_char0 (so the storage-hybrid recomposition and
 * cost_cap both reflect the learned OCC) and cost_cap for the current solve year.
@@ -216,6 +217,16 @@ cost_cap(i,"%cur_year%")$[nuclear_learning_basetech(i)$learning_cost_cap(i,"%cur
 * thermal-storage vs non-thermal branches; geo-storage cannot pair with nuclear).
 cost_cap_storage_hybrid_p(i,"%cur_year%")$nuclear_learning_shtech(i) =
     sum{ii$storage_hybrid_gentech(i,ii), plant_char0(ii,"%cur_year%","capcost") } ;
+* TES-island learning: the wrapper's shared (1+bcr)-sized power block is built by
+* the same supply chain as the reactor, so it learns at the gen tech's OCC ratio.
+* Scales this year's b_inputs-frozen value exactly once; TES tank/salt costs
+* (INV_ENERGY / cost_cap_energy) are unaffected.
+$ifthene.nuctes %GSw_NuclearLearning_TESIsland%==1
+cost_cap_storage_hybrid_s(i,"%cur_year%")
+    $[nuclear_learning_shtech(i)$sum{ii$storage_hybrid_gentech(i,ii), learning_factor(ii,"%cur_year%")}] =
+    cost_cap_storage_hybrid_s(i,"%cur_year%")
+    * sum{ii$storage_hybrid_gentech(i,ii), learning_factor(ii,"%cur_year%") } ;
+$endif.nuctes
 powerblock_cost_storage_hybrid(i,"%cur_year%")$nuclear_learning_shtech(i) =
     sum{ii$storage_hybrid_gentech(i,ii),
         cost_cap_storage_hybrid_p(i,"%cur_year%") * powerblock_share_storage_hybrid(ii) } ;

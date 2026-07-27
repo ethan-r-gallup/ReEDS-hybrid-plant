@@ -207,7 +207,13 @@ def get_eue_sorted_periods(sw, t, iteration):
         os.path.join(sw['casedir'], 'ReEDS_Augur', 'PRAS', f"PRAS_{t}i{iteration}-energy.h5")
     )
     timeindex = reeds.timeseries.get_timeindex(sw['resource_adequacy_years'])
-    dfenergy.index = timeindex
+    ## A system with no storages or hybrid TES writes an empty -energy.h5;
+    ## rebuild it empty-with-index so the dfenergy_r.empty guard downstream
+    ## handles it regardless of the empty frame's row/column shape
+    if dfenergy.empty:
+        dfenergy = pd.DataFrame(index=timeindex)
+    else:
+        dfenergy.index = timeindex
     ## Sum by region
     dfenergy_r = (
         dfenergy

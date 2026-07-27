@@ -120,7 +120,9 @@ eq_ObjFn_inv(t)$tmodel(t)..
 
 * --- storage capacity credit---
 *small cost penalty to incentivize solver to fill shorter-duration bins first
-                  + sum{(i,v,r,ccseason,sdbin)$[valcap(i,v,r,t)$(storage(i) or hyd_add_pump(i))$(not thermal_storage(i))$Sw_PRM_CapCredit$Sw_StorageBinPenalty],
+*(exclusion is csp only, matching the error_check replica in e_report.gms:
+* storage-hybrid wrappers allocate CAP_SDBIN and pay the tie-break like batteries)
+                  + sum{(i,v,r,ccseason,sdbin)$[valcap(i,v,r,t)$(storage(i) or hyd_add_pump(i))$(not csp(i))$Sw_PRM_CapCredit$Sw_StorageBinPenalty],
                          bin_penalty(sdbin) * CAP_SDBIN(i,v,r,ccseason,sdbin,t) }
 
 * cost of capacity upsizing
@@ -227,8 +229,17 @@ eq_Objfn_op(t)$tmodel(t)..
                    cost_fom(i,v,r,t) * retire_penalty(t) *
                    (CAP(i,v,r,t)
                     - INV(i,v,r,t)$valinv(i,v,r,t)
-                    - INV_REFURB(i,v,r,t)$[valinv(i,v,r,t)$refurbtech(i)$Sw_Refurb] 
+                    - INV_REFURB(i,v,r,t)$[valinv(i,v,r,t)$refurbtech(i)$Sw_Refurb]
                     - UPGRADES(i,v,r,t)$[upgrade(i)$Sw_Upgrades] )
+                   }
+
+* energy-capacity analog for retirable storage-energy techs, so CAP_ENERGY cannot
+* churn friction-free while the power side pays the retirement penalty
+              - sum{(i,v,r)$[valcap(i,v,r,t)$retiretech(i,v,r,t)$Sw_RetirePenalty
+                            $(battery(i) or tes(i) or hybrid_plant(i))$cost_fom_energy(i,v,r,t)],
+                   cost_fom_energy(i,v,r,t) * retire_penalty(t) *
+                   (CAP_ENERGY(i,v,r,t)
+                    - INV_ENERGY(i,v,r,t)$valinv(i,v,r,t) )
                    }
 
 * ---operating reserve costs---

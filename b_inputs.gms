@@ -6186,6 +6186,7 @@ nuclear_learning_exptech(i)$[nuclear_learning_basetech(i) or nuclear_learning_sh
 
 parameter learning_cost_cap(i,allt) "--2004$/MW-- learned overnight capital cost override for nuclear techs" ;
 parameter learning_ccmult(i,allt)   "--unitless-- learned construction financing multiplier override for nuclear techs" ;
+parameter learning_factor(i,allt)   "--unitless-- OCC learning ratio (learned/BOAK) for nuclear techs; scales the wrapper TES power-cycle capex when GSw_NuclearLearning_TESIsland=1" ;
 
 * --- Storage Duration ---
 
