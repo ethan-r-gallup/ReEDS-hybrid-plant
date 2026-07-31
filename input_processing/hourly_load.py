@@ -28,6 +28,7 @@ The script also calculates peak load for each region level.
 
 import argparse
 import datetime
+import hashlib
 import numpy as np
 import os
 import pandas as pd
@@ -600,9 +601,14 @@ def reaggregate_to_model_regions(
 #%% ===========================================================================
 ### --- MAIN FUNCTION ---
 ### ===========================================================================
-def main(reeds_path, inputs_case):
-    print('Starting hourly_load.py')
+def build_load(reeds_path, inputs_case):
+    """Build the regional hourly load profiles and peak load from source data.
 
+    Kept free of on-disk writes so that main() can run it repeatedly for the
+    compute-twice-and-compare validation gate (the load corruption observed
+    under concurrent input processing is stochastic, so two independent builds
+    agreeing implies a clean build).
+    """
     #%%### Load inputs
     ### Load the input parameters
     sw = reeds.io.get_switches(inputs_case)
@@ -696,11 +702,91 @@ def main(reeds_path, inputs_case):
 
     peakload = calculate_peak_load(regional_load_hourly, hierarchy)
 
+    return regional_load_hourly, peakload
+
+
+def validate_load(regional_load_hourly):
+    """Invariants that must hold for any correctly built load dataset.
+
+    Directly catches the two observed corruption modes: a model year of
+    all-zero load, and a model year silently carrying another year's profile.
+    """
+    years = regional_load_hourly.index.get_level_values('year').unique()
+    ## Every model year must have positive peak load in every region
+    yearly_peak = regional_load_hourly.groupby(level='year').max()
+    bad_years = yearly_peak.index[(yearly_peak <= 0).any(axis=1)].tolist()
+    if bad_years:
+        raise ValueError(
+            f'load build produced nonpositive peak load in years {bad_years}'
+        )
+    ## No two distinct model years may carry identical hourly data
+    yearhash = {}
+    for year in years:
+        yhash = hashlib.md5(
+            regional_load_hourly.xs(year, level='year').values.tobytes()
+        ).hexdigest()
+        if yhash in yearhash:
+            raise ValueError(
+                'load build produced identical hourly load in years '
+                f'{yearhash[yhash]} and {year}'
+            )
+        yearhash[yhash] = year
+
+
+def main(reeds_path, inputs_case):
+    print('Starting hourly_load.py')
+
+    sw = reeds.io.get_switches(inputs_case)
+
+    ## Remove any stale load.h5: reeds.io.get_load_hourly silently reads
+    ## {inputs_case}/load.h5 as a cache when it exists, which would turn the
+    ## rebuilds below (and any retry of this script) into copies of the first
+    ## (possibly corrupted) build
+    stale_load_h5 = os.path.join(inputs_case, 'load.h5')
+    if os.path.exists(stale_load_h5):
+        print(f'Removing stale {stale_load_h5} before rebuilding load')
+        os.remove(stale_load_h5)
+
+    #%%%#########################################
+    #    -- Validated load build --    #
+    #############################################
+    ### Corruption under concurrent input processing is stochastic, so accept
+    ### the result only once two consecutive independent builds agree exactly
+    max_attempts = 4
+    regional_load_hourly, peakload = build_load(reeds_path, inputs_case)
+    for attempt in range(2, max_attempts + 1):
+        load_check, peakload_check = build_load(reeds_path, inputs_case)
+        if (regional_load_hourly.equals(load_check)
+                and peakload.equals(peakload_check)):
+            print(f'Load builds {attempt-1} and {attempt} agree; '
+                  'accepting result')
+            break
+        try:
+            diff_years = sorted(set(
+                regional_load_hourly.index.get_level_values('year')[
+                    (regional_load_hourly != load_check).any(axis=1)
+                ]
+            ))
+        except ValueError:
+            diff_years = ['<index/shape mismatch>']
+        print(f'WARNING: load builds {attempt-1} and {attempt} disagree '
+              f'in years {diff_years}; rebuilding')
+        regional_load_hourly, peakload = load_check, peakload_check
+    else:
+        raise ValueError(
+            'hourly load build failed to produce two consecutive identical '
+            f'results in {max_attempts} attempts; the source data reads are '
+            'being corrupted'
+        )
+
+    ### Absolute invariants, independent of build agreement
+    validate_load(regional_load_hourly)
+
     #%%%#########################################
     #    -- DR Shed Load Modifications --    #
     #############################################
 
-    if int(sw.GSw_DRShed): 
+    if int(sw.GSw_DRShed):
         state_dr_shed_hourly = reeds.io.read_file(os.path.join(inputs_case, 'dr_shed_hourly.h5'))
         dr_types = list({x.split('|')[0] for x in state_dr_shed_hourly.columns[1:]})
 
