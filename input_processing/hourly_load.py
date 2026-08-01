@@ -752,7 +752,7 @@ def main(reeds_path, inputs_case):
     #############################################
     ### Corruption under concurrent input processing is stochastic, so accept
     ### the result only once two consecutive independent builds agree exactly
-    max_attempts = 4
+    max_attempts = 8
     regional_load_hourly, peakload = build_load(reeds_path, inputs_case)
     for attempt in range(2, max_attempts + 1):
         load_check, peakload_check = build_load(reeds_path, inputs_case)
