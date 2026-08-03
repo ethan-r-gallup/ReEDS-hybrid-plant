@@ -65,3 +65,4 @@ evmc,20000,arbitrarily high (not disaggregated so doesn't matter)
 dr_shed,20000,arbitrarily high (not disaggregated so doesn't matter)
 tes_ms,60,Assumed same as battery storage for unit size
 flex_geo,12,Storage device paired with geothermal in flexible-geo configs
+ng-fuel-cell,10,https://www.eia.gov/analysis/studies/powerplants/capitalcost/pdf/capital_cost_AEO2025.pdf (representative 10 MW natural gas fuel cell plant)
