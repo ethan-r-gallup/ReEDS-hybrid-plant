@@ -29,6 +29,7 @@ The script also calculates peak load for each region level.
 import argparse
 import datetime
 import hashlib
+import time
 import numpy as np
 import os
 import pandas as pd
@@ -751,8 +752,12 @@ def main(reeds_path, inputs_case):
     #    -- Validated load build --    #
     #############################################
     ### Corruption under concurrent input processing is stochastic, so accept
-    ### the result only once two consecutive independent builds agree exactly
-    max_attempts = 8
+    ### the result only once two consecutive independent builds agree exactly.
+    ### Corrupted reads cluster in multi-minute system-pressure windows that
+    ### can outlast back-to-back retries, so sleep between disagreeing builds
+    ### to let the retry budget span longer than a pressure window.
+    max_attempts = 12
+    retry_sleep_seconds = 60
     regional_load_hourly, peakload = build_load(reeds_path, inputs_case)
     for attempt in range(2, max_attempts + 1):
         load_check, peakload_check = build_load(reeds_path, inputs_case)
@@ -770,7 +775,9 @@ def main(reeds_path, inputs_case):
         except ValueError:
             diff_years = ['<index/shape mismatch>']
         print(f'WARNING: load builds {attempt-1} and {attempt} disagree '
-              f'in years {diff_years}; rebuilding')
+              f'in years {diff_years}; sleeping {retry_sleep_seconds}s '
+              'then rebuilding')
+        time.sleep(retry_sleep_seconds)
         regional_load_hourly, peakload = load_check, peakload_check
     else:
         raise ValueError(
