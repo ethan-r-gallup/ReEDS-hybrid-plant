@@ -71,6 +71,21 @@ def _storage_hybrid_techset_paths(inputs_case):
 
 
 def _load_storage_hybrid_techs(inputs_case):
+    # The i set is written to inputs_case/inputs.h5 by write_non_region_files
+    # (runfiles.csv entry with GAMStype=set), so read it from there first
+    try:
+        techs = (
+            reeds.io.read_input(inputs_case, 'i')
+            .squeeze('columns')
+            .dropna()
+            .astype(str)
+            .map(lambda x: x.strip())
+        )
+        techs = [t for t in techs if t != '' and not t.startswith('*')]
+        if techs:
+            return techs
+    except (FileNotFoundError, KeyError):
+        pass
     techs = []
     for techset_path in _storage_hybrid_techset_paths(inputs_case):
         if not os.path.exists(techset_path):
@@ -397,6 +412,22 @@ def append_storage_hybrid_ivt(inputs_case, configs):
 
 def append_storage_hybrid_techs_to_i(inputs_case, configs):
     new_techs = [c['storage_hybrid_tech'] for c in configs]
+    # The i set lives in inputs_case/inputs.h5 (written by write_non_region_files);
+    # h5_to_gdx.py later converts it to the gdx loaded by b_inputs.gms
+    try:
+        i_set = reeds.io.read_input(inputs_case, 'i').squeeze('columns').astype(str)
+    except (FileNotFoundError, KeyError):
+        i_set = None
+    if i_set is not None:
+        existing = {_storage_hybrid_canon_label(t) for t in i_set}
+        to_add = [t for t in new_techs if _storage_hybrid_canon_label(t) not in existing]
+        if to_add:
+            i_out = pd.Series(list(i_set) + to_add, name='*')
+            reeds.io.write_to_inputs_h5(
+                i_out, 'i', inputs_case, 'set',
+                comment='generation technologies', verbose=0,
+            )
+        return
     for techset_path in _storage_hybrid_techset_paths(inputs_case):
         if not os.path.exists(techset_path):
             continue
