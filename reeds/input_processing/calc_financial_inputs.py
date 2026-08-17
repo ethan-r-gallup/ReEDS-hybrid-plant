@@ -134,6 +134,24 @@ def calc_financial_inputs(inputs_case):
             'depreciation_sch'
         ] = 5
 
+    # Storage-hybrid wrappers inherit the gen tech's financial parameters
+    # (depreciation_sch, eval_period, construction_sch, finance_diff_real);
+    # without these rows the downstream merge leaves NaN construction_sch
+    # and the construction-financing multiplier lookup fails
+    gentech_map_file = os.path.join(inputs_case, 'storage_hybrid_gentechs.csv')
+    if os.path.isfile(gentech_map_file):
+        gentech_map = pd.read_csv(gentech_map_file)
+        gentech_map.columns = ['wrapper', 'gen_tech']
+        wrapper_financials = []
+        for _, maprow in gentech_map.iterrows():
+            gen_rows = financials_tech[financials_tech['i'] == maprow['gen_tech']].copy()
+            gen_rows['i'] = maprow['wrapper']
+            wrapper_financials.append(gen_rows)
+        if wrapper_financials:
+            financials_tech = pd.concat(
+                [financials_tech] + wrapper_financials, ignore_index=True
+            )
+
     ### Project financials_tech forward
     financials_tech_projected = (
         financials_tech.pivot(
