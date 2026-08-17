@@ -1,0 +1,17 @@
+,hyb_z54,hyb_cc_z54,base_z54
+timetype,seq,seq,seq
+endyear,2035,2035,2035
+GSw_ZoneSet,z54,z54,z54
+pras,1,0,0
+GSw_PRM_StressIterateMax,3,0,0
+GSw_PRM_CapCredit,0,1,1
+GSw_Retire,5,4,5
+GSw_NukeNoRetire,1,0,1
+GSw_RetirePenalty,1,0,1
+GSw_StorageHybrid,1,1,0
+GSw_StorageHybrid_Types,1_2_3_4_5_6_7_8,1_2_3_4_5_6_7_8,1_2_3_4_5_6
+GSw_StorageHybrid_GenTechs,nuclear-smr_nuclear-smr_nuclear-smr_nuclear-smr_nuclear_nuclear_nuclear_nuclear,nuclear-smr_nuclear-smr_nuclear-smr_nuclear-smr_nuclear_nuclear_nuclear_nuclear,nuclear-smr_nuclear-smr_nuclear-smr_nuclear_nuclear_nuclear
+GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms,tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms,tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms
+GSw_StorageHybrid_BCR,0.25_0.5_0.75_1.0_0.25_0.5_0.75_1.0,0.25_0.5_0.75_1.0_0.25_0.5_0.75_1.0,0.25_0.5_0.75_0.25_0.5_0.75
+GSw_StorageHybrid_GridCharging,0.0_0.0_0.0_0.0_0.0_0.0_0.0_0.0,0.0_0.5_0.0_1.0_0.0_0.5_0.0_1.0,0.0_0.0_0.0_0.0_0.0_0.0
+plantchar_tes,tes_ATB_2024_moderate,tes_ATB_2024_moderate,tes_ATB_2024_moderate
