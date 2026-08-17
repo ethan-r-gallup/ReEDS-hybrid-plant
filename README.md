@@ -6,7 +6,7 @@
 [![Documentation](https://img.shields.io/badge/Documentation-view%20online-0a7f5e?logo=readthedocs&logoColor=white&labelColor=555)](https://reeds-model.github.io/ReEDS)
 ![Static Badge](https://img.shields.io/badge/python-3.11-blue)
 ![GitHub License](https://img.shields.io/github/license/ReEDS-Model/ReEDS)
-[![DOI](https://zenodo.org/badge/189060033.svg)](https://doi.org/10.5281/zenodo.16943302)
+[![DOI](https://zenodo.org/badge/189060033.svg)](https://doi.org/10.5281/zenodo.20314874)
 
 </br>
 </br>
@@ -14,6 +14,8 @@
 This GitHub repository contains the source code for NLR's ReEDS model.
 The ReEDS model source code is available at no cost from the National Laboratory of the Rockies.
 The ReEDS model can be downloaded or cloned from [https://github.com/ReEDS-Model/ReEDS](https://github.com/ReEDS-Model/ReEDS).
+
+If you want to use the latest stable version of ReEDS, download or check out the latest stable release [here](https://github.com/ReEDS-Model/ReEDS/releases/latest).
 
 **For more information about the model, see the [ReEDS Documentation](https://reeds-model.github.io/ReEDS).**
 
@@ -56,17 +58,17 @@ A step-by-step guide for getting started with ReEDS is available [here](https://
 4. Open a command-line interface and set up your environments:
     1. Clone the ReEDS repository: `git clone git@github.com:ReEDS-Model/ReEDS.git` or `git clone https://github.com/ReEDS-Model/ReEDS.git`
     2. Navigate to the cloned repository
-    3. Create the `reeds2` [conda environment](https://docs.conda.io/projects/conda/en/stable/user-guide/tasks/manage-environments.html): `conda env create -f environment.yml`
-    4. Activate the `reeds2` environment: `conda activate reeds2`
+    3. Create the `reeds` [conda environment](https://docs.conda.io/projects/conda/en/stable/user-guide/tasks/manage-environments.html): `conda env create -f environment.yml`
+    4. Activate the `reeds` environment: `conda activate reeds`
     5. Instantiate the Julia environment: `julia --project=. instantiate.jl`
     6. (Optional) Several large data files are hosted remotely.
     These files are downloaded automatically as needed during a ReEDS run, but to finish all the internet-requiring steps up front, you can download them all by running `python reeds/remote.py`.
     Additional details on remote files and other topics can be found in the [user guide](https://reeds-model.github.io/ReEDS/user_guide.html#large-input-files).
 5. Run ReEDS on a test case from the root of the cloned repository:
-    1. For interactive setup: `python runbatch.py`
-    2. For one-line operation: `python runbatch.py -b v20250314_main -c test`.
+    1. For interactive setup: `python runreeds.py`
+    2. For one-line operation: `python runreeds.py -b v20250314_main -c test`.
     In this example, "v20250314_main" is the prefix for this batch of cases, and "test" is the suffix of the cases file, in this case `cases_test.csv`, located in the root of the repository.
-    Run `python runbatch.py -h` for information on other optional command-line arguments for ReEDS.
+    Run `python runreeds.py -h` for information on other optional command-line arguments for ReEDS.
 
 
 
