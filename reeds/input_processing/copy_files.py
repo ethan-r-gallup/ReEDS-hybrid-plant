@@ -1814,6 +1814,9 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
         'cap_penalty.csv',
         'gbin_min.csv',
         'unitdata.csv',
+        # source for process_unitdata.py; cloning wrapper rows here would create
+        # phantom existing units for the wrappers
+        'unitdata_orig.csv',
         'tg.csv',
         'tech-subset-table.csv',
         'incentives.csv',
