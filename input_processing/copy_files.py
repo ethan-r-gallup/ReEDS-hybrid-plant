@@ -3,6 +3,7 @@
 ### ===========================================================================
 import os
 import sys
+import re
 import datetime
 import numpy as np
 import pandas as pd
@@ -15,6 +16,486 @@ from pathlib import Path
 # Local Imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import reeds
+
+
+STORAGE_HYBRID_EXPANDABLE_GEN_TECHS = {
+    'upv',
+    'wind-ofs',
+    'wind-ons',
+    'geohydro-allkm',
+    'egs-allkm',
+    'egs-nearfield',
+}
+
+# Geothermal generation families that carry a resource supply curve (rsc_i) and,
+# where applicable, endogenous spur lines. Storage-hybrid wrappers built on these
+# families share the parent geo tech's supply curve and spur-line capacity rather
+# than being unconstrained (see append_storage_hybrid_subsets and
+# write_storage_hybrid_rsc_agg / b_inputs.gms storage_hybrid_geo_rsc_agg).
+STORAGE_HYBRID_GEO_RSC_FAMILIES = {
+    'geohydro-allkm',
+    'egs-allkm',
+    'egs-nearfield',
+}
+
+
+def _storage_hybrid_canon_label(value):
+    return str(value).strip().lower().replace('_', '-').replace(' ', '')
+
+
+def _storage_hybrid_gen_is_geo_rsc(gen_tech):
+    """Return True if `gen_tech` is a numbered geothermal supply-curve family member."""
+    canon = _storage_hybrid_canon_label(gen_tech)
+    match = re.match(r'^(.*)-\d+$', canon)
+    family = match.group(1) if match else canon
+    return family in STORAGE_HYBRID_GEO_RSC_FAMILIES
+
+
+def _storage_hybrid_expand_to_len(values, n, label, storage_hybrid_types):
+    values = [v for v in values if v != '']
+    if len(values) == 1 and n > 1:
+        values = values * n
+    if len(values) < n:
+        raise ValueError(
+            f"{label} must have 1 value or {n} values "
+            f"(to match GSw_StorageHybrid_Types={storage_hybrid_types})"
+        )
+    return values[:n]
+
+
+def _storage_hybrid_techset_paths(inputs_case):
+    return [
+        os.path.join(inputs_case, 'sets', 'i.csv'),
+        os.path.join(inputs_case, 'i.csv'),
+    ]
+
+
+def _load_storage_hybrid_techs(inputs_case):
+    techs = []
+    for techset_path in _storage_hybrid_techset_paths(inputs_case):
+        if not os.path.exists(techset_path):
+            continue
+        techs = (
+            pd.read_csv(techset_path, header=None, comment='*', dtype=str, encoding='utf-8-sig')
+            .squeeze(1)
+            .dropna()
+            .astype(str)
+            .map(lambda x: x.strip())
+        )
+        techs = [t for t in techs if t != '']
+        if techs:
+            return techs
+    return techs
+
+
+def _load_storage_hybrid_tech_canon_map(inputs_case):
+    return {_storage_hybrid_canon_label(t): t for t in _load_storage_hybrid_techs(inputs_case)}
+
+
+def _storage_hybrid_resolve_i_name(value, tech_canon_map, switch_name):
+    tech = str(value).strip()
+    if not tech:
+        raise ValueError(f"Empty entry in {switch_name}.")
+    canon = _storage_hybrid_canon_label(tech)
+    if canon in tech_canon_map:
+        return tech_canon_map[canon]
+    raise ValueError(f"{switch_name} entry {tech!r} not found in inputs/sets/i.csv.")
+
+
+def _storage_hybrid_numbered_family_members(family_canon, techs):
+    members = []
+    prefix = f'{family_canon}-'
+    for tech in techs:
+        canon = _storage_hybrid_canon_label(tech)
+        if not canon.startswith(prefix):
+            continue
+        suffix = canon[len(prefix):]
+        if suffix.isdigit():
+            members.append((int(suffix), tech))
+    return [tech for _, tech in sorted(members)]
+
+
+def _storage_hybrid_wrapper_name(config_id, gen_tech):
+    config_label = _storage_hybrid_canon_label(config_id)
+    gen_label = str(gen_tech).strip().lower()
+    return f'storage-hybrid-{config_label}-{gen_label}'
+
+
+def build_storage_hybrid_configs(sw, inputs_case):
+    """Return run-specific storage-hybrid wrapper rows for this case."""
+    if 'GSw_StorageHybrid' in sw and int(sw['GSw_StorageHybrid']) == 0:
+        return []
+
+    storage_hybrid_types_raw = str(sw.get('GSw_StorageHybrid_Types', '')).strip()
+    storage_hybrid_types = [t for t in storage_hybrid_types_raw.split('_') if t]
+    if not storage_hybrid_types:
+        return []
+    n_storage_hybrid_types = len(storage_hybrid_types)
+
+    storage_hybrid_bcrs = _storage_hybrid_expand_to_len(
+        str(sw.get('GSw_StorageHybrid_BCR', '')).split('_'),
+        n_storage_hybrid_types,
+        'GSw_StorageHybrid_BCR',
+        storage_hybrid_types_raw,
+    )
+    storage_hybrid_storage_techs = _storage_hybrid_expand_to_len(
+        str(sw.get('GSw_StorageHybrid_StorageTechs', '')).split('_'),
+        n_storage_hybrid_types,
+        'GSw_StorageHybrid_StorageTechs',
+        storage_hybrid_types_raw,
+    )
+    storage_hybrid_gridcharge = _storage_hybrid_expand_to_len(
+        str(sw.get('GSw_StorageHybrid_GridCharging', '')).split('_'),
+        n_storage_hybrid_types,
+        'GSw_StorageHybrid_GridCharging',
+        storage_hybrid_types_raw,
+    )
+    storage_hybrid_gen_techs = _storage_hybrid_expand_to_len(
+        str(sw.get('GSw_StorageHybrid_GenTechs', '')).split('_'),
+        n_storage_hybrid_types,
+        'GSw_StorageHybrid_GenTechs',
+        storage_hybrid_types_raw,
+    )
+
+    techs = _load_storage_hybrid_techs(inputs_case)
+    tech_canon_map = {_storage_hybrid_canon_label(t): t for t in techs}
+    configs = []
+    seen_wrappers = set()
+
+    for config_id, gen_tech, storage_tech, bcr, gridcharge in zip(
+        storage_hybrid_types,
+        storage_hybrid_gen_techs,
+        storage_hybrid_storage_techs,
+        storage_hybrid_bcrs,
+        storage_hybrid_gridcharge,
+    ):
+        gen_canon = _storage_hybrid_canon_label(gen_tech)
+        storage_i = _storage_hybrid_resolve_i_name(
+            storage_tech,
+            tech_canon_map,
+            'GSw_StorageHybrid_StorageTechs',
+        )
+
+        if gen_canon in STORAGE_HYBRID_EXPANDABLE_GEN_TECHS:
+            gen_members = _storage_hybrid_numbered_family_members(gen_canon, techs)
+            if not gen_members:
+                raise ValueError(
+                    f"GSw_StorageHybrid_GenTechs family entry {gen_tech!r} did not match "
+                    "any numbered technologies in inputs/sets/i.csv."
+                )
+            expanded = True
+        else:
+            gen_members = [
+                _storage_hybrid_resolve_i_name(
+                    gen_tech,
+                    tech_canon_map,
+                    'GSw_StorageHybrid_GenTechs',
+                )
+            ]
+            expanded = False
+
+        for gen_i in gen_members:
+            wrapper = _storage_hybrid_wrapper_name(config_id, gen_i)
+            wrapper_canon = _storage_hybrid_canon_label(wrapper)
+            if wrapper_canon in seen_wrappers:
+                raise ValueError(
+                    f"Duplicate generated storage-hybrid technology {wrapper!r}. "
+                    "Use distinct GSw_StorageHybrid_Types entries for repeated gen/storage pairings."
+                )
+            seen_wrappers.add(wrapper_canon)
+            configs.append({
+                'config_id': str(config_id).strip(),
+                'storage_hybrid_tech': wrapper,
+                'gen_tech': gen_i,
+                'storage_tech': storage_i,
+                'bcr': float(bcr),
+                'gridcharge_ratio': float(gridcharge),
+                'expanded': expanded,
+            })
+
+    return configs
+
+
+def write_storage_hybrid_case_inputs(sw, inputs_case):
+    configs = build_storage_hybrid_configs(sw, inputs_case)
+
+    pd.Series(
+        [c['storage_hybrid_tech'] for c in configs],
+        dtype=str,
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_config.csv'), index=False, header=False)
+
+    pd.DataFrame(
+        {
+            '*storage-hybrid_type': [c['storage_hybrid_tech'] for c in configs],
+            'bcr': [c['bcr'] for c in configs],
+        }
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_bcr.csv'), index=False)
+
+    pd.DataFrame(
+        {
+            '*storage-hybrid_type': [c['storage_hybrid_tech'] for c in configs],
+            'gridcharge_ratio': [c['gridcharge_ratio'] for c in configs],
+        }
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gridcharging.csv'), index=False)
+
+    pd.DataFrame(
+        {
+            '*storage-hybrid_type': [c['storage_hybrid_tech'] for c in configs],
+            'storage_type': [c['storage_tech'] for c in configs],
+        }
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_storagetechs.csv'), index=False)
+
+    pd.DataFrame(
+        {
+            '*storage-hybrid_type': [c['storage_hybrid_tech'] for c in configs],
+            'gen_tech': [c['gen_tech'] for c in configs],
+        }
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gentechs.csv'), index=False)
+
+    # Map each geothermal storage-hybrid wrapper to its parent geo supply-curve tech.
+    # The parent tech is the FIRST index so that eq_rsc_INVlim is generated only for
+    # the parent (mirroring the UPV/PVB tg_rsc_upvagg pattern), and the wrapper's
+    # INV_RSC is summed into the parent's shared resource limit via rsc_agg.
+    geo_rsc_configs = [c for c in configs if _storage_hybrid_gen_is_geo_rsc(c['gen_tech'])]
+    pd.DataFrame(
+        {
+            '*i': [c['gen_tech'] for c in geo_rsc_configs],
+            'ii': [c['storage_hybrid_tech'] for c in geo_rsc_configs],
+        }
+    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_rsc_agg.csv'), index=False)
+
+    if configs:
+        append_storage_hybrid_techs_to_i(inputs_case, configs)
+        append_storage_hybrid_subsets(inputs_case, configs)
+        append_storage_hybrid_ivt(inputs_case, configs)
+
+    return configs
+
+
+def append_storage_hybrid_ivt(inputs_case, configs):
+    """Append a vintage row to ivt.csv for each storage-hybrid wrapper tech.
+
+    ivt.csv is written by runbatch.get_ivt_numclass() before copy_files runs and
+    sources only static rows from inputs/userinput/ivt_{suffix}.csv. The
+    dynamically generated storage-hybrid-{config}-{gentech} wrappers are not in
+    that source, so without this patch they have no ivt(i,newv,t) entries and
+    GAMS never adds them to valcap (see b_inputs.gms valcap rules at L2556+).
+
+    Each wrapper inherits its gen tech's vintage schedule. This keeps newv
+    vintages aligned with the gen tech (whose plant_char, supply curve, and
+    heat_rate the wrapper already inherits) and does not change numclass since
+    the max v index is unchanged.
+
+    ivt.csv stores numbered tech families in GAMS-style condensed range form
+    (e.g. ``egs_allkm_1*egs_allkm_10``) rather than as one row per numbered
+    member. We mirror that convention by emitting one condensed range row per
+    (config_id, gen_tech_family) group when the wrappers cover a contiguous
+    suffix range and share an identical vintage schedule; otherwise we fall
+    back to individual rows.
+    """
+    ivt_path = os.path.join(inputs_case, 'ivt.csv')
+    if not os.path.exists(ivt_path):
+        return
+
+    ivt = pd.read_csv(ivt_path, index_col=0)
+
+    suffix_re = re.compile(r'^(.*)_(\d+)$')
+
+    def _parse_range(index_value):
+        """Return (prefix, lo, hi) if `index_value` is a GAMS range, else None."""
+        text = str(index_value).strip()
+        if '*' not in text:
+            return None
+        left, right = [part.strip() for part in text.split('*', 1)]
+        left_match = suffix_re.match(left)
+        right_match = suffix_re.match(right)
+        if not (left_match and right_match):
+            return None
+        if left_match.group(1) != right_match.group(1):
+            return None
+        return left_match.group(1), int(left_match.group(2)), int(right_match.group(2))
+
+    # Map every individual tech name (including those expanded from ranges) to
+    # its vintage row in ivt.csv so wrappers can look up their gen tech values.
+    tech_to_row = {}
+    covered_techs = set()
+    for ivt_index, row in ivt.iterrows():
+        text = str(ivt_index).strip()
+        parsed = _parse_range(text)
+        if parsed is None:
+            tech_to_row[text] = row
+            covered_techs.add(text)
+        else:
+            prefix, lo, hi = parsed
+            for n in range(lo, hi + 1):
+                name = f'{prefix}_{n}'
+                tech_to_row[name] = row
+                covered_techs.add(name)
+
+    # Group configs by (config_id, gen_tech_family_prefix) so contiguous
+    # numbered wrappers can be emitted as a single condensed range row.
+    grouped = {}
+    singletons = []
+    for config in configs:
+        wrapper = config['storage_hybrid_tech']
+        gen_tech = config['gen_tech']
+        match = suffix_re.match(gen_tech)
+        if match:
+            key = (config['config_id'], match.group(1))
+            grouped.setdefault(key, []).append((int(match.group(2)), wrapper, gen_tech))
+        else:
+            singletons.append((wrapper, gen_tech))
+
+    new_rows = {}
+
+    def _lookup_gen_row(gen_tech, wrapper):
+        if gen_tech not in tech_to_row:
+            raise ValueError(
+                f"Cannot extend ivt.csv for storage-hybrid wrapper {wrapper!r}: "
+                f"underlying gen tech {gen_tech!r} has no row in ivt.csv."
+            )
+        return tech_to_row[gen_tech]
+
+    for (config_id, gen_prefix), members in grouped.items():
+        members.sort(key=lambda item: item[0])
+        suffixes = [item[0] for item in members]
+        contiguous = suffixes == list(range(suffixes[0], suffixes[-1] + 1))
+        rows = [_lookup_gen_row(item[2], item[1]) for item in members]
+        identical = all(row.equals(rows[0]) for row in rows)
+        wrapper_prefix = (
+            f'storage-hybrid-{_storage_hybrid_canon_label(config_id)}-{gen_prefix}'
+        )
+
+        if contiguous and identical:
+            lo_wrapper = f'{wrapper_prefix}_{suffixes[0]}'
+            hi_wrapper = f'{wrapper_prefix}_{suffixes[-1]}'
+            if all(f'{wrapper_prefix}_{n}' in covered_techs for n in suffixes):
+                continue
+            range_index = (
+                lo_wrapper if lo_wrapper == hi_wrapper
+                else f'{lo_wrapper}*{hi_wrapper}'
+            )
+            new_rows[range_index] = rows[0]
+        else:
+            for suffix, wrapper, gen_tech in members:
+                if wrapper in covered_techs:
+                    continue
+                new_rows[wrapper] = tech_to_row[gen_tech]
+
+    for wrapper, gen_tech in singletons:
+        if wrapper in covered_techs:
+            continue
+        new_rows[wrapper] = _lookup_gen_row(gen_tech, wrapper)
+
+    if not new_rows:
+        return
+
+    appended = pd.DataFrame.from_dict(new_rows, orient='index', columns=ivt.columns)
+    appended.index.name = ivt.index.name
+    pd.concat([ivt, appended]).to_csv(ivt_path)
+
+
+def append_storage_hybrid_techs_to_i(inputs_case, configs):
+    new_techs = [c['storage_hybrid_tech'] for c in configs]
+    for techset_path in _storage_hybrid_techset_paths(inputs_case):
+        if not os.path.exists(techset_path):
+            continue
+        with open(techset_path, 'r', encoding='utf-8-sig') as f:
+            lines = f.read().splitlines()
+        existing = {_storage_hybrid_canon_label(line) for line in lines if line.strip()}
+        to_add = [tech for tech in new_techs if _storage_hybrid_canon_label(tech) not in existing]
+        if not to_add:
+            continue
+        with open(techset_path, 'a', encoding='utf-8') as f:
+            if lines and lines[-1].strip():
+                f.write('\n')
+            f.write('\n'.join(to_add))
+            f.write('\n')
+
+
+def append_storage_hybrid_subsets(inputs_case, configs):
+    path = os.path.join(inputs_case, 'tech-subset-table.csv')
+    if not os.path.exists(path):
+        return
+
+    df = pd.read_csv(path, index_col=0, dtype=str, keep_default_na=False).fillna('')
+    required_cols = ['STORAGE', 'HYBRID_PLANT', 'STORAGE-HYBRID']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        raise ValueError(
+            "tech-subset-table.csv is missing required storage-hybrid subset columns: "
+            + ', '.join(missing_cols)
+        )
+
+    for config in configs:
+        tech = config['storage_hybrid_tech']
+        if tech not in df.index:
+            df.loc[tech] = ''
+        df.loc[tech, required_cols] = 'YES'
+        # Geothermal storage-hybrid wrappers carry a resource supply curve so their
+        # buildout is bounded by the shared parent geo supply curve. Marking RSC='YES'
+        # puts the wrapper in rsc_i(i); the actual binding limit is enforced on the
+        # parent tech via storage_hybrid_geo_rsc_agg -> rsc_agg in b_inputs.gms.
+        if _storage_hybrid_gen_is_geo_rsc(config['gen_tech']):
+            if 'RSC' not in df.columns:
+                raise ValueError(
+                    "tech-subset-table.csv is missing the 'RSC' column required to "
+                    "enable geothermal storage-hybrid supply curves."
+                )
+            df.loc[tech, 'RSC'] = 'YES'
+
+    df.to_csv(path)
+
+
+def translate_legacy_storage_hybrid_labels(df, sw, inputs_case, filename):
+    if 'i' not in df.columns:
+        return df
+
+    configs = build_storage_hybrid_configs(sw, inputs_case)
+    if not configs:
+        return df
+
+    by_legacy_label = {}
+    for config in configs:
+        legacy_label = f"storage-hybrid{_storage_hybrid_canon_label(config['config_id'])}"
+        by_legacy_label.setdefault(legacy_label, []).append(config['storage_hybrid_tech'])
+
+    replacements = {}
+    for legacy_label, wrappers in by_legacy_label.items():
+        unique_wrappers = sorted(set(wrappers))
+        if len(unique_wrappers) == 1:
+            replacements[legacy_label] = unique_wrappers[0]
+        else:
+            legacy_hits = df['i'].astype(str).map(_storage_hybrid_canon_label) == legacy_label
+            if legacy_hits.any():
+                raise ValueError(
+                    f"{filename} references legacy {legacy_label!r}, but that storage-hybrid "
+                    "configuration expands to multiple generated technologies. Use an explicit "
+                    "generated storage-hybrid technology name in the demonstration plant input."
+                )
+
+    if not replacements:
+        return df
+
+    df = df.copy()
+    i_canon = df['i'].astype(str).map(_storage_hybrid_canon_label)
+    for legacy_label, wrapper in replacements.items():
+        mask = i_canon == legacy_label
+        if not mask.any():
+            continue
+        old_values = df.loc[mask, 'i'].astype(str)
+        df.loc[mask, 'i'] = old_values.map(
+            lambda value: wrapper.lower() if value == value.lower() else wrapper
+        )
+        if 'coolingwatertech' in df.columns:
+            old_prefix = old_values.iloc[0]
+            cooling = df.loc[mask, 'coolingwatertech'].astype(str)
+            df.loc[mask, 'coolingwatertech'] = cooling.map(
+                lambda value: wrapper + value[len(old_prefix):]
+                if value.lower().startswith(old_prefix.lower()) else value
+            )
+
+    return df
 
 
 #%% ===========================================================================
@@ -1231,6 +1712,8 @@ def write_region_indexed_file(
                             regions_and_agglevel=regions_and_agglevel,
                             aggfunc=region_file_entry.aggfunc
                         )
+                if filename == 'demonstration_plants.csv':
+                    df = translate_legacy_storage_hybrid_labels(df, sw, dir_dst, filename)
             case 'unitdata.csv':
                 fips_ba_map = regions_and_agglevel['ba_county'].dropna().set_index('county')['ba']
                 df['reeds_ba'] = df['FIPS'].map(fips_ba_map)
@@ -1314,6 +1797,8 @@ def write_miscellaneous_files(
         'bir': [np.around(float(c) / 100, 2) for c in sw['GSw_PVB_BIR'].split('_')
                 ][0:len(sw['GSw_PVB_Types'].split('_'))]}
     ).to_csv(os.path.join(inputs_case, 'pvb_bir.csv'), index=False)
+
+    write_storage_hybrid_case_inputs(sw, inputs_case)
 
     # Constant value if input is float, otherwise named profile
     # Methane leakage rate:
@@ -1569,6 +2054,261 @@ def generate_maps_gpkg(inputs_case):
         dfmap[level].to_file(mapsfile, layer=level)
 
 
+def propagate_storage_hybrid_tech_rows(sw, inputs_case):
+    """Duplicate generator-tech rows for Storage-Hybrid technologies."""
+    configs = build_storage_hybrid_configs(sw, inputs_case)
+    if not configs:
+        return
+
+    skip_dirs = ['capacity_exogenous', 'demonstration_files']
+    # incentives.csv and reg_cap_cost_diff.csv are never cloned: their wrapper
+    # values are inherited deterministically from the component techs in GAMS
+    # (tc_phaseout_mult_t in d1_financials.gms; reg_cap_cost_diff in
+    # b_inputs.gms). Cloning them here matched group-labeled rows/columns
+    # (e.g. NUCLEAR, TES|CSP) nondeterministically -- "Nuclear" happened to
+    # match its group label while "Nuclear-SMR" matched nothing.
+    # NOTE on emitrate.csv: deliberately NOT skipped. Wrappers inherit the gen
+    # tech's upstream-fuel emission rates (CH4/N2O for nuclear) by cloning, which
+    # gives standalone-generator parity under CO2e accounting (Sw_AnnualCap=2).
+    # There is no GAMS-side emit-rate inheritance, so removing the cloned rows
+    # would silently zero wrapper upstream emissions.
+    # All entries are basenames: runfiles flattens run-copies to the inputs_case
+    # root, so dir-qualified paths (e.g. 'financials/cap_penalty.csv') never
+    # matched the copies that matter. The match below checks both fname and rel.
+    skip_files = {
+        'cap_penalty.csv',
+        'gbin_min.csv',
+        'unitdata.csv',
+        'tg.csv',
+        'tech-subset-table.csv',
+        'incentives.csv',
+        'reg_cap_cost_diff.csv',
+        # the wide, group-labeled source copied into inputs_case by runfiles;
+        # calc_financial_inputs.py stacks it into reg_cap_cost_diff.csv
+        'regional_cap_cost_diff.csv',
+        # parent-link files: the tech-name column ('ii') holds the numeraire
+        # PARENT of each cooling variant, not a tech row to clone. Cloning
+        # substituted wrapper names into the parent column, which under
+        # GSw_WaterMain=1 made wrappers numeraires (valcap removed) and
+        # multi-counted every ctt_i_ii parameter sum for standalone variants.
+        'i_coolingtech_watersource_link.csv',
+        'i_coolingtech_watersource_upgrades_link.csv',
+    }
+
+    financials_dir = os.path.join(inputs_case, 'financials')
+    if os.path.isdir(financials_dir):
+        for fname in os.listdir(financials_dir):
+            fname_lower = fname.lower()
+            if fname_lower.endswith('.csv') and (
+                fname_lower.startswith('incentives_')
+                or fname_lower.startswith('reg_cap_cost_diff_')
+            ):
+                skip_files.add(fname_lower)
+
+    tech_canon_map = _load_storage_hybrid_tech_canon_map(inputs_case)
+    # For each Storage-Hybrid config, list (source_techs, wrapper) where
+    # source_techs is a precedence-ordered list of techs to try when cloning
+    # rows into the wrapper. The paired storage tech is tried first by default;
+    # the gen tech is the fallback. Only the first matching source is used per
+    # file/column, so no row is ever cloned twice for the same wrapper.
+    tech_map = [
+        (
+            [config['storage_tech'], config['gen_tech']],
+            config['storage_hybrid_tech'],
+        )
+        for config in configs
+    ]
+
+    # Outage/unit-characteristic files take GEN-FIRST precedence: the wrapper is
+    # modeled as one unit whose storage side shares the generator's forced/scheduled
+    # outage behavior (in the LP, d1_temporal_params.gms re-inherits avail from the
+    # gen tech; in PRAS the wrapper GeneratorStorage uses these rows directly).
+    gen_first_files = {
+        'outage_forced_static.csv',
+        'outage_scheduled_static.csv',
+        'mttr.csv',
+        'unitsize.csv',
+        'unitsize_atb.csv',
+    }
+
+    def _first_noncomment_line(path):
+        with open(path, 'r', encoding='utf-8-sig') as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped and not stripped.startswith('#'):
+                    return stripped
+        return None
+
+    tech_canon_set = set(tech_canon_map.keys())
+
+    def _looks_like_tech_label(value):
+        text = str(value).strip()
+        canon = _storage_hybrid_canon_label(text)
+        if canon in tech_canon_set:
+            return True
+        if '*' in text:
+            return any(_storage_hybrid_canon_label(part) in tech_canon_set for part in text.split('*'))
+        return False
+
+    def _line_has_header(header_line):
+        try:
+            first_col = header_line.split(',')[0].strip()
+        except Exception:
+            return True
+        if first_col.lower() in {'i', '*i', 'tech', 'technology'}:
+            return True
+        return not _looks_like_tech_label(first_col)
+
+    def _read_csv_loose(path, has_header):
+        return pd.read_csv(
+            path,
+            header=0 if has_header else None,
+            comment='#',
+            dtype=str,
+            keep_default_na=False,
+            encoding='utf-8-sig',
+        )
+
+    def _looks_like_tech_column(series, min_nonempty=5, min_match_frac=0.6):
+        values = series.astype(str).str.strip()
+        values = values[values != '']
+        if len(values) < min_nonempty or not tech_canon_set:
+            return False
+        canon = (
+            values.str.lower()
+            .str.replace('_', '-', regex=False)
+            .str.replace(' ', '', regex=False)
+        )
+        return float(canon.isin(tech_canon_set).mean()) >= min_match_frac
+
+    def _normalize_headers(df, header_line):
+        try:
+            raw_cols = [c.strip() for c in header_line.split(',')]
+        except Exception:
+            return df
+        if len(raw_cols) != len(df.columns):
+            return df
+        new_cols = list(df.columns)
+        for idx, (raw, col) in enumerate(zip(raw_cols, df.columns)):
+            if raw == '' and str(col).startswith('Unnamed:'):
+                new_cols[idx] = ''
+        if new_cols != list(df.columns):
+            df = df.copy()
+            df.columns = new_cols
+        return df
+
+    def _file_contains_storage_hybrid(path):
+        try:
+            with open(path, 'r', encoding='utf-8-sig', errors='ignore') as f:
+                for chunk in iter(lambda: f.read(65536), ''):
+                    lower = chunk.lower()
+                    if ('storage-hybrid' in lower) or ('storage_hybrid' in lower):
+                        return True
+        except Exception:
+            return True
+        return False
+
+    n_files_modified = 0
+    for root, _dirs, files in os.walk(inputs_case):
+        for fname in files:
+            if not fname.lower().endswith('.csv'):
+                continue
+            if fname.lower().startswith('plantchar_') or fname.lower() == 'plantcharout.csv':
+                continue
+            if ('storage-hybrid' in fname.lower()) or ('storage_hybrid' in fname.lower()):
+                continue
+
+            fpath = os.path.join(root, fname)
+            rel = os.path.relpath(fpath, inputs_case).replace('\\', '/').lstrip('./')
+            if fname.lower() in skip_files or rel.lower() in skip_files:
+                continue
+            if any(rel == d or rel.startswith(d + '/') for d in skip_dirs):
+                continue
+            if _file_contains_storage_hybrid(fpath):
+                continue
+
+            header_line = _first_noncomment_line(fpath)
+            if not header_line:
+                continue
+
+            has_header = _line_has_header(header_line)
+
+            try:
+                df = _read_csv_loose(fpath, has_header)
+            except Exception:
+                continue
+
+            if has_header:
+                df = _normalize_headers(df, header_line)
+            tech_id_cols = [
+                col for col in df.columns
+                if (str(col).strip().lower() in {'i', '*i'})
+                or _looks_like_tech_column(df[col])
+            ]
+
+            changed = False
+            gen_first = fname.lower() in gen_first_files
+            for source_techs, stor_i in tech_map:
+                if gen_first:
+                    source_techs = list(reversed(source_techs))
+                stor_canon = _storage_hybrid_canon_label(stor_i)
+
+                # Column-name propagation: if any source tech appears as a
+                # column header, clone that column under the wrapper name.
+                # First match wins to avoid duplicate columns.
+                col_canons = {_storage_hybrid_canon_label(c): c for c in df.columns}
+                if stor_canon not in col_canons:
+                    for source_i in source_techs:
+                        source_canon = _storage_hybrid_canon_label(source_i)
+                        if source_canon in col_canons:
+                            base_col = col_canons[source_canon]
+                            stor_col = (
+                                stor_i.lower()
+                                if str(base_col) == str(base_col).lower()
+                                else stor_i
+                            )
+                            df[stor_col] = df[base_col]
+                            changed = True
+                            break
+
+                # Row propagation: for each tech-identifier column, find rows
+                # matching a source tech (first match in precedence order wins)
+                # and append clones keyed by the wrapper name.
+                for col in tech_id_cols:
+                    series_canon = (
+                        df[col]
+                        .astype(str)
+                        .str.strip()
+                        .str.lower()
+                        .str.replace('_', '-', regex=False)
+                        .str.replace(' ', '', regex=False)
+                    )
+                    if stor_canon in set(series_canon):
+                        continue
+                    mask = None
+                    for source_i in source_techs:
+                        source_canon = _storage_hybrid_canon_label(source_i)
+                        candidate_mask = series_canon == source_canon
+                        if candidate_mask.any():
+                            mask = candidate_mask
+                            break
+                    if mask is None:
+                        continue
+                    base_rows = df.loc[mask].copy()
+                    example = str(df.loc[mask, col].iloc[0])
+                    stor_value = stor_i.lower() if example == example.lower() else stor_i
+                    base_rows[col] = stor_value
+                    df = pd.concat([df, base_rows], ignore_index=True)
+                    changed = True
+
+            if changed:
+                df.to_csv(fpath, index=False, header=has_header)
+                n_files_modified += 1
+
+    if n_files_modified:
+        print(f"propagate_storage_hybrid_tech_rows: modified {n_files_modified} file(s)")
+
+
 #%% ===========================================================================
 ### --- PROCEDURE ---
 ### ===========================================================================
@@ -1632,7 +2372,7 @@ def main(reeds_path, inputs_case):
 
     # Create a maps.gpkg for this run
     # Skip if using region dis/aggregation, maps will be written in aggregation_regions.py.
-    # Run if using mixed resolution aggreg-county combination 
+    # Run if using mixed resolution aggreg-county combination
     if agglevel_variables['lvl'] == 'ba' or (
         agglevel_variables['lvl'] == 'mult' and 'aggreg' in agglevel_variables['agglevel']):
         generate_maps_gpkg(inputs_case)
@@ -1649,6 +2389,8 @@ def main(reeds_path, inputs_case):
         inputs_case,
         reeds_path
     )
+
+    propagate_storage_hybrid_tech_rows(sw, inputs_case)
 
 
 #%% Procedure
