@@ -1351,6 +1351,19 @@
     "min_up_time": 7.0,
     "start_cost_per_MW": 5.3
   },
+  "ng-fuel-cell": {
+    "avg_capacity_MW": 320.0,
+    "forced_outage_rate": 3.28,
+    "maintenance_rate": 6.0,
+    "max_capacity_MW": 944.0,
+    "max_ramp_up_percentage": 0.05,
+    "mean_time_to_repair": 48.0,
+    "min_capacity_MW": 10.0,
+    "min_down_time": 8.0,
+    "min_stable_level_percentage": 0.5,
+    "min_up_time": 6.0,
+    "start_cost_per_MW": 79.0
+  },
   "nuclear": {
     "avg_capacity_MW": 1239.94,
     "forced_outage_rate": 4.0,
@@ -1428,18 +1441,5 @@
     "min_stable_level_percentage": 0.6,
     "min_up_time": 0.0,
     "start_cost_per_MW": 69.0
-  },
-  "ng-fuel-cell": {
-    "avg_capacity_MW": 320.0,
-    "forced_outage_rate": 3.28,
-    "maintenance_rate": 6.0,
-    "max_capacity_MW": 944.0,
-    "max_ramp_up_percentage": 0.05,
-    "mean_time_to_repair": 48.0,
-    "min_capacity_MW": 10.0,
-    "min_down_time": 8.0,
-    "min_stable_level_percentage": 0.5,
-    "min_up_time": 6.0,
-    "start_cost_per_MW": 79.0
   }
 }
