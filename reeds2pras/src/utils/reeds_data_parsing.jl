@@ -190,28 +190,40 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths)
     @debug "hd_types is $(union(hyd_disp_types,hyd_non_disp_types))"
 
     storage_types =
-        unique(DataFrames.dropmissing(tech_subset_table, :STORAGE_STANDALONE)[:, "Column1"])
+        DataFrames.dropmissing(tech_subset_table, :STORAGE_STANDALONE)[:, "Column1"]
 
     @debug "storage type is $(storage_types)"
+
+    # Storage-hybrid wrappers are modeled as PRAS GeneratorStorages
+    # (generator + coupled storage), not as Batteries and not as thermal units.
+    storage_hybrid_types = lowercase.(unique(
+        DataFrames.dropmissing(tech_subset_table, Symbol("STORAGE-HYBRID"))[:, "Column1"]
+    ))
 
     # clean vg/storage capacity on a regex, though there might be a better way...
     clean_names!(vg_types)
     @debug "vg_types is $(vg_types)"
     clean_names!(storage_types)
+    # wrapper names carry no GAMS *-ranges, so no clean_names! for them
 
     storage_capacity = filter(x -> x.i in storage_types, capacity_data)
+    storage_hybrid_capacity = filter(x -> lowercase(x.i) in storage_hybrid_types, capacity_data)
 
     hyd_disp_capacity = filter(x -> x.i in hyd_disp_types, capacity_data)
     hyd_non_disp_capacity = filter(x -> x.i in hyd_non_disp_types, capacity_data)
 
     thermal_capacity = filter(
-        x -> ~(x.i in union(vg_types, storage_types, hyd_disp_types, hyd_non_disp_types)),
+        x -> ~(
+            x.i in union(vg_types, storage_types, hyd_disp_types, hyd_non_disp_types) ||
+            lowercase(x.i) in storage_hybrid_types
+        ),
         capacity_data,
     )
 
     @debug "thermal_capacity is $(thermal_capacity)"
     return thermal_capacity,
     storage_capacity,
+    storage_hybrid_capacity,
     hyd_disp_capacity,
     hyd_non_disp_capacity
 end
@@ -745,13 +757,26 @@ function process_storages(
         for polarity in ["charge", "discharge"]
     )
     efficiency = Dict(
-        polarity => Dict(zip(efficiency_in[polarity][!,"i"], efficiency_in[polarity][!,"fraction"]))
+        polarity => Dict{String, Float64}(zip(
+            String.(efficiency_in[polarity][!,"i"]),
+            efficiency_in[polarity][!,"fraction"],
+        ))
         for polarity in keys(efficiency_in)
     )
 
     ## Read {case}/inputs_case/tech-subset-table.csv
     tech_subset_table = get_technology_types(ReEDS_data)
+    # (Storage-Hybrid wrappers no longer come through here — they are routed to
+    # process_storage_hybrids and modeled as GeneratorStorages.)
     battery_types = DataFrames.dropmissing(tech_subset_table, :BATTERY)[:, "Column1"]
+
+    # Keyed energy-capacity lookup: energy_cap_{t}.csv can contain techs that are
+    # not in storage_builds (e.g. storage-hybrid wrappers), so positional pairing
+    # with storage_builds rows would silently misalign durations.
+    energy_cap_dict = Dict{Tuple{String, String}, Float64}(
+        (String(r.i), String(r.r)) => r.MWh_sum
+        for r in DataFrames.eachrow(energy_capacity_df)
+    )
 
     storages_array = Storage[]
     for (idx, row) in enumerate(eachrow(storage_builds))
@@ -776,7 +801,11 @@ function process_storages(
         name = "$(name)|"#append for later matching
         mttr = Int64(mttr_dict[string(row.i)])
 
-        storage_duration = energy_capacity_df[idx, "MWh_sum"] / row.MW
+        energy_mwh = get(energy_cap_dict, (String(row.i), String(row.r)), 0.0)
+        if energy_mwh == 0.0
+            @warn "$(row.i)|$(row.r) has no CAP_ENERGY; its storage holds zero energy in PRAS"
+        end
+        storage_duration = energy_mwh / row.MW
         if string(row.i) in battery_types
             push!(
                 storages_array,
@@ -812,11 +841,143 @@ function process_storages(
                 gen_for,
                 timesteps,
                 mttr,
-                gen_sor, 
+                gen_sor,
             )
         end
     end
     return storages_array
+end
+
+"""
+    Process storage-hybrid wrapper techs into PRAS GeneratorStorages.
+
+    Each wrapper (i,r) becomes one GeneratorStorage mirroring the ReEDS LP:
+    - inflow = CAP (generator nameplate; outages applied via FOR/SOR/MTTR)
+    - charge_cap = discharge_cap = bcr*CAP  (eq_hybrid_storage_capacity_limit)
+    - energy_cap = CAP_ENERGY               (endogenous TES/battery energy)
+    - grid_withdrawl_cap = gridcharge_ratio*CAP  (eq_cap_storage_in_grid)
+    - grid_inj_cap = (1+bcr)*CAP            (eq_plant_capacity_limit envelope)
+    - charge_eff from hybrid_config_{t}.csv: the plant-charging efficiency for
+      plant-charging configs, or the grid-charging efficiency for grid-charge-only
+      configs (flexible geothermal, where STORAGE_IN_PLANT is fixed to 0)
+
+    Outage data is looked up by the wrapper name; input_processing/copy_files.py
+    propagates those rows GEN-first, so the single PRAS unit (generator + storage
+    together) carries the gen tech's FOR/SOR/MTTR.
+
+    Parameters
+    ----------
+    genstor_array : Vector{Gen_Storage}
+        Existing GeneratorStorages (e.g. from process_hydro); appended in place
+    storage_hybrid_builds : DataFrames.DataFrame
+        Wrapper rows of max_cap from split_generator_types (full plant CAP)
+    FOR_dict / forcedoutage_hourly / mttr_dict / scheduled_outage_hourly
+        Standard outage inputs, keyed by (wrapper) tech name
+    ReEDS_data : ReEDSdatapaths
+    timesteps : Int
+
+    Returns
+    -------
+    genstor_array with one Gen_Storage appended per wrapper (i,r)
+"""
+function process_storage_hybrids(
+    genstor_array::Vector{Gen_Storage},
+    storage_hybrid_builds::DataFrames.DataFrame,
+    FOR_dict::Dict,
+    forcedoutage_hourly::DataFrames.DataFrame,
+    ReEDS_data,
+    timesteps::Int,
+    mttr_dict::Dict;
+    scheduled_outage_hourly::Union{Nothing, DataFrames.DataFrame},
+)
+    if DataFrames.nrow(storage_hybrid_builds) == 0
+        return genstor_array
+    end
+
+    hybrid_builds = DataFrames.combine(
+        DataFrames.groupby(storage_hybrid_builds, ["i", "r"]),
+        :MW => sum,
+    )
+
+    config_df = get_storage_hybrid_config(ReEDS_data)
+    hybrid_config = Dict(
+        String(r.i) => (
+            bcr = Float64(r.bcr),
+            gridcharge = Float64(r.gridcharge_ratio),
+            charge_eff = Float64(r.charge_eff),
+        )
+        for r in DataFrames.eachrow(config_df)
+    )
+
+    energy_capacity_df = DataFrames.combine(
+        DataFrames.groupby(get_storage_energy_capacity_data(ReEDS_data), ["i", "r"]),
+        :MWh => sum,
+    )
+    energy_cap_dict = Dict{Tuple{String, String}, Float64}(
+        (String(r.i), String(r.r)) => r.MWh_sum
+        for r in DataFrames.eachrow(energy_capacity_df)
+    )
+
+    for row in DataFrames.eachrow(hybrid_builds)
+        tech = String(row.i)
+        region = String(row.r)
+        cap = Float64(row.MW_sum)
+
+        if !haskey(hybrid_config, tech)
+            # Hard error: silently skipping would drop the ENTIRE plant
+            # (generator included) from resource adequacy.
+            error(
+                "$(tech) has $(cap) MW in max_cap_$(ReEDS_data.year).csv but is " *
+                "missing from hybrid_config_$(ReEDS_data.year).csv — prep_data.py " *
+                "did not write its config, so its GeneratorStorage cannot be built " *
+                "and PRAS would silently lose the whole plant"
+            )
+        end
+        cfg = hybrid_config[tech]
+
+        energy_mwh = get(energy_cap_dict, (tech, region), 0.0)
+        if energy_mwh == 0.0
+            @warn "$(tech)|$(region) has no CAP_ENERGY; its storage holds zero energy in PRAS"
+        end
+
+        i_r = "$(tech)|$(region)"
+        gen_for = if i_r in DataFrames.names(forcedoutage_hourly)
+            Float32.(forcedoutage_hourly[!, i_r])
+        else
+            fill(Float32(FOR_dict[lowercase(tech)]), timesteps)
+        end
+
+        gen_sor = zeros(Float32, timesteps)
+        if !isnothing(scheduled_outage_hourly) && tech in DataFrames.names(scheduled_outage_hourly)
+            gen_sor = Float32.(scheduled_outage_hourly[!, tech])
+        end
+
+        mttr = Int64(mttr_dict[tech])
+
+        push!(
+            genstor_array,
+            Gen_Storage(
+                name = i_r,
+                timesteps = timesteps,
+                region_name = region,
+                type = tech,
+                charge_cap = fill(cfg.bcr * cap, timesteps),
+                discharge_cap = fill(cfg.bcr * cap, timesteps),
+                energy_cap = fill(energy_mwh, timesteps),
+                inflow = fill(cap, timesteps),
+                grid_withdrawl_cap = fill(cfg.gridcharge * cap, timesteps),
+                grid_inj_cap = fill((1.0 + cfg.bcr) * cap, timesteps),
+                legacy = "New",
+                charge_eff = cfg.charge_eff,
+                discharge_eff = 1.0,
+                carryover_eff = 1.0,
+                FOR = gen_for,
+                SOR = gen_sor,
+                MTTR = mttr,
+            ),
+        )
+    end
+    return genstor_array
 end
 
 """

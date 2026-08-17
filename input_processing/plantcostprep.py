@@ -218,6 +218,12 @@ csp_stack = csp_stack[['t','capcost','fom','vom','i']]
 battery = pd.read_csv(os.path.join(inputs_case,'plantchar_battery.csv'))
 battery = deflate_func(battery, sw.plantchar_battery)
 
+tes = pd.read_csv(os.path.join(inputs_case,'plantchar_tes.csv'))
+tes = deflate_func(tes, sw.plantchar_tes)
+
+flex_geo = pd.read_csv(os.path.join(inputs_case,'plantchar_flex_geo.csv'))
+flex_geo = deflate_func(flex_geo, sw.plantchar_flex_geo)
+
 evmc_storage = pd.read_csv(os.path.join(inputs_case,'plantchar_evmc_storage.csv'))
 evmc_storage = deflate_func(evmc_storage, 'evmc_storage_' + sw.evmcscen)
 evmc_shape = pd.read_csv(os.path.join(inputs_case,'plantchar_evmc_shape.csv'), dtype = {'fom':float,'vom':float,'rte':float})
@@ -227,7 +233,7 @@ evmc_shape = deflate_func(evmc_shape, 'evmc_shape_' + sw.evmcscen)
 #    -- Concat all data --    #
 ###############################
 
-alldata = pd.concat([conv,upv_stack,wind_stack,geo_stack,csp_stack,battery,
+alldata = pd.concat([conv,upv_stack,wind_stack,geo_stack,csp_stack,battery,tes,flex_geo,
                      evmc_storage,evmc_shape,beccs,ccsflex,h2combustion],sort=False)
 
 if sw.upgradescen != 'default':
@@ -298,7 +304,7 @@ dr_shed = pd.read_csv(os.path.join(inputs_case,'plantchar_dr_shed.csv'), index_c
 # FOM & VOM inputs are also state-level and need to be disaggregated
 fom = pd.read_csv(os.path.join(inputs_case,'plantchar_dr_shed_fom.csv'), index_col=0).round(6)
 vom = pd.read_csv(os.path.join(inputs_case,'plantchar_dr_shed_vom.csv'), index_col=0).round(6)
-# If there are no DR shed data for regions being run, write dr_shed_capcostmult.csv 
+# If there are no DR shed data for regions being run, write dr_shed_capcostmult.csv
 if dr_shed.empty:
     dr_shed_capcost_mult = dr_shed.copy()
     dr_shed_fom_regional = fom.copy()
@@ -307,7 +313,7 @@ else:
     state2r = pd.read_csv(os.path.join(inputs_case,'disagg_state_lpf.csv'),usecols=['state','r'])
     # Map each unique state to all r values within that state
     state2r = state2r.groupby('state')['r'].unique().apply(list).to_dict()
-        
+
     def disaggregate_to_regions(data, state2r):
         regional_data = {}
         for st in data['r'].unique():
@@ -436,6 +442,24 @@ for i in sw['GSw_PVB_Types'].split('_'):
     )['pvb_cost_fraction']
 pvb = pd.concat(pvb, axis=1)
 
+#%%##################################
+#    -- Nuclear+Storage Cost Model --
+#####################################
+heatercosts = pd.read_csv(os.path.join(inputs_case, 'heaterchars.csv'))
+heatercosts = deflate_func(heatercosts, sw.heaterscen)
+
+# ReEDS expects generator/storage capex and FOM in $/MW.
+# Heater cost inputs are provided in $/kW, so convert to $/MW.
+for col in ['capcost', 'fom']:
+    if col in heatercosts.columns:
+        heatercosts[col] = pd.to_numeric(heatercosts[col], errors='coerce') * 1000
+
+heatercosts_out = (
+    heatercosts
+    .melt(id_vars=['i','t'], value_vars=['capcost','fom','vom'])
+    .rename(columns={'i':'*i'})
+)
+
 
 ## Create Electric DAC scenario output
 # For electric DAC, we assume a sorbent system: https://www.netl.doe.gov/energy-analysis/details?id=d5860604-fbc7-44bb-a756-76db47d8b85a
@@ -494,6 +518,7 @@ dr_shed_vom_regional.to_csv(os.path.join(inputs_case,'plantchar_dr_shed_vom.csv'
 ofswind_rsc_mult.to_csv(os.path.join(inputs_case,'ofswind_rsc_mult.csv'))
 degrade.to_csv(os.path.join(inputs_case,'degradation_annual.csv'),header=False)
 pvb.to_csv(os.path.join(inputs_case,'pvbcapcostmult.csv'))
+heatercosts_out.to_csv(os.path.join(inputs_case,'heaterchar.csv'), index=False)
 upgrade_mult.round(4).to_csv(os.path.join(inputs_case,'upgrade_mult_final.csv'), index=False)
 outdac_elec.to_csv(os.path.join(inputs_case,'consumechardac.csv'), index=False)
 dac_gas.to_csv(os.path.join(inputs_case,'dac_gas.csv'), index=False)

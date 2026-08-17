@@ -6,6 +6,12 @@ $gdxin
 
 tc_phaseout_mult_t(i,t)$tload(t) = tc_phaseout_mult_t_load(i,t) ;
 
+* Storage-hybrid wrappers take the gen tech's phaseout multiplier: the wrapper
+* rows in incentives.csv are unreliable (group-label cloning; SMR wrappers get
+* safe_harbor=0), so the python-side wrapper multipliers phase out too early
+tc_phaseout_mult_t(i,t)$[storage_hybrid(i)$tload(t)]
+    = sum{ii$storage_hybrid_gentech(i,ii), tc_phaseout_mult_t(ii,t) } ;
+
 * If tcphaseout is enabled, overwrite initialization
 * This requires re-calculating cost_cap_fin_mult and its various permutations
 if(Sw_TCPhaseout > 0,
@@ -32,6 +38,12 @@ cost_cap_fin_mult_noITC(i,r,t) = ccmult(i,t) / (1.0 - tax_rate(t))
     * financing_risk_mult(i,t) * (1 + reg_cap_cost_diff(i,r)) * eval_period_adj_mult(i,t) ;
 
 cost_cap_fin_mult_no_credits(i,r,t) = ccmult(i,t) * (1 + reg_cap_cost_diff(i,r)) ;
+
+* Raw geo_storage technologies are costless storage-side placeholders; all costs
+* come from storage-hybrid scaling in b_inputs.gms, so keep their multipliers neutral.
+cost_cap_fin_mult(i,r,t)$[geo_storage(i)$(not storage_hybrid(i))] = 1 ;
+cost_cap_fin_mult_noITC(i,r,t)$[geo_storage(i)$(not storage_hybrid(i))] = 1 ;
+cost_cap_fin_mult_no_credits(i,r,t)$[geo_storage(i)$(not storage_hybrid(i))] = 1 ;
 
 * Assign the PV portion of PVB the value of UPV
 cost_cap_fin_mult_pvb_p(i,r,t)$pvb(i) =
@@ -69,6 +81,26 @@ cost_cap_fin_mult_no_credits(i,r,t)$pvb(i) =
     ((cost_cap_fin_mult_pvb_p_no_credits(i,r,t) - 1) * cost_cap_pvb_p(i,t)
     + bcr(i) * (cost_cap_fin_mult_pvb_b_no_credits(i,r,t) - 1) * cost_cap_pvb_b(i,t))
     / (cost_cap_pvb_p(i,t) + bcr(i) * cost_cap_pvb_b(i,t)) + 1 ;
+
+* Assign "cost_cap_fin_mult" for storage_hybrid to be the weighted average of the generation and storage portions
+* The weighting is based on:
+*   (1) the cost of each portion: generation=cost_cap_storage_hybrid_p; storage=cost_cap_storage_hybrid_s
+*   (2) the relative size of each portion: generation=1; storage=bcr
+* The "-1" and "+1" values are needed because the multipliers are adjustments off of 1.0
+* cost_cap_fin_mult(i,r,t)$storage_hybrid(i) =
+*     ( (cost_cap_fin_mult_storage_hybrid_p(i,r,t) - 1) * cost_cap_storage_hybrid_p(i,t)
+*     + bcr(i) * (cost_cap_fin_mult_storage_hybrid_s(i,r,t) - 1) * cost_cap_storage_hybrid_s(i,t) )
+*     / (cost_cap_storage_hybrid_p(i,t) + bcr(i) * cost_cap_storage_hybrid_s(i,t)) + 1 ;
+
+* cost_cap_fin_mult_noITC(i,r,t)$storage_hybrid(i) =
+*     ( (cost_cap_fin_mult_storage_hybrid_p_noITC(i,r,t) - 1) * cost_cap_storage_hybrid_p(i,t)
+*     + bcr(i) * (cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t) - 1) * cost_cap_storage_hybrid_s(i,t) )
+*     / (cost_cap_storage_hybrid_p(i,t) + bcr(i) * cost_cap_storage_hybrid_s(i,t)) + 1 ;
+
+* cost_cap_fin_mult_no_credits(i,r,t)$storage_hybrid(i) =
+*     ((cost_cap_fin_mult_storage_hybrid_p_no_credits(i,r,t) - 1) * cost_cap_storage_hybrid_p(i,t)
+*     + bcr(i) * (cost_cap_fin_mult_storage_hybrid_s_no_credits(i,r,t) - 1) * cost_cap_storage_hybrid_s(i,t))
+*     / (cost_cap_storage_hybrid_p(i,t) + bcr(i) * cost_cap_storage_hybrid_s(i,t)) + 1 ;
 
 * --- Upgrades ---
 * Assign upgraded techs the same multipliers as the techs they are upgraded from
@@ -117,6 +149,41 @@ rsc_fin_mult_noITC(i,r,t)$dr_shed(i) = cost_cap_fin_mult_noITC(i,r,t)* dr_shed_c
 rsc_fin_mult(i,r,t)$ofswind(i) = cost_cap_fin_mult(i,r,t) * ofswind_rsc_mult(t,i) ;
 rsc_fin_mult_noITC(i,r,t)$ofswind(i) = cost_cap_fin_mult_noITC(i,r,t) ;
 
+* Assign the generation portion of storage_hybrid the configured gen tech multiplier
+* NOTE: This must happen BEFORE the trim step below, because the trim zeros out
+* cost_cap_fin_mult for component techs (nuclear-smr, tes-ms) that may not be
+* independently in valinv_irt for a given region.
+cost_cap_fin_mult_storage_hybrid_p(i,r,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_gentech(i,ii), cost_cap_fin_mult(ii,r,t)};
+cost_cap_fin_mult_storage_hybrid_p_noITC(i,r,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_gentech(i,ii), cost_cap_fin_mult_noITC(ii,r,t) } ;
+cost_cap_fin_mult_storage_hybrid_p_no_credits(i,r,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_gentech(i,ii), cost_cap_fin_mult_no_credits(ii,r,t) } ;
+
+* Assign the storage portion of storage_hybrid the storage tech multiplier
+cost_cap_fin_mult_storage_hybrid_s(i,r,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), cost_cap_fin_mult(ii,r,t)};
+cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), cost_cap_fin_mult_noITC(ii,r,t)} ;
+cost_cap_fin_mult_storage_hybrid_s_no_credits(i,r,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), cost_cap_fin_mult_no_credits(ii,r,t)} ;
+
+* The storage multipliers above use the standalone storage tech's financing_risk_mult.
+* For a storage-hybrid plant, the whole project carries gen-tech-level financing risk,
+* so replace the storage tech's financing_risk_mult with the configured gen tech's.
+* financing_risk_mult is a simple multiplicative factor in cost_cap_fin_mult and _noITC,
+* so the adjustment is: adjusted_s = s * (gen_risk / storage_risk).
+* _no_credits does not include financing_risk_mult, so no adjustment is needed.
+* Guard: skip adjustment if the storage tech has no financing_risk_mult (avoids division by zero).
+cost_cap_fin_mult_storage_hybrid_s(i,r,t)$[storage_hybrid(i)$sum{ii$storage_hybrid_stortech(i,ii), financing_risk_mult(ii,t)}] =
+    cost_cap_fin_mult_storage_hybrid_s(i,r,t)
+    * sum{ii$storage_hybrid_gentech(i,ii), financing_risk_mult(ii,t)}
+    / sum{ii$storage_hybrid_stortech(i,ii), financing_risk_mult(ii,t)} ;
+
+cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t)$[storage_hybrid(i)$sum{ii$storage_hybrid_stortech(i,ii), financing_risk_mult(ii,t)}] =
+    cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t)
+    * sum{ii$storage_hybrid_gentech(i,ii), financing_risk_mult(ii,t)}
+    / sum{ii$storage_hybrid_stortech(i,ii), financing_risk_mult(ii,t)} ;
+
+* Geo-storage storage-side costs are derived from b_inputs.gms scaling, not from flex_geo.
+cost_cap_fin_mult_storage_hybrid_s(i,r,t)$[storage_hybrid(i)$geo_storage(i)] = 1 ;
+cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t)$[storage_hybrid(i)$geo_storage(i)] = 1 ;
+cost_cap_fin_mult_storage_hybrid_s_no_credits(i,r,t)$[storage_hybrid(i)$geo_storage(i)] = 1 ;
+
 * Trim the cost_cap_fin_mult parameters to reduce file sizes
 cost_cap_fin_mult(i,r,t)$[(not valinv_irt(i,r,t))$(not upgrade(i))
                          $(not sum{(v,rscbin), allow_cap_up(i,v,r,rscbin,t) })
@@ -152,5 +219,55 @@ cost_cap_fin_mult(i,r,t)$[gas(i)$valcap_irt(i,r,t)] =
     cost_cap_fin_mult(i,r,t) 
     * max(sum{st$r_st(r,st), ng_crf_penalty_st(t,st) }$(not ccs(i))$Sw_StateRPS$(yeart(t)>=firstyear_RPS), 
           ng_crf_penalty_nat(i,t) ) ;
+
+
+* Compute cost-weighted average of generation and storage financial multipliers.
+* The storage multipliers retain the storage tech's ccmult (IDC) and depreciation schedule
+* (5-year MACRS for storage vs the gen tech schedule), but now carry gen-tech financing risk.
+parameter storage_hybrid_cost_p(i,t)  "--$/MW-- generation-side cost weight for storage_hybrid"
+          storage_hybrid_cost_s(i,t) "--$/MW-- storage-side cost weight for storage_hybrid";
+
+* Default (non-thermal-storage): total capex = gen tech + bcr * storage,
+* with optional powerblock-share subtraction for gen techs that share a powerblock with the storage discharge
+storage_hybrid_cost_p(i,t)$storage_hybrid(i) = cost_cap_storage_hybrid_p(i,t)
+    - powerblock_cost_storage_hybrid(i,t);
+storage_hybrid_cost_s(i,t)$storage_hybrid(i) = bcr(i) * cost_cap_storage_hybrid_s(i,t);
+
+* Thermal-storage: align with cost_cap(i,t) composition
+storage_hybrid_cost_p(i,t)$[storage_hybrid(i)$thermal_storage(i)] = cost_cap_storage_hybrid_p(i,t)
+    - powerblock_cost_storage_hybrid(i,t);
+
+storage_hybrid_cost_s(i,t)$[storage_hybrid(i)$thermal_storage(i)] = (1 + bcr(i)) * cost_cap_storage_hybrid_s(i,t)
+    + gridcharge_ratio(i) * sum{ii$[storage_hybrid_stortech(i,ii)$heater_char(ii,t,"capcost")], heater_char(ii,t,"capcost") };
+
+* Geo-storage: align with cost_cap(i,t) composition
+storage_hybrid_cost_p(i,t)$[storage_hybrid(i)$geo_storage(i)] = cost_cap_storage_hybrid_p(i,t);
+storage_hybrid_cost_s(i,t)$[storage_hybrid(i)$geo_storage(i)] = bcr(i) * powerblock_cost_storage_hybrid(i,t);
+
+cost_cap_fin_mult(i,r,t)$[storage_hybrid(i)$valinv_irt(i,r,t)] =
+    (storage_hybrid_cost_p(i,t) * cost_cap_fin_mult_storage_hybrid_p(i,r,t)
+     + storage_hybrid_cost_s(i,t) * cost_cap_fin_mult_storage_hybrid_s(i,r,t))
+    / (storage_hybrid_cost_p(i,t) + storage_hybrid_cost_s(i,t)) ;
+
+cost_cap_fin_mult_noITC(i,r,t)$[storage_hybrid(i)$valinv_irt(i,r,t)] =
+    (storage_hybrid_cost_p(i,t) * cost_cap_fin_mult_storage_hybrid_p_noITC(i,r,t)
+     + storage_hybrid_cost_s(i,t) * cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t))
+    / (storage_hybrid_cost_p(i,t) + storage_hybrid_cost_s(i,t)) ;
+
+cost_cap_fin_mult_no_credits(i,r,t)$[storage_hybrid(i)$valinv_irt(i,r,t)] =
+    (storage_hybrid_cost_p(i,t) * cost_cap_fin_mult_storage_hybrid_p_no_credits(i,r,t)
+     + storage_hybrid_cost_s(i,t) * cost_cap_fin_mult_storage_hybrid_s_no_credits(i,r,t))
+    / (storage_hybrid_cost_p(i,t) + storage_hybrid_cost_s(i,t)) ;
+
+* Round these entries because the global rounding happens earlier in this file.
+cost_cap_fin_mult(i,r,t)$[storage_hybrid(i)$valinv_irt(i,r,t)] = round(cost_cap_fin_mult(i,r,t),3);
+cost_cap_fin_mult_noITC(i,r,t)$[storage_hybrid(i)$valinv_irt(i,r,t)] = round(cost_cap_fin_mult_noITC(i,r,t),3);
+cost_cap_fin_mult_no_credits(i,r,t)$[storage_hybrid(i)$valinv_irt(i,r,t)] = round(cost_cap_fin_mult_no_credits(i,r,t),3);
+cost_cap_fin_mult_storage_hybrid_s(i,r,t)$[storage_hybrid(i)$valinv_irt(i,r,t)] = round(cost_cap_fin_mult_storage_hybrid_s(i,r,t),3);
+cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t)$[storage_hybrid(i)$valinv_irt(i,r,t)] = round(cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t),3);
+cost_cap_fin_mult_storage_hybrid_s_no_credits(i,r,t)$[storage_hybrid(i)$valinv_irt(i,r,t)] = round(cost_cap_fin_mult_storage_hybrid_s_no_credits(i,r,t),3);
+
+* Keep reporting/system-cost multipliers in sync with the recomputed (rounded) storage_hybrid values.
+cost_cap_fin_mult_out(i,r,t)$[storage_hybrid(i)$valinv_irt(i,r,t)] = cost_cap_fin_mult(i,r,t) ;
 
 * --- End calculations of cost_cap_fin_mult family of parameters --- *

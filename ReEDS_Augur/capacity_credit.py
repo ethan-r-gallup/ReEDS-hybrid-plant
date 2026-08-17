@@ -129,11 +129,18 @@ def reeds_cc(t, tnext, casedir):
     techs.columns = techs.columns.str.lower()
     r = gdx['rfeas']
 
-    cap_stor = cap.loc[cap['i'].isin(gdx['storage_standalone'].i) & 
+    cap_stor = cap.loc[cap['i'].isin(gdx['storage_standalone'].i) &
                        ~cap['i'].isin(gdx['i_subsets'][gdx['i_subsets']['i_subtech'] == 'CONTINUOUS_BATTERY'].i)] \
                        .rename(columns={'Value':'MW'})
     cap_stor['duration'] = cap_stor.i.map(gdx['storage_duration'].set_index('i').Value)
     cap_stor['MWh'] = cap_stor['MW'] * cap_stor['duration']
+
+    # NOTE: storage-hybrid wrapper storage is deliberately NOT appended here.
+    # cap_stor/cap_stor_agg only feed a never-created 'rte' column lookup (which
+    # falls through to cc_default_rte) and an unused per-ccreg frame; sdbin sizes
+    # come entirely from the peak-reduction geometry in cc_storage(). A previous
+    # cap_hyb block here was verified to be a no-op and was removed (SH-13 in
+    # debug_storage-hybrid.md).
     #Adding a check if there is no storage - populate with 0 MW and 0 MWh in each r
     if cap_stor.empty:
         stor_techs = gdx['storage_standalone'].i.tolist()

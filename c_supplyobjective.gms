@@ -39,8 +39,14 @@ eq_ObjFn_inv(t)$tmodel(t)..
                        cost_cap_fin_mult(i,r,t) * cost_cap(i,t) * INV(i,v,r,t)
                       }
 
-                  + sum{(i,v,r)$[valinv(i,v,r,t)$battery(i)],
-                       cost_cap_fin_mult(i,r,t) * cost_cap_energy(i,t) * INV_ENERGY(i,v,r,t) 
+                  + sum{(i,v,r)$[valinv(i,v,r,t)$(battery(i) or tes(i))$(not storage_hybrid(i))],
+                                                        cost_cap_fin_mult(i,r,t) * cost_cap_energy(i,t) * INV_ENERGY(i,v,r,t)
+                      }
+
+* storage_hybrid energy investment uses storage-specific multiplier with gen-tech financing risk
+* since cost_cap_energy is purely a storage cost
+                  + sum{(i,v,r)$[valinv(i,v,r,t)$storage_hybrid(i)],
+                       cost_cap_fin_mult_storage_hybrid_s(i,r,t) * cost_cap_energy(i,t) * INV_ENERGY(i,v,r,t)
                       }
 
 * --- penalty for exceeding interconnection queue limit  ---
@@ -114,6 +120,8 @@ eq_ObjFn_inv(t)$tmodel(t)..
 
 * --- storage capacity credit---
 *small cost penalty to incentivize solver to fill shorter-duration bins first
+*(exclusion is csp only, matching the error_check replica in e_report.gms:
+* storage-hybrid wrappers allocate CAP_SDBIN and pay the tie-break like batteries)
                   + sum{(i,v,r,ccseason,sdbin)$[valcap(i,v,r,t)$(storage(i) or hyd_add_pump(i))$(not csp(i))$Sw_PRM_CapCredit$Sw_StorageBinPenalty],
                          bin_penalty(sdbin) * CAP_SDBIN(i,v,r,ccseason,sdbin,t) }
 
@@ -122,8 +130,11 @@ eq_ObjFn_inv(t)$tmodel(t)..
                             cost_cap_fin_mult(i,r,t) * INV_CAP_UP(i,v,r,rscbin,t) * cost_cap_up(i,v,r,rscbin,t) }
 
 * cost of energy upsizing
-                  + sum{(i,v,r,rscbin)$allow_ener_up(i,v,r,rscbin,t),
+                  + sum{(i,v,r,rscbin)$[allow_ener_up(i,v,r,rscbin,t)$(not storage_hybrid(i))],
                             cost_cap_fin_mult(i,r,t) * INV_ENER_UP(i,v,r,rscbin,t) * cost_ener_up(i,v,r,rscbin,t) }
+
+                  + sum{(i,v,r,rscbin)$[allow_ener_up(i,v,r,rscbin,t)$storage_hybrid(i)],
+                            cost_cap_fin_mult_storage_hybrid_s(i,r,t) * INV_ENER_UP(i,v,r,rscbin,t) * cost_ener_up(i,v,r,rscbin,t) }
 
 * H2 transport network investment costs
                   + sum{(r,rr)$h2_routes_inv(r,rr), cost_h2_transport_cap(r,rr,t) * H2_TRANSPORT_INV(r,rr,t) }$(Sw_H2 = 2)
@@ -155,24 +166,34 @@ eq_Objfn_op(t)$tmodel(t)..
          pvf_onm(t) * (
 
 * --- variable O&M costs---
-* all technologies except hybrid plant and DAC
-              sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom(i,v,r,t)$(not storage_hybrid(i)$(not csp(i)))],
+* all technologies except non-CSP hybrid plants and DAC
+* (CSP is in hybrid_plant(i) but its VOM is billed here on GEN, since the
+*  pvb/storage-hybrid GEN_PLANT/GEN_STORAGE terms below do not cover it)
+              sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom(i,v,r,t)$(not hybrid_plant(i)$(not csp(i)))],
                    hours(h) * cost_vom(i,v,r,t) * GEN(i,v,r,h,t) }
 
 * hybrid plant (plant)
-            + sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom_pvb_p(i,v,r,t)$storage_hybrid(i)$(not csp(i))],
+            + sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom_pvb_p(i,v,r,t)$pvb(i)],
                    hours(h) * cost_vom_pvb_p(i,v,r,t) * GEN_PLANT(i,v,r,h,t) }$Sw_HybridPlant
 
 * hybrid plant (Battery)
-            + sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom_pvb_b(i,v,r,t)$storage_hybrid(i)$(not csp(i))],
+            + sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom_pvb_b(i,v,r,t)$pvb(i)],
                    hours(h) * cost_vom_pvb_b(i,v,r,t) * GEN_STORAGE(i,v,r,h,t) }$Sw_HybridPlant
+
+* storage-hybrid plant side
+            + sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom(i,v,r,t)$storage_hybrid(i)],
+                   hours(h) * cost_vom(i,v,r,t) * GEN_PLANT(i,v,r,h,t) }$Sw_HybridPlant
+
+* storage-hybrid storage side
+            + sum{(i,v,r,h)$[valgen(i,v,r,t)$cost_vom_storage_hybrid_s(i,v,r,t)$storage_hybrid(i)],
+                   hours(h) * cost_vom_storage_hybrid_s(i,v,r,t) * GEN_STORAGE(i,v,r,h,t) }$Sw_HybridPlant
 
 * --- fixed O&M costs---
 * generation
               + sum{(i,v,r)$[valcap(i,v,r,t)],
                    cost_fom(i,v,r,t) * CAP(i,v,r,t) }
 
-              + sum{(i,v,r)$[valcap(i,v,r,t)$battery(i)],
+              + sum{(i,v,r)$[valcap(i,v,r,t)$(battery(i) or tes(i) or storage_hybrid(i))],
                    cost_fom_energy(i,v,r,t) * CAP_ENERGY(i,v,r,t) }
 
 * transmission lines
@@ -208,8 +229,17 @@ eq_Objfn_op(t)$tmodel(t)..
                    cost_fom(i,v,r,t) * retire_penalty(t) *
                    (CAP(i,v,r,t)
                     - INV(i,v,r,t)$valinv(i,v,r,t)
-                    - INV_REFURB(i,v,r,t)$[valinv(i,v,r,t)$refurbtech(i)$Sw_Refurb] 
+                    - INV_REFURB(i,v,r,t)$[valinv(i,v,r,t)$refurbtech(i)$Sw_Refurb]
                     - UPGRADES(i,v,r,t)$[upgrade(i)$Sw_Upgrades] )
+                   }
+
+* energy-capacity analog for retirable storage-energy techs, so CAP_ENERGY cannot
+* churn friction-free while the power side pays the retirement penalty
+              - sum{(i,v,r)$[valcap(i,v,r,t)$retiretech(i,v,r,t)$Sw_RetirePenalty
+                            $(battery(i) or tes(i) or hybrid_plant(i))$cost_fom_energy(i,v,r,t)],
+                   cost_fom_energy(i,v,r,t) * retire_penalty(t) *
+                   (CAP_ENERGY(i,v,r,t)
+                    - INV_ENERGY(i,v,r,t)$valinv(i,v,r,t) )
                    }
 
 * ---operating reserve costs---
@@ -224,7 +254,9 @@ eq_Objfn_op(t)$tmodel(t)..
               + sum{(i,v,r,h)$[valgen(i,v,r,t)$heat_rate(i,v,r,t)
                              $(not gas(i))$(not bio(i))$(not cofire(i))
                              $((not h2_combustion(i)) or h2_combustion(i)$[(Sw_H2=0) or h_stress(h)])],
-                   hours(h) * heat_rate(i,v,r,t) * fuel_price(i,r,t) * GEN(i,v,r,h,t) }
+                                              hours(h) * heat_rate(i,v,r,t) * fuel_price(i,r,t)
+                                              * ( GEN(i,v,r,h,t)$(not storage_hybrid(i))
+                                                   + GEN_PLANT(i,v,r,h,t)$storage_hybrid(i) ) }
 
 * --- startup/ramping costs
               + sum{(i,r,h,hh)$[Sw_StartCost$startcost(i)$numhours_nexth(h,hh)$valgen_irt(i,r,t)],
@@ -352,9 +384,14 @@ eq_Objfn_op(t)$tmodel(t)..
                               (crf(t) / crf_co2_incentive(t)) * co2_captured_incentive(i,v,r,t) * hours(h) * PRODUCE(p,i,v,r,h,t)}
 
 * --- PTC value for electric power generation ---
+* storage-hybrid wrappers are credited on gross generator output (GEN_PLANT),
+* matching a standalone generator with separately-metered storage; grid-charged
+* energy never enters GEN_PLANT so no STORAGE_IN_GRID netting is needed
               - sum{(i,v,r,h)$[valgen(i,v,r,t)$ptc_value_scaled(i,v,t)],
-                    hours(h) * ptc_value_scaled(i,v,t) * tc_phaseout_mult(i,v,t) * 
-                    (GEN(i,v,r,h,t) - (STORAGE_IN_GRID(i,v,r,h,t) * storage_eff_pvb_g(i,t))$[pvb(i)$Sw_PVB])
+                    hours(h) * ptc_value_scaled(i,v,t) * tc_phaseout_mult(i,v,t) *
+                    (GEN(i,v,r,h,t)$[not (storage_hybrid(i)$Sw_HybridPlant)]
+                     + GEN_PLANT(i,v,r,h,t)$[storage_hybrid(i)$Sw_HybridPlant]
+                     - STORAGE_IN_GRID(i,v,r,h,t)$[pvb(i)$Sw_PVB])
                    }
 
 * --- PTC value for hydrogen production ---

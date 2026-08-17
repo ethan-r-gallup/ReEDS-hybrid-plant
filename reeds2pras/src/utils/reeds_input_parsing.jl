@@ -136,7 +136,7 @@ end
 function get_MTTR_data(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "mttr.csv")
     df = DataFrames.DataFrame(CSV.File(filepath))
-    return Dict(df[!, "tech"] .=> df[!, "hours"])
+    return Dict{String, Int64}(String.(df[!, "tech"]) .=> df[!, "hours"])
 end
 
 
@@ -383,6 +383,31 @@ function get_storage_energy_capacity_data(data::ReEDSdatapaths)
         "ReEDS_Augur",
         "augur_data",
         "energy_cap_$(string(data.year)).csv",
+    )
+    return DataFrames.DataFrame(CSV.File(filepath))
+end
+
+"""
+    Returns the storage-hybrid wrapper configuration written by
+    ReEDS_Augur/prep_data.py (columns: i, gentech, stortech, bcr,
+    gridcharge_ratio, charge_eff). Header-only (empty) when the run
+    has no storage-hybrid techs.
+
+    Parameters
+    ----------
+    data : ReEDSdatapaths
+        Struct containing ReEDS filepaths and year
+
+    Returns
+    -------
+    DataFrames.DataFrame of the wrapper configs
+"""
+function get_storage_hybrid_config(data::ReEDSdatapaths)
+    filepath = joinpath(
+        data.ReEDSfilepath,
+        "ReEDS_Augur",
+        "augur_data",
+        "hybrid_config_$(string(data.year)).csv",
     )
     return DataFrames.DataFrame(CSV.File(filepath))
 end
