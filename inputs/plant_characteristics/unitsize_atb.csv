@@ -64,3 +64,5 @@ hydend,94,hydro assumption
 can-imports,20000,arbitrarily high (not disaggregated so doesn't matter)
 evmc,20000,arbitrarily high (not disaggregated so doesn't matter)
 dr_shed,20000,arbitrarily high (not disaggregated so doesn't matter)
+tes_ms,60,Assumed same as battery storage for unit size
+flex_geo,12,Storage device paired with geothermal in flexible-geo configs

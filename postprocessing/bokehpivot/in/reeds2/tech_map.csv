@@ -60,6 +60,7 @@ gas-ct_aero,Gas-CT
 geothermal,Geothermal
 nuclear,Nuclear
 nuclear-smr,Nuclear-SMR
+storage-hybrid*,Storage Hybrid
 caes,CAES
 pumped-hydro,Pumped-Hydro
 can-imports,Canadian Imports
