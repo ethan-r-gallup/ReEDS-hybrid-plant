@@ -454,6 +454,7 @@ set
   geo_extra(i)         "geothermal technologies not typically considered in model runs",
   geo_egs_allkm(i)     "egs (covering deep egs depths of all km) technologies",
   geo_egs_nf(i)        "egs (near-field) technologies",
+  geo_storage(i)       "in-reservoir geothermal storage technologies",
   h2_combustion(i)     "h2-ct and h2-cc technologies",
   h2_cc(i)             "h2-cc technologies"
   h2_ct(i)             "h2-ct technologies",
@@ -465,6 +466,7 @@ set
   lfill(i)             "land-fill gas technologies",
   nondispatch(i)       "technologies that are not dispatchable"
   nuclear(i)           "nuclear technologies",
+  storage_hybrid(i)      "generation technologies paired with storage",
   ofswind(i)           "offshore wind technologies",
   ogs(i)               "oil-gas-steam technologies",
   onswind(i)           "onshore wind technologies",
@@ -478,10 +480,11 @@ set
   refurbtech(i)        "technologies that can be refurbished",
   rsc_i(i)             "technologies based on Resource supply curves",
   smr(i)               "steam methane reforming technologies",
-  storage_hybrid(i)    "hybrid VRE-storage technologies",
+  hybrid_plant(i)    "hybrid VRE-storage technologies",
   storage_standalone(i) "stand alone storage technologies",
   storage(i)           "storage technologies",
   storage_interday(i)  "interday storage",
+  tes(i)               "thermal storage technologies",
   thermal_storage(i)   "thermal storage technologies",
   upgrade(i)           "technologies that are upgrades from other technologies",
   upv(i)               "upv generation technologies",
@@ -772,6 +775,11 @@ if(Sw_NuclearSMR = 0,
   ban("Nuclear-SMR") = yes ;
 ) ;
 
+if(Sw_StorageHybrid = 0,
+  ban(i)$i_subsets(i,'Storage-Hybrid') = yes ;
+  bannew(i)$i_subsets(i,'Storage-Hybrid') = yes ;
+) ;
+
 if(Sw_OfsWind = 0,
   ban(i)$i_subsets(i,'ofswind') = yes ;
 ) ;
@@ -808,21 +816,21 @@ $endif.pshwat
 *** Ban hybrid storage techs based on Sw_HybridPlant switch
 * 0: Ban all storage, including CSP
 if(Sw_HybridPlant = 0,
- ban(i)$i_subsets(i,'storage_hybrid') = yes ;
+ ban(i)$i_subsets(i,'hybrid_plant') = yes ;
 ) ;
 * 1: Allow CSP, ban all other storage
 if(Sw_HybridPlant = 1,
- ban(i)$[i_subsets(i,'storage_hybrid')$(not sameas(i,'csp_storage'))] = yes ;
+ ban(i)$[i_subsets(i,'hybrid_plant')$(not sameas(i,'csp_storage'))] = yes ;
  ban(i)$i_subsets(i,'csp_storage') = no ;
 ) ;
 * 2: Allow hybrid plants, excluding CSP
 if(Sw_HybridPlant = 2,
- ban(i)$[i_subsets(i,'storage_hybrid')$(not sameas(i,'csp_storage'))] = no ;
+ ban(i)$[i_subsets(i,'hybrid_plant')$(not sameas(i,'csp_storage'))] = no ;
  ban(i)$i_subsets(i,'csp_storage') = yes ;
 ) ;
 * 3: Allow CSP and all other hybrid plants (note csp_storage bans are controlled by Sw_CSP)
 if(Sw_HybridPlant = 3,
- ban(i)$[i_subsets(i,'storage_hybrid')$(not sameas(i,'csp_storage'))] = no ;
+ ban(i)$[i_subsets(i,'hybrid_plant')$(not sameas(i,'csp_storage'))] = no ;
 ) ;
 
 *ban techs in hybrid PV+battery if the switch calls for it
@@ -839,6 +847,17 @@ $ifthen.pvb12 %GSw_PVB_Types% == '1'
     ban(i)$i_subsets(i,'pvb2') = yes ;
     ban(i)$i_subsets(i,'pvb3') = yes ;
 $endif.pvb12
+
+* Ban Storage-Hybrid types that aren't activated by GSw_StorageHybrid_Types.
+* Active types are inferred from storage_hybrid_gentech(i,ii) which copy_files.py
+* only populates for the types listed in GSw_StorageHybrid_Types. This avoids
+* hardcoding individual type-count branches and supports any N up to the maximum
+* declared in inputs/sets/storage_hybrid_config.csv.
+* (NB: this block runs AFTER storage_hybrid_gentech is loaded — see below.
+*  Set definitions for the storage_hybrid_* link sets occur ~L1150-1170. The
+*  ban assignment below is deliberately deferred until after those sets exist;
+*  GAMS executes statements in source order so do not move this block above
+*  the $include for storage_hybrid_gentechs.csv without also moving that.)
 
 *** Ban storage techs based on Sw_Storage switch
 * 0: Ban all storage
@@ -987,6 +1006,7 @@ geo_egs(i)$(not ban(i))             = yes$i_subsets(i,'geo_egs') ;
 geo_extra(i)$(not ban(i))           = yes$i_subsets(i,'geo_extra') ;
 geo_egs_allkm(i)$(not ban(i))       = yes$i_subsets(i,'geo_egs_allkm') ;
 geo_egs_nf(i)$(not ban(i))          = yes$i_subsets(i,'geo_egs_nf') ;
+geo_storage(i)$(not ban(i))         = yes$i_subsets(i,'geo_storage') ;
 h2_combustion(i)$(not ban(i))       = yes$i_subsets(i,'h2_combustion') ;
 h2_cc(i)$(not ban(i))               = yes$i_subsets(i,'h2_cc') ;
 h2_ct(i)$(not ban(i))               = yes$i_subsets(i,'h2_ct') ;
@@ -997,6 +1017,7 @@ hydro(i)$(not ban(i))               = yes$i_subsets(i,'hydro') ;
 lfill(i)$(not ban(i))               = yes$i_subsets(i,'lfill') ;
 nondispatch(i)$(not ban(i))         = yes$i_subsets(i,'nondispatch') ;
 nuclear(i)$(not ban(i))             = yes$i_subsets(i,'nuclear') ;
+storage_hybrid(i)$(not ban(i))      = yes$i_subsets(i,'Storage-Hybrid') ;
 ofswind(i)$(not ban(i))             = yes$i_subsets(i,'ofswind') ;
 ogs(i)$(not ban(i))                 = yes$i_subsets(i,'ogs') ;
 onswind(i)$(not ban(i))             = yes$i_subsets(i,'onswind') ;
@@ -1010,17 +1031,21 @@ re(i)$(not ban(i))                  = yes$i_subsets(i,'re') ;
 refurbtech(i)$(not ban(i))          = yes$i_subsets(i,'refurbtech') ;
 rsc_i(i)$(not ban(i))               = yes$i_subsets(i,'rsc') ;
 smr(i)$(not ban(i))                 = yes$i_subsets(i,'smr') ;
-storage_hybrid(i)$(not ban(i))      = yes$i_subsets(i,'storage_hybrid') ;
+hybrid_plant(i)$(not ban(i))      = yes$i_subsets(i,'hybrid_plant') ;
 storage_interday(i)$(not ban(i))    = yes$i_subsets(i,'storage_interday') ;
 storage_standalone(i)$(not ban(i))  = yes$i_subsets(i,'storage_standalone') ;
 storage(i)$(not ban(i))             = yes$i_subsets(i,'storage') ;
 thermal_storage(i)$(not ban(i))     = yes$i_subsets(i,'thermal_storage') ;
+tes(i)$(not ban(i))                 = yes$i_subsets(i,'thermal_storage') ;
 upv(i)$(not ban(i))                 = yes$i_subsets(i,'upv') ;
 vre_distributed(i)$(not ban(i))     = yes$i_subsets(i,'vre_distributed') ;
 vre_no_csp(i)$(not ban(i))          = yes$i_subsets(i,'vre_no_csp') ;
 vre_utility(i)$(not ban(i))         = yes$i_subsets(i,'vre_utility') ;
 vre(i)$(not ban(i))                 = yes$i_subsets(i,'vre') ;
 wind(i)$(not ban(i))                = yes$i_subsets(i,'wind') ;
+
+ban(i)$[geo_storage(i)$(not storage_hybrid(i))] = yes ;
+bannew(i)$[geo_storage(i)$(not storage_hybrid(i))] = yes ;
 
 set coal_noccs(i) "technologies that use coal and do not have CCS, aka unabated coal" ;
 coal_noccs(i)$[coal(i)$(not ccs(i))] = yes ; 
@@ -1038,9 +1063,11 @@ tg_i('battery',i)$battery(i) = yes ;
 tg_i('hydro',i)$hydro(i) = yes ;
 tg_i('h2',i)$h2_combustion(i) = yes ;
 tg_i('geothermal',i)$geo(i) = yes ;
+tg_i('geo-storage',i)$geo_storage(i) = yes ;
 tg_i('biomass',i)$bio(i) = yes ;
 tg_i('pumped-hydro',i)$psh(i) = yes ;
 tg_i('dr_shed',i)$dr_shed(i) = yes ;
+tg_i('tes',i)$tes(i) = yes ;
 
 *Hybrid pv+battery (PVB) configurations are defined by:
 *  (1) inverter loading ratio (DC/AC) and
@@ -1063,6 +1090,71 @@ $include inputs_case%ds%pvb_agg.csv
 $offdelim
 $onlisting
 / ;
+
+$onempty
+set storage_hybrid_config(i) "set of storage-hybrid configurations"
+/
+$offlisting
+$include inputs_case%ds%storage_hybrid_config.csv
+$onlisting
+/ ;
+$offempty
+
+$onempty
+set storage_hybrid_stortech(i,ii) "storage tech used by each storage-hybrid config"
+/ 
+$offlisting
+$ondelim
+$include inputs_case%ds%storage_hybrid_storagetechs.csv
+$offdelim
+$onlisting
+/ ;
+$offempty
+
+$onempty
+set storage_hybrid_gentech(i,ii) "generation tech used by each storage-hybrid config"
+/ 
+$offlisting
+$ondelim
+$include inputs_case%ds%storage_hybrid_gentechs.csv
+$offdelim
+$onlisting
+/ ;
+$offempty
+
+* Ban Storage-Hybrid types not activated by GSw_StorageHybrid_Types.
+* copy_files.py only writes storage_hybrid_gentechs.csv rows for active types, so
+* any Storage-Hybrid{N} with no gentech mapping is inactive and must be banned.
+set storage_hybrid_active(i) "Storage-Hybrid configs activated by GSw_StorageHybrid_Types" ;
+storage_hybrid_active(i)$[i_subsets(i,'Storage-Hybrid')$sum{ii, storage_hybrid_gentech(i,ii) }] = yes ;
+ban(i)$[i_subsets(i,'Storage-Hybrid')$(not storage_hybrid_active(i))] = yes ;
+bannew(i)$[i_subsets(i,'Storage-Hybrid')$(not storage_hybrid_active(i))] = yes ;
+
+* If storage tech used by storage-hybrid config is thermal storage, then add the hybrid config to tes and thermal_storage sets
+set storage_hybrid_with_tes(i) "storage-hybrid technologies whose storage tech is TES" ;
+storage_hybrid_with_tes(i)$(sum(ii$ (storage_hybrid_stortech(i,ii) and thermal_storage(ii)),1) = 1) = yes ;
+
+tes(i)$storage_hybrid_with_tes(i) = yes ;
+thermal_storage(i)$storage_hybrid_with_tes(i) = yes ;
+
+geo_storage(i)$[storage_hybrid(i)$sum(ii$[storage_hybrid_stortech(i,ii)$geo_storage(ii)],1)] = yes ;
+
+* Storage-hybrid configs split by gen-tech behavior:
+* - storage_hybrid_vre(i): config's gen tech is variable renewable (uses m_cf for derating)
+* - storage_hybrid_dispatchable(i): config's gen tech is dispatchable (uses raw CAP)
+* These sets drive equation-level branching for the energy limit, mingen substitution,
+* and capacity-credit derating. They depend on vre(i), so they must be assigned AFTER
+* the vre(i) assignment (~L1064). The assignment below is intentionally located here
+* with the other storage_hybrid set derivations; vre(i) is already populated by this point.
+set storage_hybrid_vre(i)          "storage-hybrid configs whose gen tech is VRE" ;
+set storage_hybrid_dispatchable(i) "storage-hybrid configs whose gen tech is dispatchable (non-VRE)" ;
+storage_hybrid_vre(i)$[storage_hybrid(i)$sum{ii$storage_hybrid_gentech(i,ii), vre(ii)}] = yes ;
+storage_hybrid_dispatchable(i)$[storage_hybrid(i)$(not storage_hybrid_vre(i))] = yes ;
+
+* Inherit tech-group membership from each storage-hybrid config's gen tech so that downstream
+* group-keyed logic (valinv_tg, RPS state aggregations, etc.) recognizes the config.
+tg_i(tg,i)$[storage_hybrid(i)$sum{ii$storage_hybrid_gentech(i,ii), tg_i(tg,ii)}] = yes ;
+tg_i('geo-storage',i)$[storage_hybrid(i)$geo_storage(i)] = yes ;
 
 *add non-numeraire CSPs in index i of already defined set tg_i(tg,i)
 tg_i("csp",i)$[(csp1(i) or csp2(i) or csp3(i) or csp4(i))$Sw_WaterMain] = yes ;
@@ -1163,6 +1255,8 @@ $onlisting
 / ;
 
 min_retire_age(i)$[i_water_cooling(i)$Sw_WaterMain] = sum{ii$ctt_i_ii(i,ii), min_retire_age(ii) } ;
+* storage-hybrid wrappers inherit min_retire_age from their underlying generation technology
+min_retire_age(i)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), min_retire_age(ii) } ;
 * if GSw_Clean_Air_Act is enabled, there is no minimum retire age for coal plants
 min_retire_age(i)$[coal(i)$Sw_Clean_Air_Act] = no ;
 
@@ -1256,6 +1350,22 @@ $offdelim
 $onlisting
 / ;
 
+* Maps each geothermal storage-hybrid wrapper (ii) to its parent geo supply-curve
+* tech (i). Written by copy_files.py; the parent is the FIRST index so the parent's
+* eq_rsc_INVlim sums the wrapper's INV_RSC into a single shared resource limit,
+* exactly as tg_rsc_upvagg links UPV and PVB. (The wrapper also gets a redundant
+* self-limited eq_rsc_INVlim from the sameas init below, matching PVB behavior.)
+$onempty
+set storage_hybrid_geo_rsc_agg(i,ii) "geo storage-hybrid wrappers sharing parent geo supply curve (i=parent, ii=wrapper)"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%storage_hybrid_rsc_agg.csv
+$offdelim
+$onlisting
+/ ;
+$offempty
+
 *initialize rsc aggregation set for 'i'='ii'
 *rsc_agg(i,ii)$[sameas(i,ii)$(not csp(i))$(not csp(ii))$rsc_i(i)$rsc_i(ii)] = yes ;
 rsc_agg(i,ii)$[sameas(i,ii)$rsc_i(i)$rsc_i(ii)] = yes ;
@@ -1263,6 +1373,8 @@ rsc_agg(i,ii)$[sameas(i,ii)$rsc_i(i)$rsc_i(ii)] = yes ;
 rsc_agg(i,ii)$tg_rsc_cspagg(i,ii) = yes ;
 *add upv to rsc aggregation set
 rsc_agg(i,ii)$tg_rsc_upvagg(i,ii) = yes ;
+*add geothermal storage-hybrid wrappers to share their parent geo tech supply curve
+rsc_agg(i,ii)$storage_hybrid_geo_rsc_agg(i,ii) = yes ;
 *All PSH types use the same supply curve
 rsc_agg('pumped-hydro',ii)$psh(ii) = yes ;
 rsc_agg(i,ii)$[ban(i) or ban(ii)] = no ;
@@ -1534,6 +1646,9 @@ $onlisting
 
 ptc_value_scaled(i,v,t)$[i_water_cooling(i)$Sw_WaterMain] =
    sum{ii$ctt_i_ii(i,ii), ptc_value_scaled(ii,v,t) } ;
+* storage-hybrid wrappers inherit ptc_value_scaled from their underlying generation technology
+ptc_value_scaled(i,v,t)$storage_hybrid(i) =
+   sum{ii$storage_hybrid_gentech(i,ii), ptc_value_scaled(ii,v,t) } ;
 
 parameter firstyear_v(i,v) "flag for first year that a new new vintage can be built" ;
 parameter lastyear_v(i,v) "flag for the last year that a new new vintage can be built" ;
@@ -1577,6 +1692,8 @@ firstyear(i)$[i_water_cooling(i)$Sw_WaterMain] = sum{ii$ctt_i_ii(i,ii), firstyea
 firstyear(i)$[not firstyear(i)] = model_builds_start_yr ;
 firstyear(i)$[i_water_cooling(i)$(not Sw_WaterMain)] = NO ;
 firstyear(i)$upgrade(i) = sum{ii$upgrade_to(i,ii), firstyear(ii) } ;
+* storage-hybrid wrappers inherit firstyear from their underlying generation technology
+firstyear(i)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), firstyear(ii) } ;
 
 parameter firstyear_pcat(pcat) ;
 firstyear_pcat(pcat)$[sum{i$[sameas(i,pcat)$(not ban(i))], firstyear(i) }] = sum{i$sameas(i,pcat), firstyear(i) } ;
@@ -1809,6 +1926,8 @@ maxage(i)$[not maxage(i)] = maxage_default ;
 * upgrades and cooling-water techs inherit maxage from the base tech
 maxage(i)$[i_water_cooling(i)$Sw_WaterMain] = sum{ii$ctt_i_ii(i,ii), maxage(ii) } ;
 maxage(i)$upgrade(i) = sum{ii$upgrade_to(i,ii), maxage(ii) } ;
+* storage-hybrid wrappers inherit maxage from their underlying generation technology
+maxage(i)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), maxage(ii) } ;
 
 *loading in capacity mandates here to avoid conflicts in calculation of valcap
 * declared over allt to allow for external data files that extend beyond end_year
@@ -1982,6 +2101,14 @@ Example: "m_rscfeas(r,i,rscbin)" is created for "eq_rsc_inv_account"
 $offtext
 
 rsc_dat(i,r,sc_cat,rscbin)$pvb(i) = sum{ii$[upv(ii)$rsc_agg(ii,i)], rsc_dat(ii,r,sc_cat,rscbin) } ;
+
+*Replicate the parent geothermal supply curve data for geothermal storage-hybrid wrappers.
+*As with PVB above, the wrapper's rsc_dat is not the binding resource constraint (that is
+*enforced on the parent geo tech via storage_hybrid_geo_rsc_agg -> rsc_agg). This copy is
+*needed so rscfeas/m_rscfeas and the INV_RSC supply-curve conditionals get created for the
+*wrapper, covering all sc_cat values (cap, cost, cost_trans, cost_cap).
+rsc_dat(i,r,sc_cat,rscbin)$storage_hybrid(i)
+    = sum{ii$[storage_hybrid_geo_rsc_agg(ii,i)$rsc_i(ii)], rsc_dat(ii,r,sc_cat,rscbin) } ;
 
 *following set indicates which combinations of r and i are possible
 *this is based on whether or not the bin has capacity available
@@ -2273,6 +2400,8 @@ m_rscfeas(r,i,rscbin) = rscfeas(i,r,rscbin) ;
 m_rscfeas(r,i,rscbin)$[csp(i)$(not ban(i))$sum{ii$[(not ban(ii))$tg_rsc_cspagg(ii, i)], m_rscfeas(r,ii,rscbin) }] = yes ;
 * Hybrid PV+battery
 m_rscfeas(r,i,rscbin)$[pvb(i)$(not ban(i))$sum{ii$[(not ban(ii))$tg_rsc_upvagg(ii, i)], m_rscfeas(r,ii,rscbin) }] = yes ;
+* Geothermal storage-hybrid wrappers inherit parent geo feasibility
+m_rscfeas(r,i,rscbin)$[storage_hybrid(i)$(not ban(i))$sum{ii$[(not ban(ii))$storage_hybrid_geo_rsc_agg(ii, i)], m_rscfeas(r,ii,rscbin) }] = yes ;
 
 parameter m_required_prescriptions(pcat,r,t)        "--MW-- required power prescriptions by year (cumulative)" ;
 
@@ -2314,6 +2443,8 @@ $onlisting
 degrade_annual(i)$pvb(i) = sum{ii$[upv(ii)$rsc_agg(ii,i)], degrade_annual(ii) } ;
 
 degrade_annual(i)$[i_water_cooling(i)$Sw_WaterMain] = sum{ii$ctt_i_ii(i,ii), degrade_annual(ii) } ;
+* storage-hybrid wrappers inherit annual degradation from their underlying generation technology
+degrade_annual(i)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), degrade_annual(ii) } ;
 
 degrade(i,t,tt)$[(yeart(tt)>=yeart(t))$(not ban(i))] = 1 ;
 degrade(i,t,tt)$[(yeart(tt)>=yeart(t))$(not ban(i))] = (1-degrade_annual(i))**(yeart(tt)-yeart(t)) ;
@@ -2432,6 +2563,12 @@ $endif.geohydrorev
 $ifthen.egsrev %egssupplycurve% == 'reV'
 spur_techs(i)$(geo_egs_allkm(i)) = yes ;
 $endif.egsrev
+
+* Geothermal storage-hybrid wrappers share their parent geo tech's endogenous spur
+* lines: they join spur_techs and inherit the parent's spurline_sitemap entries so
+* CAP_SPUR at each reV site is shared across the parent geo tech and the wrapper.
+spur_techs(i)$[storage_hybrid(i)$sum{ii$[storage_hybrid_geo_rsc_agg(ii,i)$spur_techs(ii)], 1}] = yes ;
+spurline_sitemap(i,r,rscbin,x)$[storage_hybrid(i)$sum{ii$[storage_hybrid_geo_rsc_agg(ii,i)$spur_techs(ii)], spurline_sitemap(ii,r,rscbin,x) }] = yes ;
 
 $endif.spursites
 
@@ -2621,8 +2758,11 @@ m_capacity_exog(i,v,r,t)$[forced_retire(i,r,t)$coal_noccs(i)
 valcap(i,v,r,t)$[upgrade(i)$ban(i)] = no ;
 
 *Restrict valcap for nuclear in BAs that are impacted By state nuclear bans
+*storage-hybrid wrappers with a nuclear gen tech are reactors too and must honor the ban
 if(Sw_NukeStateBan = 1,
   valcap(i,v,r,t)$[nuclear(i)$newv(v)$nuclear_ba_ban(r)] = no ;
+  valcap(i,v,r,t)$[storage_hybrid(i)$newv(v)$nuclear_ba_ban(r)
+                  $sum{ii$storage_hybrid_gentech(i,ii), nuclear(ii)}] = no ;
 ) ;
 
 $ifthene.hydEDban %GSw_hydED% == 0
@@ -3065,6 +3205,13 @@ RPSCat_i("CES",i,st)$[(RPSCAT_i("RPS_All",i,st) or nuclear(i) or hydro(i) or ccs
                      $(not techs_banned_ces(i,st))
                      $valcap_i(i)] = yes ;
 
+*storage-hybrid wrappers inherit CES eligibility from their configured gen tech
+*(REC accounting uses net GEN, so storage round-trip losses are correctly not credited)
+RPSCat_i("CES",i,st)$[storage_hybrid(i)
+                     $sum{ii$storage_hybrid_gentech(i,ii), RPSCat_i("CES",ii,st)}
+                     $(not techs_banned_ces(i,st))
+                     $valcap_i(i)] = yes ;
+
 RecTech(RPSCat,i,st,t)$(RPSCat_i(RPSCat,i,st)$RecStates(RPSCat,st,t)) = yes ;
 RecTech(RPSCat,i,st,t)$(hydro(i)$RecTech(RPSCat,"hydro",st,t)$valcap_i(i)) = yes ;
 RecTech("RPS_Bundled",i,st,t)$[RecTech("RPS_All",i,st,t)] = yes ;
@@ -3240,6 +3387,8 @@ $offdelim
 $onlisting
 / ;
 nat_gen_tech_frac(i)$[i_water_cooling(i)$Sw_WaterMain] = sum{ii$ctt_i_ii(i,ii), nat_gen_tech_frac(ii) } ;
+* storage-hybrid wrappers inherit national-mandate eligibility from their underlying generation technology
+nat_gen_tech_frac(i)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), nat_gen_tech_frac(ii) } ;
 
 *====================
 * --- CSAPR Data ---
@@ -3818,6 +3967,16 @@ $offdelim
 $onlisting
 / ;
 
+
+parameter heater_char(i,allt,plantcat) "--units vary-- input plant characteristics"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%heaterchar.csv
+$offdelim
+$onlisting
+/ ;
+
 parameter
   winter_cap_ratio(i,v,r) "--scalar-- ratio of winter capacity to summer capacity"
   winter_cap_frac_delta(i,v,r) "--scalar-- fractional change in winter compared to summer capacity"
@@ -3848,6 +4007,12 @@ winter_cap_ratio(i,newv,r)$h2_cc(i) = winter_cap_ratio('gas-cc',newv,r) ;
 
 * Assign additional nuclear techs to have the same winter_cap_ratio as 'nuclear'
 winter_cap_ratio(i,newv,r)$nuclear(i) = winter_cap_ratio('nuclear',newv,r) ;
+
+* Storage-hybrid wrappers inherit the gen tech's winter_cap_ratio
+* (guarded so a gen tech with no value cannot zero out the initialized 1.0)
+winter_cap_ratio(i,newv,r)$[storage_hybrid(i)
+                           $sum{ii$storage_hybrid_gentech(i,ii), winter_cap_ratio(ii,newv,r)}]
+    = sum{ii$storage_hybrid_gentech(i,ii), winter_cap_ratio(ii,newv,r)} ;
 
 * Upgraded plant have the same winter_cap_ratio as what they are upgraded from
 winter_cap_ratio(i,newv,r)$upgrade(i) = sum{ii$upgrade_from(i,ii), winter_cap_ratio(ii,newv,r) } ;
@@ -4278,6 +4443,37 @@ parameter bcr(i) "--unitless-- ratio of the battery capacity to the PV DC capaci
 bcr(pvb) = sum{pvb_config$pvb_agg(pvb_config,pvb), bir_pvb_config(pvb_config) / ilr_pvb_config(pvb_config) } ;
 bcr(i)$[storage_standalone(i) or csp_storage(i) or hyd_add_pump(i)] = 1 ;
 
+*==================================
+* --- Storage-Hybrid Configurations ---
+*==================================
+
+$onempty
+parameter bcr_storage_hybrid_config(i) "--unitless-- storage capacity ratio for each storage-hybrid configuration"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%storage_hybrid_bcr.csv
+$offdelim
+$onlisting
+/ ;
+$offempty
+
+bcr(i)$storage_hybrid(i) = bcr_storage_hybrid_config(i) ;
+
+$onempty
+parameter gridcharge_storage_hybrid_config(i) "--unitless-- ratio of grid charging capacity to generation capacity for each storage-hybrid configuration"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%storage_hybrid_gridcharging.csv
+$offdelim
+$onlisting
+/ ;
+$offempty
+
+parameter gridcharge_ratio(i) "--unitless-- ratio of grid charging capacity to generation capacity for each storage-hybrid configuration" ;
+gridcharge_ratio(i)$storage_hybrid(i) = gridcharge_storage_hybrid_config(i) ;
+
 *=========================================
 * --- Capital costs ---
 *=========================================
@@ -4289,7 +4485,7 @@ parameter cost_cap(i,t)           "--2004$/MW-- overnight capital costs",
 ;
 
 cost_cap(i,t) = plant_char0(i,t,"capcost") ;
-cost_cap_energy(i,t)$battery(i) = plant_char0(i,t,"capcost_energy") ;
+cost_cap_energy(i,t)$(battery(i) or tes(i)) = plant_char0(i,t,"capcost_energy") ;
 
 * apply user-defined cost reduction to Flexible CCS uniformly in all years
 cost_cap(i,t)$ccsflex(i) = cost_cap(i,t) * %GSw_CCSFLEX_cost_mult% ;
@@ -4304,6 +4500,17 @@ cost_cap_pvb_p(i,t)$pvb(i) =  sum{ii$[upv(ii)$rsc_agg(ii,i)], cost_cap(ii,t) } ;
 * Assign hybrid PV+battery to have the same value as battery_li
 parameter cost_cap_pvb_b(i,t) "--2004$/MW-- overnight capital costs for battery portion of hybrid PV+battery" ;
 cost_cap_pvb_b(i,t)$pvb(i) = cost_cap("battery_li",t) + %GSw_PVB_Dur% * cost_cap_energy("battery_li",t) ;
+
+* Assign storage-hybrid plant-side cost from the configured generation tech
+parameter cost_cap_storage_hybrid_p(i,t) "--2004$/MW-- overnight capital costs for generation portion of storage-hybrid" ;
+cost_cap_storage_hybrid_p(i,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_gentech(i,ii), plant_char0(ii,t,'capcost') } ;
+
+* Assign storage-hybrid storage-side cost from the configured storage tech
+parameter cost_cap_storage_hybrid_s(i,t) "--2004$/MW-- overnight capital costs for storage portion of storage-hybrid" ;
+cost_cap_storage_hybrid_s(i,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), plant_char0(ii,t,'capcost') } ;
+
+* Assign storage-hybrid energy cost from the configured storage tech
+cost_cap_energy(i,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), plant_char0(ii,t,'capcost_energy') } ;
 
 * Written by plantcostprep.py
 table hydrocapmult(allt,i) "--unitless-- hydropower capital cost multipliers over time"
@@ -4414,11 +4621,20 @@ cost_vom_pvb_b(i,v,r,t)$pvb(i) =  cost_vom("battery_li",v,r,t) ;
 
 * Assign hybrid plant to have the same value as UPV
 parameter cost_vom_hybrid_plant(i,v,r,t) "--2004$/MWh-- variable OM for the plant portion of hybrid" ;
-cost_vom_hybrid_plant(i,v,r,t)$[storage_hybrid(i)$(not csp(i))] =  sum{ii$[upv(ii)$rsc_agg(ii,i)], cost_vom(ii,v,r,t) } ;
+cost_vom_hybrid_plant(i,v,r,t)$[hybrid_plant(i)$(not csp(i))] =  sum{ii$[upv(ii)$rsc_agg(ii,i)], cost_vom(ii,v,r,t) } ;
 
 * Assign hybrid storage to have the same value as Battery_li
 parameter cost_vom_hybrid_storage(i,v,r,t) "--2004$/MWh-- variable OM for the storage portion of hybrid" ;
-cost_vom_hybrid_storage(i,v,r,t)$[storage_hybrid(i)$(not csp(i))] = cost_vom("battery_li",v,r,t) ;
+cost_vom_hybrid_storage(i,v,r,t)$[hybrid_plant(i)$(not csp(i))] = cost_vom("battery_li",v,r,t) ;
+
+* Assign storage-hybrid plant-side variable O&M from the configured generation tech
+* parameter cost_vom_storage_hybrid_p(i,v,r,t) "--2004$/MWh-- variable OM for the generation portion of storage-hybrid" ;
+cost_vom(i,v,r,t)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), plant_char(ii,v,t,'vom')} ;
+
+* Assign storage-hybrid storage-side variable O&M from the configured storage tech
+parameter cost_vom_storage_hybrid_s(i,v,r,t) "--2004$/MWh-- variable OM for storage portion of storage-hybrid" ;
+cost_vom_storage_hybrid_s(i,v,r,t)$storage_hybrid(i) = sum{ii$storage_hybrid_stortech(i,ii), plant_char(ii,v,t,'vom')} ;
+cost_vom_storage_hybrid_s(i,v,r,t)$[storage_hybrid(i)$(not cost_vom_storage_hybrid_s(i,v,r,t))] = storage_vom_min ;
 
 *upgrade vom costs for initial classes are the vom costs for that tech
 *plus the delta between upgrade_to and upgrade_from for the initial year
@@ -4451,7 +4667,7 @@ parameter cost_fom(i,v,r,t)           "--2004$/MW-yr-- fixed O&M",
 
 *previous calculation (without tech binning)
 cost_fom(i,v,r,t)$[(not Sw_binOM)$valcap(i,v,r,t)] = plant_char(i,v,t,'fom') ;
-cost_fom_energy(i,v,r,t)$[(battery(i))$valcap(i,v,r,t)] = plant_char(i,v,t,'fom_energy') ;
+cost_fom_energy(i,v,r,t)$[(battery(i) or tes(i))$valcap(i,v,r,t)] = plant_char(i,v,t,'fom_energy') ;
 
 *if using binned costs, still need to assign default values to cost_fom for new plants
 cost_fom(i,newv,r,t)$[(Sw_binOM)$valcap(i,newv,r,t)] = plant_char(i,newv,t,'fom') ;
@@ -4480,6 +4696,19 @@ parameter cost_fom_pvb_b(i,v,r,t) "--2004$/MW-yr-- fixed OM for the battery port
 cost_fom_pvb_b(i,v,r,t)$pvb(i) =  cost_fom("battery_li",v,r,t) + %GSw_PVB_Dur% * cost_fom_energy("battery_li",v,r,t) ;
 
 cost_fom(i,v,r,t)$[valcap(i,v,r,t)$pvb(i)] = cost_fom_pvb_p(i,v,r,t) + bcr(i) * cost_fom_pvb_b(i,v,r,t) ;
+
+* Assign storage-hybrid plant-side fixed O&M from the configured generation tech
+parameter cost_fom_storage_hybrid_p(i,v,r,t) "--2004$/MW-- fixed OM for generation portion of storage-hybrid" ;
+cost_fom_storage_hybrid_p(i,v,r,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_gentech(i,ii), plant_char(ii,v,t, 'fom')};
+
+* Assign storage-hybrid storage-side fixed O&M from the configured storage tech
+parameter cost_fom_storage_hybrid_s(i,v,r,t) "--2004$/MW-- fixed OM for storage portion of storage-hybrid" ;
+cost_fom_storage_hybrid_s(i,v,r,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), plant_char(ii,v,t, 'fom')};
+
+cost_fom(i,v,r,t)$storage_hybrid(i) = (cost_fom_storage_hybrid_p(i,v,r,t) + bcr(i) * cost_fom_storage_hybrid_s(i,v,r,t)) ;
+
+cost_fom_energy(i,v,r,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), plant_char(ii,v,t, 'fom_energy')};
+
 
 * -- FOM adjustments for coal and nuclear plants
 * The escalation factors are taken from NEMS and are roughly based on the
@@ -4598,6 +4827,9 @@ heat_rate(i,newv,r,t)$[upgrade(i)$Sw_Upgrades$valcap(i,newv,r,t)] =
 
 heat_rate(i,v,r,t)$[heat_rate_adj(i,'pre2010')$initv(v)] = heat_rate_adj(i,'pre2010') * heat_rate(i,v,r,t) ;
 heat_rate(i,v,r,t)$[heat_rate_adj(i,'post2010')$newv(v)] = heat_rate_adj(i,'post2010') * heat_rate(i,v,r,t) ;
+
+* Assign storage-hybrid heat rate from the associated generating technology
+heat_rate(i,v,r,t)$[storage_hybrid(i)$valcap(i,v,r,t)] = sum{ii$storage_hybrid_gentech(i,ii), heat_rate(ii,v,r,t) } ;
 
 *=========================================
 * --- Fuel Prices ---
@@ -4790,6 +5022,11 @@ ramprate(i)$geo(i) = ramprate("geothermal") ;
 
 *if running with flexible nuclear, set ramp rate of nuclear to that of coal
 ramprate(i)$[nuclear(i)$Sw_NukeFlex] = ramprate("coal-new") ;
+*storage-hybrid wrappers take the STORAGE component's ramp rate: all ramping,
+*capacity flexibility, and ancillary services from the plant are modulated by
+*the storage/powerblock while the generator runs flat behind it (the generator
+*differs only in never running out of energy). reserve_frac then follows below.
+ramprate(i)$[storage_hybrid(i)] = sum{ii$ storage_hybrid_stortech(i,ii), ramprate(ii) } ;
 
 ramprate(i)$[i_water_cooling(i)$Sw_WaterMain] =
   sum{ii$ctt_i_ii(i,ii), ramprate(ii) } ;
@@ -4820,6 +5057,15 @@ cost_opres(i,ortype,t)$geo(i) = cost_opres("geothermal",ortype,t) ;
 
 * Assign hybrid PV+battery the same value as battery_li
 cost_opres(i,ortype,t)$pvb(i) = cost_opres("battery_li",ortype,t) ;
+
+* TES takes the operating reserve costs of CSP, which operates an onsite TES
+cost_opres(i,ortype,t)$[tes(i)$(not storage_hybrid(i))] = cost_opres("csp1_1",ortype,t) ;
+
+* Storage-hybrid wrappers take the storage component's reserve cost unconditionally:
+* reserves are delivered by the storage/powerblock modulating output, not by
+* cycling the generator, so the generator's reserve cost does not apply
+cost_opres(i,ortype,t)$storage_hybrid(i)
+    = sum{ii$ storage_hybrid_stortech(i,ii), cost_opres(ii,ortype,t)};
 
 * add heat rate penalty for providing reserves (currently only applied to spin)
 * input data calculated based on heat rates in the PLEXOS EI database as of Dec. 2020
@@ -5012,6 +5258,8 @@ $include inputs_case%ds%itc_frac_monetized.csv
 $offdelim
 $onlisting
 / ;
+* storage-hybrid wrappers inherit itc_frac_monetized from their underlying generation technology
+itc_frac_monetized(i,t)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), itc_frac_monetized(ii,t) } ;
 
 $onempty
 parameter itc_energy_comm_bonus(i,r) "energy community tax credit bonus factor"
@@ -5023,6 +5271,8 @@ $offdelim
 $onlisting
 / ;
 $offempty
+* storage-hybrid wrappers inherit itc_energy_comm_bonus from their underlying generation technology
+itc_energy_comm_bonus(i,r)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), itc_energy_comm_bonus(ii,r) } ;
 
 parameter pv_frac_of_depreciation(i,allt) "present value of depreciation, expressed as a fraction of the capital cost of the investment"
 /
@@ -5041,6 +5291,8 @@ $include inputs_case%ds%degradation_adj.csv
 $offdelim
 $onlisting
 / ;
+* storage-hybrid wrappers inherit degradation_adj from their underlying generation technology
+degradation_adj(i,t)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), degradation_adj(ii,t) } ;
 
 parameter financing_risk_mult(i,allt) "multiplier to reflect higher financing costs for riskier assets"
 /
@@ -5050,6 +5302,8 @@ $include inputs_case%ds%financing_risk_mult.csv
 $offdelim
 $onlisting
 / ;
+* storage-hybrid wrappers inherit financing_risk_mult from their underlying generation technology
+financing_risk_mult(i,t)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), financing_risk_mult(ii,t) } ;
 
 parameter reg_cap_cost_diff(i,r) "regional capital cost difference [fraction] (note that wind-ons and upv have separate multiplers in the supply curve cost)"
 /
@@ -5059,6 +5313,12 @@ $include inputs_case%ds%reg_cap_cost_diff.csv
 $offdelim
 $onlisting
 / ;
+
+* Storage-hybrid wrappers take the gen tech's regional capital-cost difference.
+* Deterministic inheritance: the CSV path relied on the row cloner matching
+* group-labeled column headers, which only worked when the gen tech's name
+* happened to equal its group label (SMR wrappers silently got 0).
+reg_cap_cost_diff(i,r)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), reg_cap_cost_diff(ii,r) } ;
 
 parameter eval_period_adj_mult(i,allt) "adjustment multiplier for the capital costs of techs with non-standard evaluation periods"
 /
@@ -5113,6 +5373,19 @@ parameter cost_cap_fin_mult_pvb_p(i,r,t)            "capital cost multiplier for
 parameter cost_cap_fin_mult_pvb_b(i,r,t)            "capital cost multiplier for the battery portion of hybrid PV+Battery"
           cost_cap_fin_mult_pvb_b_noITC(i,r,t)      "capital cost multiplier for the battery portion of hybrid PV+Battery, excluding ITC"
           cost_cap_fin_mult_pvb_b_no_credits(i,r,t) "capital cost multiplier for the battery portion of hybrid PV+Battery, excluding ITC/PTC/Depreciation"
+;
+
+* --- Storage-Hybrid ---
+* Storage-Hybrid: generation portion
+parameter cost_cap_fin_mult_storage_hybrid_p(i,r,t)            "capital cost multiplier for the generation portion of storage-hybrid"
+          cost_cap_fin_mult_storage_hybrid_p_noITC(i,r,t)      "capital cost multiplier for the generation portion of storage-hybrid, excluding ITC"
+          cost_cap_fin_mult_storage_hybrid_p_no_credits(i,r,t) "capital cost multiplier for the generation portion of storage-hybrid, excluding ITC/PTC/Depreciation"
+;
+
+* Storage-Hybrid: storage portion
+parameter cost_cap_fin_mult_storage_hybrid_s(i,r,t)            "capital cost multiplier for the storage portion of storage-hybrid"
+          cost_cap_fin_mult_storage_hybrid_s_noITC(i,r,t)      "capital cost multiplier for the storage portion of storage-hybrid, excluding ITC"
+          cost_cap_fin_mult_storage_hybrid_s_no_credits(i,r,t) "capital cost multiplier for the storage portion of storage-hybrid, excluding ITC/PTC/Depreciation"
 ;
 
 
@@ -5725,6 +5998,7 @@ storage_eff(i,t)$psh(i) = storage_eff_psh ;
 storage_eff(i,t)$[storage(i)$plant_char0(i,t,'rte')] = plant_char0(i,t,'rte') ;
 storage_eff(i,t)$[evmc_storage(i)$plant_char0(i,t,'rte')] = plant_char0(i,t,'rte') ;
 storage_eff(i,t)$pvb(i) = storage_eff("battery_li",t) ;
+storage_eff(i,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), plant_char0(ii,t,'rte')};
 
 parameter storage_eff_pvb_p(i,t) "--fraction-- efficiency of hybrid PV+battery when charging from the coupled PV"
           storage_eff_pvb_g(i,t) "--fraction-- efficiency of hybrid PV+battery when charging from the grid" ;
@@ -5733,6 +6007,24 @@ parameter storage_eff_pvb_p(i,t) "--fraction-- efficiency of hybrid PV+battery w
 storage_eff_pvb_p(i,t)$pvb(i) = storage_eff(i,t) / inverter_efficiency ;
 *when charging from the grid the efficiency will be the same as standalone storage
 storage_eff_pvb_g(i,t)$pvb(i) = storage_eff("battery_li",t) ;
+
+parameter storage_eff_storage_hybrid_p(i,t) "--fraction-- efficiency of storage-hybrid when charging from the coupled generation tech"
+          storage_eff_storage_hybrid_g(i,t) "--fraction-- efficiency of storage-hybrid when charging from the grid" ;
+
+* when charging from the coupled generation tech, TES storage-hybrid systems have higher effective efficiency
+storage_eff_storage_hybrid_p(i,t)$[storage_hybrid(i)$(not storage_hybrid_with_tes(i))] = sum{ii$storage_hybrid_stortech(i,ii), plant_char0(ii,t,'rte')};
+*set efficiency to 0.999 if the storage tech is tes to prevent degeneracy with dispatching from the plant
+storage_eff_storage_hybrid_p(i,t)$storage_hybrid_with_tes(i) = 0.999;
+
+*when charging from the grid the efficiency will be the same as standalone storage
+storage_eff_storage_hybrid_g(i,t)$storage_hybrid(i) = sum{ii$storage_hybrid_stortech(i,ii), plant_char0(ii,t,'rte')};
+
+*storage-hybrid wrappers report/charge losses at the actual plant-charging
+*efficiency: storage_eff(i,t) for wrappers is used only in the reg-reserve
+*energy-loss terms of eq_storage_level/eq_storage_opres, which otherwise
+*would bill the storage tech's standalone round-trip RTE (e.g. 0.47-0.55 for
+*tes_ms) against reserves the plant actually provides at ~0.999 efficiency
+storage_eff(i,t)$storage_hybrid(i) = storage_eff_storage_hybrid_p(i,t) ;
 
 *upgrade plants assume the same as what theyre upgraded to
 storage_eff(i,t)$upgrade(i) = sum{ii$upgrade_to(i,ii), storage_eff(ii,t) } ;
@@ -5805,6 +6097,65 @@ csp_sm(i)$csp4(i) = csp_sm_4 ;
 
 resourcescaler(i)$[(not CSP_Storage(i))$(not ban(i))] = 1 ;
 resourcescaler(i)$csp(i) = CSP_SM(i) / csp_sm_baseline ;
+
+* --- Storage-Hybrid ---
+
+* table storagehybridcapmult(allt,i) "Storage-hybrid capital cost multipliers over time"
+* $offlisting
+* $ondelim
+* $include inputs_case%ds%storagehybridcapcostmult.csv
+* $offdelim
+* $onlisting
+* ;
+
+
+* the capital cost for storage_hybrid includes both the generation and storage portions
+* total cost = cost(gen) * cap(gen) + cost(stor) * cap(stor)
+*            = cost(gen) * cap(gen) + cost(stor) * bcr * cap(gen)
+*            = [cost(gen) + cost(stor) * bcr ] * cap(gen)
+
+* Turbine generator + electrical equipment costs should scale with the gen tech portion cost over time.
+* For gen techs that share a powerblock with the storage discharge, the storage-hybrid TES energy island
+* replaces the gen tech's turbine-generator + electrical equipment, sized at (1+bcr) ×
+* gen capacity. The combined fraction (GN-COA Code 23 + Code 24) is loaded from
+* inputs/storage_hybrid_powerblock_share.csv per gen tech. Default share = 0 for any
+* gen tech without an explicit row (e.g., upv, wind-ons, geothermal, gas-cc), which
+* yields no powerblock cost subtraction — appropriate when the gen tech and the
+* storage discharge do not share a common powerblock.
+* Fractions in the CSV reflect ATB 2024 Table 6, GN-COA breakdown
+* (Abou-Jaoude et al. 2024, INL/RPT-24-77048):
+*   Code 23 (Energy Conversion System): nuclear=3.92%, nuclear-SMR=3.86%
+*   Code 24 (Electrical Equipment):     nuclear=6.32%, nuclear-SMR=9.46%
+*   Combined:                           nuclear=10.24%, nuclear-SMR=13.32%
+parameter powerblock_share_storage_hybrid(i) "--unitless-- combined turbine-generator + electrical equipment cost share for the gen tech in a storage-hybrid plant"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%storage_hybrid_powerblock_share.csv
+$offdelim
+$onlisting
+/ ;
+
+parameter
+  powerblock_cost_storage_hybrid(i,t) "--2004$/MW-- combined powerblock cost component (turbine-gen + electrical) for storage-hybrid gen techs that share a powerblock with the storage discharge" ;
+
+powerblock_cost_storage_hybrid(i,t)$storage_hybrid(i) =
+    sum{ii$storage_hybrid_gentech(i,ii),
+        cost_cap_storage_hybrid_p(i,t) * powerblock_share_storage_hybrid(ii) } ;
+
+* Compose storage-hybrid capex:
+* - Start from gen tech portion capex
+* - Subtract powerblock cost (only nonzero when the gen tech shares a powerblock with the storage)
+* - Add storage capex scaled by (1 + bcr) for thermal-storage configs (shared energy island sized larger than the gen tech)
+* - For non-thermal-storage configs, no shared energy island; storage capex scales by bcr only
+cost_cap(i,t)$[storage_hybrid(i)$thermal_storage(i)] = (cost_cap_storage_hybrid_p(i,t)
+                                 - powerblock_cost_storage_hybrid(i,t)
+                                 + (1 + bcr(i)) * cost_cap_storage_hybrid_s(i,t)
+                                 + gridcharge_ratio(i) * sum{ii$[storage_hybrid_stortech(i,ii)$heater_char(ii,t,"capcost")], heater_char(ii,t,"capcost") });
+cost_cap(i,t)$[storage_hybrid(i)$(not thermal_storage(i))$(not geo_storage(i))] = cost_cap_storage_hybrid_p(i,t)
+                                 + bcr(i) * cost_cap_storage_hybrid_s(i,t) ;
+cost_cap(i,t)$[storage_hybrid(i)$geo_storage(i)] = cost_cap_storage_hybrid_p(i,t)
+                                 + powerblock_cost_storage_hybrid(i,t) * bcr(i) ;
 
 * --- Storage Duration ---
 
@@ -5880,6 +6231,11 @@ cc_storage(i,sdbin)$(cc_storage(i,sdbin) > 1) = 1 ;
 * for battery, the capacity credit for each bin is always 1,
 * since the duration of continuous battery will be automatically greater than the sdbin duration.
 cc_storage(i,sdbin)$(battery(i)) = 1 ;
+
+* storage-hybrid wrappers have no storage_duration entry (energy capacity is endogenous
+* via CAP_ENERGY, which limits bin assignment in eq_sdbin_power_energy_link), so treat
+* them like battery: full credit in every bin
+cc_storage(i,sdbin)$storage_hybrid(i) = 1 ;
 
 * The 8760 bin is included as a safety valve so that the model can build additional storage
 * beyond what is available for diurnal peaking capacity
@@ -6241,6 +6597,12 @@ valret(i,v)$[(Sw_Retire=2)$initv(v)$(not noretire(i))
 valret(i,v)$[((Sw_Retire=3) or (Sw_Retire=5))$(not noretire(i))
             $(coal(i) or gas(i) or nuclear(i) or ogs(i) or h2_combustion(i) or h2(i))] = yes ;
 
+*storage-hybrid wrappers are retirable when their configured gen tech is
+*(wrappers only exist as new vintages, so the initv-only rules never apply to them)
+valret(i,v)$[((Sw_Retire=3) or (Sw_Retire=5))$(not noretire(i))
+            $sum{ii$storage_hybrid_gentech(i,ii),
+                 coal(ii) or gas(ii) or nuclear(ii) or ogs(ii) or h2_combustion(ii) or h2(ii)}] = yes ;
+
 *new and existings plants of any technology can be retired if Sw_Retire = 4
 valret(i,v)$[(Sw_Retire=4)$(not noretire(i))] = yes ;
 
@@ -6251,7 +6613,10 @@ retiretech(i,v,r,t)$[((Sw_Retire=3) or (Sw_Retire=5))$initv(v)$(not noretire(i))
                     $(coal(i) or gas(i) or nuclear(i) or ogs(i) or h2_combustion(i) or h2(i))] = no ;
 
 * for sw_retire=5, don't allow nuclear to retire until 2030
+* (including nuclear-gen-tech storage-hybrid wrappers)
 retiretech(i,v,r,t)$[(Sw_Retire=5)$nuclear(i)$(yeart(t)<=2030)] = no ;
+retiretech(i,v,r,t)$[(Sw_Retire=5)$(yeart(t)<=2030)
+                    $sum{ii$storage_hybrid_gentech(i,ii), nuclear(ii)}] = no ;
 
 *several states have subsidies for nuclear power, so do not allow nuclear to retire in these states
 *before the year specified (see https://www.eia.gov/todayinenergy/detail.php?id=41534)
@@ -6271,8 +6636,11 @@ $offempty
 retiretech(i,initv,r,t)$[(yeart(t) < sum{st$r_st(r,st), nuclear_subsidies(st) })$valcap(i,initv,r,t)$nuclear(i)] = no ;
 
 * if Sw_NukeNoRetire is enabled, don't allow nuclear to retire through Sw_NukeNoRetireYear
+* (including nuclear-gen-tech storage-hybrid wrappers)
 if(Sw_NukeNoRetire = 1,
          retiretech(i,v,r,t)$[nuclear(i)$(yeart(t)<=Sw_NukeNoRetireYear)] = no ;
+         retiretech(i,v,r,t)$[(yeart(t)<=Sw_NukeNoRetireYear)
+                             $sum{ii$storage_hybrid_gentech(i,ii), nuclear(ii)}] = no ;
 ) ;
 
 
@@ -6758,6 +7126,9 @@ cc_excess(i,r,ccseason,t) = 0 ;
 cc_old(i,r,ccseason,t) = 0 ;
 m_cc_mar(i,r,ccseason,t) = 0 ;
 hybrid_cc_derate(i,r,ccseason,sdbin,t)$[pvb(i)$valcap_irt(i,r,t)] = 1 ;
+* VRE-paired storage-hybrid wrappers take the same derate treatment as pvb;
+* without this initialization their CAP_SDBIN term in eq_reserve_margin is zeroed
+hybrid_cc_derate(i,r,ccseason,sdbin,t)$[storage_hybrid_vre(i)$valcap_irt(i,r,t)] = 1 ;
 
 * Trim some of the largest matrices to reduce file sizes
 cost_vom(i,v,r,t)$[not valgen(i,v,r,t)] = 0 ;
