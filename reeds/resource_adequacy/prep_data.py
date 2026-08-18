@@ -559,7 +559,7 @@ def main(t, casedir, iteration=0):
         ).fillna(1.)
     ## Write even when empty (header only) so the reeds2pras file check passes
     hybrid_config[hybrid_config_cols].to_csv(
-        os.path.join(casedir, 'ReEDS_Augur', 'augur_data', f'hybrid_config_{t}.csv'),
+        os.path.join(casedir, 'handoff', 'reeds_data', f'hybrid_config_{t}.csv'),
         index=False,
     )
 

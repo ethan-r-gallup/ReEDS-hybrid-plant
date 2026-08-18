@@ -389,7 +389,7 @@ end
 
 """
     Returns the storage-hybrid wrapper configuration written by
-    ReEDS_Augur/prep_data.py (columns: i, gentech, stortech, bcr,
+    resource_adequacy/prep_data.py (columns: i, gentech, stortech, bcr,
     gridcharge_ratio, charge_eff). Header-only (empty) when the run
     has no storage-hybrid techs.
 
@@ -405,8 +405,8 @@ end
 function get_storage_hybrid_config(data::ReEDSdatapaths)
     filepath = joinpath(
         data.ReEDSfilepath,
-        "ReEDS_Augur",
-        "augur_data",
+        "handoff",
+        "reeds_data",
         "hybrid_config_$(string(data.year)).csv",
     )
     return DataFrames.DataFrame(CSV.File(filepath))
