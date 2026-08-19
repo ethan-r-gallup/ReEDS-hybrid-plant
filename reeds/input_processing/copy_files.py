@@ -2043,6 +2043,71 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
                 df.to_csv(fpath, index=False, header=has_header)
                 n_files_modified += 1
 
+    ### Clone tech rows inside inputs_case/inputs.h5 as well: sets/parameters
+    ### with a GAMStype in runfiles.csv (e.g. fuel2tech) are written to the h5
+    ### store instead of loose CSVs, so the CSV walk above never sees them
+    h5path = os.path.join(inputs_case, 'inputs.h5')
+    ## 'i' is handled by append_storage_hybrid_techs_to_i
+    h5_skip_keys = {'i'}
+    if os.path.isfile(h5path):
+        import h5py
+        with h5py.File(h5path, 'r') as f:
+            h5_keys = list(f.keys())
+            h5_attrs = {k: dict(f[k].attrs) for k in h5_keys}
+        for key in h5_keys:
+            if key in h5_skip_keys:
+                continue
+            try:
+                df = reeds.io.read_h5(h5path, key)
+            except Exception:
+                continue
+            if not isinstance(df, pd.DataFrame) or df.empty:
+                continue
+            tech_id_cols = [
+                col for col in df.columns
+                if (str(col).strip().lower().lstrip('*') == 'i')
+                or _looks_like_tech_column(df[col].astype(str))
+            ]
+            if not tech_id_cols:
+                continue
+            changed = False
+            for source_techs, stor_i in tech_map:
+                stor_canon = _storage_hybrid_canon_label(stor_i)
+                for col in tech_id_cols:
+                    series_canon = (
+                        df[col]
+                        .astype(str)
+                        .str.strip()
+                        .str.lower()
+                        .str.replace('_', '-', regex=False)
+                        .str.replace(' ', '', regex=False)
+                    )
+                    if stor_canon in set(series_canon):
+                        continue
+                    mask = None
+                    for source_i in source_techs:
+                        candidate_mask = series_canon == _storage_hybrid_canon_label(source_i)
+                        if candidate_mask.any():
+                            mask = candidate_mask
+                            break
+                    if mask is None:
+                        continue
+                    base_rows = df.loc[mask].copy()
+                    example = str(df.loc[mask, col].iloc[0])
+                    base_rows[col] = stor_i.lower() if example == example.lower() else stor_i
+                    df = pd.concat([df, base_rows], ignore_index=True)
+                    changed = True
+            if changed:
+                gamstype = h5_attrs[key].get('gamstype', 'parameter')
+                comment = re.sub(
+                    r'\s*\(written by [^)]*\)\s*$', '',
+                    str(h5_attrs[key].get('comment', '')),
+                )
+                reeds.io.write_to_inputs_h5(
+                    df, key, inputs_case, gamstype, comment=comment, verbose=0,
+                )
+                n_files_modified += 1
+
     if n_files_modified:
         print(f"propagate_storage_hybrid_tech_rows: modified {n_files_modified} file(s)")
 
