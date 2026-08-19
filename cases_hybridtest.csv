@@ -2,7 +2,6 @@
 timetype,seq,seq,seq
 endyear,2035,2035,2035
 GSw_ZoneSet,z54,z54,z54
-pras,1,0,0
 GSw_PRM_StressIterateMax,3,0,0
 GSw_PRM_CapCredit,0,1,1
 GSw_Retire,5,4,5
