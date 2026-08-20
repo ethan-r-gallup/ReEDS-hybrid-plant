@@ -8,9 +8,9 @@ GSw_Retire,5,4,5
 GSw_NukeNoRetire,1,0,1
 GSw_RetirePenalty,1,0,1
 GSw_StorageHybrid,1,1,0
-GSw_StorageHybrid_Types,1_2_3_4_5_6_7_8,1_2_3_4_5_6_7_8,1_2_3_4_5_6
-GSw_StorageHybrid_GenTechs,nuclear-smr_nuclear-smr_nuclear-smr_nuclear-smr_nuclear_nuclear_nuclear_nuclear,nuclear-smr_nuclear-smr_nuclear-smr_nuclear-smr_nuclear_nuclear_nuclear_nuclear,nuclear-smr_nuclear-smr_nuclear-smr_nuclear_nuclear_nuclear
-GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms,tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms,tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms
-GSw_StorageHybrid_BCR,0.25_0.5_0.75_1.0_0.25_0.5_0.75_1.0,0.25_0.5_0.75_1.0_0.25_0.5_0.75_1.0,0.25_0.5_0.75_0.25_0.5_0.75
-GSw_StorageHybrid_GridCharging,0.0_0.0_0.0_0.0_0.0_0.0_0.0_0.0,0.0_0.5_0.0_1.0_0.0_0.5_0.0_1.0,0.0_0.0_0.0_0.0_0.0_0.0
+GSw_StorageHybrid_Types,1_2_3_4_5_6_7_8,1_2_3_4_5_6,1_2_3_4_5_6
+GSw_StorageHybrid_GenTechs,nuclear-smr_nuclear-smr_nuclear-smr_nuclear-smr_nuclear_nuclear_nuclear_nuclear,upv_wind-ons_gas-cc_gas-cc_nuclear_nuclear-smr,nuclear-smr_nuclear-smr_nuclear-smr_nuclear_nuclear_nuclear
+GSw_StorageHybrid_StorageTechs,tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms,battery-li_battery-li_tes-ms_battery-li_tes-ms_tes-ms,tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms
+GSw_StorageHybrid_BCR,0.25_0.5_0.75_1.0_0.25_0.5_0.75_1.0,0.5_0.5_0.5_0.25_0.5_0.75,0.25_0.5_0.75_0.25_0.5_0.75
+GSw_StorageHybrid_GridCharging,0.0_0.0_0.0_0.0_0.0_0.0_0.0_0.0,0.0_0.5_0.0_1.0_0.0_0.5,0.0_0.0_0.0_0.0_0.0_0.0
 plantchar_tes,tes_ATB_2024_moderate,tes_ATB_2024_moderate,tes_ATB_2024_moderate
