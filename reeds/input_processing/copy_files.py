@@ -1831,6 +1831,16 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
         # multi-counted every ctt_i_ii parameter sum for standalone variants.
         'i_coolingtech_watersource_link.csv',
         'i_coolingtech_watersource_upgrades_link.csv',
+        # upgrade machinery: wrappers are new-vintage composite techs and are
+        # never upgradable (no hintage data), so cloning gen-tech rows here
+        # made wrappers upgrade sources/targets and crashed the CCS-retrofit
+        # upgrade_derate heat-rate division in b_inputs.gms
+        'upgrade_link.csv',
+        'upgradelink_water.csv',
+        'ccs_link.csv',
+        'ccs_link_water.csv',
+        'i_coolingtech_watersource_upgrades.csv',
+        'plantchar_upgrades.csv',
     }
 
     financials_dir = os.path.join(inputs_case, 'financials')
