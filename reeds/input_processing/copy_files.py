@@ -1889,6 +1889,18 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
 
     tech_canon_set = set(tech_canon_map.keys())
 
+    def _with_family_fallbacks(source_techs):
+        """After each exact source tech, also try its family root (upv_10 -> upv)
+        so wrappers on numbered-class gen techs inherit family-level rows."""
+        out = []
+        for s in source_techs:
+            out.append(s)
+            fam = re.sub(r'[-_]\d+$', '', str(s))
+            if fam and fam != s:
+                out.append(fam)
+        return out
+
+
     def _looks_like_tech_label(value):
         text = str(value).strip()
         canon = _storage_hybrid_canon_label(text)
@@ -1999,6 +2011,7 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
             for source_techs, stor_i in tech_map:
                 if gen_first:
                     source_techs = list(reversed(source_techs))
+                source_techs = _with_family_fallbacks(source_techs)
                 stor_canon = _storage_hybrid_canon_label(stor_i)
 
                 # Column-name propagation: if any source tech appears as a
@@ -2082,6 +2095,7 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
                 continue
             changed = False
             for source_techs, stor_i in tech_map:
+                source_techs = _with_family_fallbacks(source_techs)
                 stor_canon = _storage_hybrid_canon_label(stor_i)
                 for col in tech_id_cols:
                     series_canon = (
