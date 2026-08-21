@@ -48,6 +48,10 @@ The list-valued switches must either provide one value or the same number of val
 
 `GSw_StorageHybrid_GenTechs` may name an explicit technology, such as `egs-allkm-1`, or one of the approved numbered families: `upv`, `wind-ofs`, `wind-ons`, `geohydro-allkm`, `egs-allkm`, and `egs-nearfield`. A family token expands to all matching numbered `i` technologies found in `inputs_case/sets/i.csv`. Other numbered-looking families are not expanded.
 
+```{warning}
+Geothermal families (`geohydro-allkm`, `egs-allkm`, `egs-nearfield`) share the parent technology's resource supply curve through `storage_hybrid_geo_rsc_agg`, so their buildout is resource-bounded. Wrappers on `upv`, `wind-ofs`, and `wind-ons` gen techs do **not** yet share the parent supply curve or site-specific capacity factors and are therefore resource-unbounded — at national scale the optimizer can build them without limit. Treat VRE-paired wrappers as experimental and restrict production runs to dispatchable or geothermal gen techs until supply-curve sharing is extended to VRE families.
+```
+
 For example:
 
 ```csv
