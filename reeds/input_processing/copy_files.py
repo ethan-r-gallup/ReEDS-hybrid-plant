@@ -1822,7 +1822,11 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
     # root, so dir-qualified paths (e.g. 'financials/cap_penalty.csv') never
     # matched the copies that matter. The match below checks both fname and rel.
     skip_files = {
+        # interconnection-queue inputs are indexed by tg, and wrappers inherit
+        # tg_i from their gen tech, so wrapper capacity already counts against
+        # the gen tech's queue limit; wrapper rows here would be spurious
         'cap_penalty.csv',
+        'queue_limit.csv',
         'gbin_min.csv',
         'unitdata.csv',
         # source for process_unitdata.py; cloning wrapper rows here would create
@@ -1882,12 +1886,15 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
     # modeled as one unit whose storage side shares the generator's forced/scheduled
     # outage behavior (in the LP, d1_temporal_params.gms re-inherits avail from the
     # gen tech; in PRAS the wrapper GeneratorStorage uses these rows directly).
+    # Resource classes (i_c) and plant employment factors also follow the gen tech.
     gen_first_files = {
         'outage_forced_static.csv',
         'outage_scheduled_static.csv',
         'mttr.csv',
         'unitsize.csv',
         'unitsize_atb.csv',
+        'i_c.csv',
+        'employment_factor_plant.csv',
     }
 
     def _first_noncomment_line(path):
@@ -2082,7 +2089,8 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
     ### store instead of loose CSVs, so the CSV walk above never sees them
     h5path = os.path.join(inputs_case, 'inputs.h5')
     ## 'i' is handled by append_storage_hybrid_techs_to_i
-    h5_skip_keys = {'i'}
+    h5_skip_keys = {'i'} | {f[:-len('.csv')] for f in ('cap_penalty.csv', 'queue_limit.csv')}
+    h5_gen_first_keys = {f[:-len('.csv')] for f in gen_first_files}
     if os.path.isfile(h5path):
         import h5py
         with h5py.File(h5path, 'r') as f:
@@ -2106,6 +2114,8 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
                 continue
             changed = False
             for source_techs, stor_i in tech_map:
+                if key in h5_gen_first_keys:
+                    source_techs = list(reversed(source_techs))
                 source_techs = _with_family_fallbacks(source_techs)
                 stor_canon = _storage_hybrid_canon_label(stor_i)
                 for col in tech_id_cols:

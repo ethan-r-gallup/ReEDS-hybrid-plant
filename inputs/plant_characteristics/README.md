@@ -54,6 +54,8 @@
   - `evmc_shape_Baseline.csv`:
   - `evmc_storage_Baseline.csv`:
 
+- `flex_geo_placeholder.csv`: Placeholder cost and performance inputs for the in-reservoir geothermal storage techs (`flex_geo`, `flex_geo_high`, `flex_geo_med`, `flex_geo_low`). Costs are zero because storage-hybrid wrappers that use these techs take their storage-side power cost from the shared powerblock. Selected by the `plantchar_flex_geo` switch.
+
 - `fuelcell_ATB_2024_*.csv`:
   - `fuelcell_ATB_2024_advanced.csv`:
   - `fuelcell_ATB_2024_moderate.csv`:
@@ -82,6 +84,8 @@
 - `heat_rate_adj.csv`: Heat rate adjustment multiplier by technology
 
 - `heat_rate_penalty_spin.csv`:
+
+- `heater_sams_2020.csv`: Capital cost of the resistive heater that lets a `tes_ms` storage-hybrid wrapper charge from the grid ($/kW, 2020$). `b_inputs.gms` adds `gridcharge_ratio` times this cost to the wrapper's capital cost. Selected by the `heaterscen` switch.
 
 - `hydro_ATB_2019_*.csv`:
   - `hydro_ATB_2019_constant.csv`: Hydro costs from the 2019 ATB constant cost scenario
@@ -160,6 +164,13 @@
     - Nuclear: 155
   - RPM uses 466 $2011/MW for nuclear, but we don't have a citable source for that number
   - CCS startup costs are assumed to be the startup cost for the non-CCS version multiplied by the ratio of 2035 VOM costs between gas-cc-ccs and gas-cc in ATB 2023
+
+- `storage_hybrid_powerblock_share.csv`: Fraction of a gen tech's capital cost that is the turbine-generator and electrical equipment (GN-COA codes 23 and 24). A storage-hybrid wrapper shares this powerblock between generation and storage discharge, so `b_inputs.gms` uses the fraction to avoid paying for it twice. Gen techs without a row get 0.
+
+- `tes_ATB_2024_*.csv`: Cost and performance projections for molten-salt thermal energy storage (`tes_ms`), which storage-hybrid wrappers use as their storage tech. Selected by the `plantchar_tes` switch.
+  - `tes_ATB_2024_advanced.csv`:
+  - `tes_ATB_2024_conservative.csv`:
+  - `tes_ATB_2024_moderate.csv`:
 
 - `unitsize_atb.csv`:
 

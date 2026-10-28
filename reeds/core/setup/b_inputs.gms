@@ -3610,8 +3610,22 @@ cost_cap_storage_hybrid_p(i,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_gentec
 parameter cost_cap_storage_hybrid_s(i,t) "--2004$/MW-- overnight capital costs for storage portion of storage-hybrid" ;
 cost_cap_storage_hybrid_s(i,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), plant_char0(ii,t,'capcost') } ;
 
+* Battery-backed wrappers live for their gen tech's maxage, so they need more battery energy
+* refurbishments than the one included in battery_li's energy cost (written by plantcostprep.py)
+$onempty
+parameter storage_hybrid_refurb_energy(i,allt) "--2004$/MWh-- discounted cost of the extra battery energy refurbishments over a storage-hybrid wrapper's lifetime"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%storage_hybrid_refurb_energy.csv
+$offdelim
+$onlisting
+/ ;
+$offempty
+
 * Assign storage-hybrid energy cost from the configured storage tech
-cost_cap_energy(i,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), plant_char0(ii,t,'capcost_energy') } ;
+cost_cap_energy(i,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,ii), plant_char0(ii,t,'capcost_energy') }
+                                         + storage_hybrid_refurb_energy(i,t) ;
 
 * Written by plantcostprep.py
 table hydrocapmult(allt,i) "--unitless-- hydropower capital cost multipliers over time"
@@ -4993,8 +5007,8 @@ resourcescaler(i)$csp(i) = CSP_SM(i) / csp_sm_baseline ;
 * For gen techs that share a powerblock with the storage discharge, the storage-hybrid TES energy island
 * replaces the gen tech's turbine-generator + electrical equipment, sized at (1+bcr) ×
 * gen capacity. The combined fraction (GN-COA Code 23 + Code 24) is loaded from
-* inputs/storage_hybrid_powerblock_share.csv per gen tech. Default share = 0 for any
-* gen tech without an explicit row (e.g., upv, wind-ons, geothermal, gas-cc), which
+* inputs/plant_characteristics/storage_hybrid_powerblock_share.csv per gen tech. Default share = 0 for any
+* gen tech without an explicit row (e.g., upv, wind-ons, gas-cc), which
 * yields no powerblock cost subtraction — appropriate when the gen tech and the
 * storage discharge do not share a common powerblock.
 * Fractions in the CSV reflect ATB 2024 Table 6, GN-COA breakdown

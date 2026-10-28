@@ -1,6 +1,6 @@
 ,hyb_z54,hyb_cc_z54,base_z54,base_ut,hyb_ut
 timetype,seq,seq,seq,seq,seq
-endyear,2035,2035,2035,2040,2040
+endyear,2040,2040,2040,2040,2040
 GSw_ZoneSet,z54,z54,z54,z54,z54
 GSw_Region,,,,st/UT,st/UT
 GSw_GasCurve,,,,2,2
