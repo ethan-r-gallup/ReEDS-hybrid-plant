@@ -17,7 +17,7 @@ developer_best_practices
 model_documentation
 storage_hybrid
 user_guide
-sources
+inputs
 postprocessing_tools
 publications
 faq
