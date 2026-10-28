@@ -74,6 +74,11 @@ When you finish Phase 9, fill in section 9 of this file ("Results for Phase 8"),
 - Phase 9 VRE build check: VRE wrappers are not economic in Utah, and Utah has no onshore-wind supply curve. Section 9 records the Phase 5 sandbox runs (wrapper capital cost cut in the run-local GAMS copy only) as the evidence for builds, `m_cf` and the shared supply-curve bound. One z54 column also gets a wind-ons wrapper type, so wind wrappers can be built for real.
 - Phase 6: a VRE wrapper's PRAS inflow comes from its gen tech's capacity-factor profile, not a constant nameplate inflow.
 
+**Plan changes Ethan accepted after Phase 7 (2026-10-28):**
+- New Phase 7b, before Phase 9: wrappers take their first build year from the gen tech (`years_until_endogenous.csv` and `firstyear` switch to gen precedence). Today they copy the storage tech's 0-year lead time, so nuclear wrappers can be built from 2026 while standalone nuclear waits until 2034. Phase 7b also audits the other storage-first registry entries (construction times, `heat_rate_adj`, `minloadfrac0`, `ramprate`, `startcost`, `mingen_fixed`, `minCF_input` and similar) and fixes each one that reaches the model with the storage tech's value where the gen tech's belongs.
+- Phase 7: CI also runs `pytest tests/test_storage_hybrid.py`.
+- Phase 7: `github_StorageHybrid` keeps `github_Pacific`'s end year of 2030, so its nuclear wrapper exercises setup only.
+
 ## 4. Environment setup
 1. **Python:** upstream's `runreeds.py` rejects any env except one named `reeds` with pandas 3.x. Build it with `conda env create -f environment.yml` and run with `conda run --no-capture-output -n reeds python runreeds.py ...`.
 2. **Julia:** `Project.toml` pins `julia = "=1.12.1"` and PRAS ~0.9. Run `juliaup add 1.12.1`, then `julia +1.12.1 --project=. instantiate.jl` from the repo root. This creates `Manifest.toml` (git-ignored), which `runreeds.py` requires whenever `pras=2` or `GSw_PRM_StressIterateMax>0`.
