@@ -69,6 +69,11 @@ When you finish Phase 9, fill in section 9 of this file ("Results for Phase 8"),
 - Phase 5: check whether the objective double counts supply-curve cost for wrappers that share a parent supply curve (`rsc_agg` includes the self-pair). Do this before VRE wrappers share supply curves.
 - Phase 9: find the cause of `error_check` z = 0.000286 in `hyb_ut` (base is −0.000019), and of the +2 LP variables per solve against upstream in `base_ut`.
 
+**Plan changes Ethan accepted after Phase 5 (2026-10-28):**
+- Phase 9 `hyb_vre_ut` pairs upv and wind-ons with battery-li (already in `cases_hybridtest.csv`), not wind-ons with tes-ms. Validation now rejects TES on VRE gen techs.
+- Phase 9 VRE build check: VRE wrappers are not economic in Utah, and Utah has no onshore-wind supply curve. Section 9 records the Phase 5 sandbox runs (wrapper capital cost cut in the run-local GAMS copy only) as the evidence for builds, `m_cf` and the shared supply-curve bound. One z54 column also gets a wind-ons wrapper type, so wind wrappers can be built for real.
+- Phase 6: a VRE wrapper's PRAS inflow comes from its gen tech's capacity-factor profile, not a constant nameplate inflow.
+
 ## 4. Environment setup
 1. **Python:** upstream's `runreeds.py` rejects any env except one named `reeds` with pandas 3.x. Build it with `conda env create -f environment.yml` and run with `conda run --no-capture-output -n reeds python runreeds.py ...`.
 2. **Julia:** `Project.toml` pins `julia = "=1.12.1"` and PRAS ~0.9. Run `juliaup add 1.12.1`, then `julia +1.12.1 --project=. instantiate.jl` from the repo root. This creates `Manifest.toml` (git-ignored), which `runreeds.py` requires whenever `pras=2` or `GSw_PRM_StressIterateMax>0`.
