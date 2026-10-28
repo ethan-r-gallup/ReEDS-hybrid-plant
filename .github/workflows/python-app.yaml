@@ -112,6 +112,8 @@ jobs:
             solve-year: 2060
           - scenario: github_MA_county_CC
             solve-year: 2030
+          - scenario: github_StorageHybrid
+            solve-year: 2030
     env:
       batch: test
     steps:
