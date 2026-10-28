@@ -54,6 +54,12 @@ When you finish Phase 9, fill in section 9 of this file ("Results for Phase 8"),
   - Leave the `GSw_StorageHybrid_*` list defaults unchanged.
 - **Input CSVs:** minimal appends only. Never round-trip a repo CSV through pandas.
 
+**Plan changes Ethan accepted after Phase 1 (2026-10-28):**
+- Keep the two upstream single-region fixes from Phase 1 (`utils.jl` empty-lines guard in `make_pras_interfaces`, and the empty-`FLOW` guard in `report_calcs.py`) in this PR. The PR description flags them as upstream bug fixes.
+- Phase 4 adds `storage_hybrid(i)` to the energy-capital fin-mult correction in `report.gms` `error_check('z')`, which today sums only `(battery(i) or tes(i))`.
+- Phase 9: every new Utah column sets `GSw_gopt=2`, because CPLEX barrier with `barcolnz 30` reports the Utah 2030 LP infeasible (upstream fails identically). Phase 9 also adds a Utah case that builds a grid-charging wrapper, so `storage_in_grid_h` is non-empty.
+- Phase 6 (PRAS unit disaggregation) is high priority. In `hyb_ut`, PRAS models the 3.9 GW gas-cc wrapper fleet as one GeneratorStorage unit, and NEUE rises to 200–400 ppm.
+
 ## 4. Environment setup
 1. **Python:** upstream's `runreeds.py` rejects any env except one named `reeds` with pandas 3.x. Build it with `conda env create -f environment.yml` and run with `conda run --no-capture-output -n reeds python runreeds.py ...`.
 2. **Julia:** `Project.toml` pins `julia = "=1.12.1"` and PRAS ~0.9. Run `juliaup add 1.12.1`, then `julia +1.12.1 --project=. instantiate.jl` from the repo root. This creates `Manifest.toml` (git-ignored), which `runreeds.py` requires whenever `pras=2` or `GSw_PRM_StressIterateMax>0`.
@@ -127,6 +133,7 @@ Line numbers were taken before the merge, so they may have shifted by a few line
   - Guard the `(p+s)=0` division (~247–260).
   - Compute `rsc_fin_mult` for geothermal supply-curve wrappers after the composed multiplier.
   - Wrapper VOM skips regional multipliers (`b_inputs.gms` ~3712); use `cost_vom`.
+- **`error_check('z')`.** The energy-capital fin-mult correction (`report.gms` ~1791–1877) sums only `(battery(i) or tes(i))`; add `storage_hybrid(i)`.
 - **LCOE.** `lcoe_built`/`lcoe_pieces` (`report.gms` ~269–313) sum energy capital and energy FOM only over `battery or tes`, so battery-backed wrappers miss them.
 - **H2 gen techs.** Reject them in validation (see section 3).
 - **Cleanup:**
@@ -171,6 +178,8 @@ Run one case at a time.
 2. **Add two Utah columns** to `cases_hybridtest.csv`, next to the existing `base_ut` and `hyb_ut`:
    - `hyb_cc_ut`: `hyb_ut` with `GSw_PRM_CapCredit=1`
    - `hyb_vre_ut`: upv+battery-li and wind-ons+tes-ms
+   - a grid-charging case (or a `hyb_ut` change) that builds at least one wrapper with `GridCharging > 0`
+   - every new column sets `GSw_gopt=2`
 3. **Base equivalence:** run `base_ut` on a git worktree of `upstream/main` and on this branch. Compare `systemcost`, `cap`, `gen_ann`, and the LP equation and variable counts (from the GAMS listing).
    - Differences should come only from the kept PVB/battery changes.
    - Any difference from `tes_ms`/`flex_geo` is a bug.
