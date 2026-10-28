@@ -60,6 +60,10 @@ When you finish Phase 9, fill in section 9 of this file ("Results for Phase 8"),
 - Phase 9: every new Utah column sets `GSw_gopt=2`, because CPLEX barrier with `barcolnz 30` reports the Utah 2030 LP infeasible (upstream fails identically). Phase 9 also adds a Utah case that builds a grid-charging wrapper, so `storage_in_grid_h` is non-empty.
 - Phase 6 (PRAS unit disaggregation) is high priority. In `hyb_ut`, PRAS models the 3.9 GW gas-cc wrapper fleet as one GeneratorStorage unit, and NEUE rises to 200–400 ppm.
 
+**Plan changes Ethan accepted after Phase 3 (2026-10-28):**
+- Phases 5–6: VRE wrappers must not take outage inputs from their storage tech. Today upv and wind have no rows in `outage_forced_static`, `outage_scheduled_static` or `mttr`, so the registry falls back to battery_li or tes_ms values. Make those entries gen-only (no storage fallback), and check the result in the LP and in PRAS.
+- Phase 9: section 9 notes that `hyb_z54` results from code before Phase 3 (`6c494147`) include phantom prescribed SMR builds. The old cloner copied the X-energy and Natrium rows of `demonstration_plants.csv` to every nuclear-SMR wrapper (2.66 GW over 4 wrappers).
+
 ## 4. Environment setup
 1. **Python:** upstream's `runreeds.py` rejects any env except one named `reeds` with pandas 3.x. Build it with `conda env create -f environment.yml` and run with `conda run --no-capture-output -n reeds python runreeds.py ...`.
 2. **Julia:** `Project.toml` pins `julia = "=1.12.1"` and PRAS ~0.9. Run `juliaup add 1.12.1`, then `julia +1.12.1 --project=. instantiate.jl` from the repo root. This creates `Manifest.toml` (git-ignored), which `runreeds.py` requires whenever `pras=2` or `GSw_PRM_StressIterateMax>0`.
