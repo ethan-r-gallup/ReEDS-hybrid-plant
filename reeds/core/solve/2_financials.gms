@@ -129,6 +129,12 @@ rsc_fin_mult_noITC(i,r,t)$dr_shed(i) = cost_cap_fin_mult_noITC(i,r,t)* dr_shed_c
 rsc_fin_mult(i,r,t)$ofswind(i) = cost_cap_fin_mult(i,r,t) * ofswind_rsc_mult(t,i) ;
 rsc_fin_mult_noITC(i,r,t)$ofswind(i) = cost_cap_fin_mult_noITC(i,r,t) ;
 
+* Storage-hybrid wrappers on supply-curve gen techs pay their gen tech's supply-curve multiplier
+rsc_fin_mult(i,r,t)$[storage_hybrid(i)$rsc_i(i)$sum{ii$storage_hybrid_gentech(i,ii), rsc_fin_mult(ii,r,t) }] =
+    sum{ii$storage_hybrid_gentech(i,ii), rsc_fin_mult(ii,r,t) } ;
+rsc_fin_mult_noITC(i,r,t)$[storage_hybrid(i)$rsc_i(i)$sum{ii$storage_hybrid_gentech(i,ii), rsc_fin_mult_noITC(ii,r,t) }] =
+    sum{ii$storage_hybrid_gentech(i,ii), rsc_fin_mult_noITC(ii,r,t) } ;
+
 * Assign the generation portion of storage_hybrid the configured gen tech multiplier
 * NOTE: This must happen BEFORE the trim step below, because the trim zeros out
 * cost_cap_fin_mult for component techs (nuclear-smr, tes-ms) that may not be

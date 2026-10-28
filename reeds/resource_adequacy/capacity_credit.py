@@ -119,7 +119,9 @@ def reeds_cc(t, tnext, casedir):
     inputs_case = os.path.join(casedir, 'inputs_case')
     hierarchy = reeds.io.get_hierarchy(casedir).reset_index()
     resources = pd.read_csv(os.path.join(inputs_case, 'resources.csv'))
-    
+    ## Storage-hybrid wrappers on VRE get their own resources (see prep_data.py)
+    resources, _ = reeds.techs.add_storage_hybrid_vre_resources(resources, inputs_case)
+
     reeds_data = os.path.join(casedir, 'handoff', 'reeds_data')
     cap = pd.read_csv(os.path.join(reeds_data, f'max_cap_{t}.csv'))
 

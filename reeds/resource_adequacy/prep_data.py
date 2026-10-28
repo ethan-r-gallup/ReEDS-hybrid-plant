@@ -153,6 +153,15 @@ def main(t, casedir, iteration=0):
     recf = reeds.io.read_file(os.path.join(inputs_case, 'recf.h5'))
     recf.columns = pd.MultiIndex.from_tuples([tuple(x.split('|')) for x in recf.columns],
                                              names=('i','r'))
+    ## Storage-hybrid wrappers on VRE use their gen tech's profile (as in GAMS cf_in)
+    resources, sh_vre_gentech = reeds.techs.add_storage_hybrid_vre_resources(
+        resources, inputs_case)
+    sh_vre_cols = [
+        (i, r) for i, r in resources[['i','r']].values if i in sh_vre_gentech.index]
+    if len(sh_vre_cols):
+        sh_vre_cf = recf[[(sh_vre_gentech[i], r) for i, r in sh_vre_cols]]
+        sh_vre_cf.columns = pd.MultiIndex.from_tuples(sh_vre_cols, names=('i','r'))
+        recf = pd.concat([recf, sh_vre_cf], axis=1)
 
     tech_subset_table = reeds.techs.expand_GAMS_tech_groups(
         reeds.techs.get_tech_subset_table(casedir).reset_index()
@@ -294,8 +303,10 @@ def main(t, casedir, iteration=0):
     vre_gen_exist.index = h_dt_szn.set_index(['ccseason','year','h','hour']).index
     h5out['vre_gen_exist'] = vre_gen_exist
 
-    ### Store generation by (i,r) for PRAS, after aggregating i if necessary
-    pras_vre_gen = gen_vre_resources.copy()
+    ### Store generation by (i,r) for PRAS, after aggregating i if necessary.
+    ### Storage-hybrid wrappers are left out because PRAS models them as GeneratorStorages.
+    pras_vre_gen = gen_vre_resources.drop(
+        columns=sh_vre_gentech.index, level='i', errors='ignore')
     pras_vre_gen.columns = pd.MultiIndex.from_arrays([
         pras_vre_gen.columns.get_level_values('i').map(lambda x: techs_vre_simplify.get(x,x)),
         pras_vre_gen.columns.get_level_values('r')

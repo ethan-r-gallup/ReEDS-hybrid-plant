@@ -1004,11 +1004,11 @@ cap_firm(i,r,ccseason,t)$[valcap_irt(i,r,t)$[not consume(i)]$tmodel_new(t)$Sw_PR
           * (1 - mean_forced_outage_rate(i,r,ccseason,t))
           }
     + cc_old(i,r,ccseason,t)
-    + sum{v$[(vre(i) or csp(i) or pvb(i))$valinv(i,v,r,t)],
+    + sum{v$[(vre(i) or csp(i) or pvb(i) or storage_hybrid_vre(i))$valinv(i,v,r,t)],
          m_cc_mar(i,r,ccseason,t) * (INV.l(i,v,r,t) + INV_REFURB.l(i,v,r,t)$[refurbtech(i)$Sw_Refurb]) }
-    + sum{v$[(vre(i) or csp(i) or pvb(i))$valcap(i,v,r,t)],
+    + sum{v$[(vre(i) or csp(i) or pvb(i) or storage_hybrid_vre(i))$valcap(i,v,r,t)],
             cc_int(i,v,r,ccseason,t) * CAP.l(i,v,r,t) }
-    + cc_excess(i,r,ccseason,t)$[(vre(i) or csp(i) or pvb(i))]
+    + cc_excess(i,r,ccseason,t)$[(vre(i) or csp(i) or pvb(i) or storage_hybrid_vre(i))]
     + sum{(v,h)$[hydro_nd(i)$valgen(i,v,r,t)$h_ccseason_prm(h,ccseason)],
          GEN.l(i,v,r,h,t) }
     + sum{v$[hydro_d(i)$valcap(i,v,r,t)],
@@ -1440,8 +1440,9 @@ systemcost_techba("op_fom_costs",i,r,t)$tmodel_new(t)  =
               + sum{v$[valcap(i,v,r,t)$((not one_newv(i)) or retiretech(i,v,r,t))],
                    cost_fom(i,v,r,t) * cap_ivrt(i,v,r,t) * ilr(i) }
 *energy-capacity FOM for all techs billed on CAP_ENERGY in the objective
+*(cap_energy_ivrt is CAP_ENERGY in MWh, so no ILR conversion)
             + sum{v$[valcap(i,v,r,t)$(battery(i) or tes(i) or storage_hybrid(i))$((not one_newv(i)) or retiretech(i,v,r,t))],
-                cost_fom_energy(i,v,r,t) * cap_energy_ivrt(i,v,r,t) * ilr(i) }
+                cost_fom_energy(i,v,r,t) * cap_energy_ivrt(i,v,r,t) }
 *for technologies with only one newv that are not allowed to retire,
 *use the investments rather than the capacity to calculate FOM costs
               + sum{(v,tt)$[inv_cond(i,v,r,t,tt)$one_newv(i)$(not retiretech(i,v,r,tt))],

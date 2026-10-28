@@ -1300,10 +1300,13 @@ eq_capacity_limit_hybrid(r,h,t)
     =g=
 
 * is >= the actual generation and operating reserves from all the hybrid resources in that BA
+* (for storage-hybrid wrappers only the plant output draws on the site's resource;
+*  storage discharge does not)
     sum{(i,v)
         $[spur_techs(i)
         $valgen(i,v,r,t)],
-        GEN(i,v,r,h,t)
+        GEN(i,v,r,h,t)$[not (storage_hybrid(i)$Sw_HybridPlant)]
+        + GEN_PLANT(i,v,r,h,t)$[storage_hybrid(i)$Sw_HybridPlant]
         + sum{ortype$[Sw_OpRes$opres_model(ortype)$reserve_frac(i,ortype)$opres_h(h)],
               OPRES(ortype,i,v,r,h,t)}
     }
@@ -1781,14 +1784,14 @@ eq_reserve_margin(r,ccseason,t)
 
 *[plus] firm capacity from existing VRE or CSP
 *only used in sequential solve case (otherwise cc_old = 0)
-    + sum{i$[(vre(i) or csp(i) or pvb(i))$(not forced_retire(i,r,t))],
+    + sum{i$[(vre(i) or csp(i) or pvb(i) or storage_hybrid_vre(i))$(not forced_retire(i,r,t))],
           cc_old(i,r,ccseason,t)
          }
 
 *[plus] marginal capacity credit of VRE and csp times new investment
 *only used in sequential solve case (otherwise m_cc_mar = 0)
 *Note: new distpv is included with cc_old
-    + sum{(i,v)$[(vre(i) or csp(i) or pvb(i))$valinv(i,v,r,t)$(not forced_retire(i,r,t))],
+    + sum{(i,v)$[(vre(i) or csp(i) or pvb(i) or storage_hybrid_vre(i))$valinv(i,v,r,t)$(not forced_retire(i,r,t))],
           m_cc_mar(i,r,ccseason,t) * (INV(i,v,r,t) + INV_REFURB(i,v,r,t)$[refurbtech(i)$Sw_Refurb])
          }
 

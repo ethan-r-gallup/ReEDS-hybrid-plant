@@ -107,6 +107,7 @@ def check_storage_hybrid(sw):
             os.path.join(inputs, 'waterclimate', 'i_coolingtech_watersource.csv'))['*i']
     }
 
+    gen_members = {}
     for gen_tech in sorted(set(lists['GSw_StorageHybrid_GenTechs'])):
         gen_canon = canon(gen_tech)
         if gen_canon in copy_files.STORAGE_HYBRID_EXPANDABLE_GEN_TECHS:
@@ -123,6 +124,7 @@ def check_storage_hybrid(sw):
                 "or an expandable family "
                 f"({', '.join(sorted(copy_files.STORAGE_HYBRID_EXPANDABLE_GEN_TECHS))})"
             )
+        gen_members[gen_tech] = members
         for member in members:
             if (member in upgrades) or (member in cooling_variants):
                 problem = 'is an upgrade or cooling-water variant'
@@ -130,6 +132,11 @@ def check_storage_hybrid(sw):
                 problem = 'includes storage'
             elif member in subsets['h2_gen']:
                 problem = 'is fueled by hydrogen'
+            elif (member in subsets['hydro']) or (member in subsets['vre_distributed']):
+                problem = (
+                    'is hydropower or distributed PV, whose generation profiles '
+                    'wrappers do not inherit'
+                )
             elif member not in subsets['gentech']:
                 problem = 'is not a generation technology (GENTECH)'
             else:
@@ -147,6 +154,27 @@ def check_storage_hybrid(sw):
                 f"GSw_StorageHybrid_StorageTechs entry {storage_tech!r} must be a storage "
                 "technology in inputs/sets/i.csv (STORAGE) without its own supply curve, "
                 "such as battery-li, tes-ms, or flex-geo"
+            )
+
+    ### Pairings
+    ## TES wrappers charge from their plant's heat at near-100% efficiency, so the gen
+    ## tech must be thermal. Flex-geo stores energy in a geothermal reservoir.
+    for gen_tech, storage_tech in zip(
+        lists['GSw_StorageHybrid_GenTechs'], lists['GSw_StorageHybrid_StorageTechs']
+    ):
+        storage_canon = canon(storage_tech)
+        members = gen_members[gen_tech]
+        if (storage_canon in subsets['tes']) and any(m in subsets['vre'] for m in members):
+            raise ValueError(
+                f"GSw_StorageHybrid_StorageTechs entry {storage_tech!r} is thermal storage, "
+                f"which cannot pair with the VRE gen tech {gen_tech!r}"
+            )
+        if (storage_canon in subsets['geo_storage']) and not all(
+            m in subsets['geo'] for m in members
+        ):
+            raise ValueError(
+                f"GSw_StorageHybrid_StorageTechs entry {storage_tech!r} is geothermal "
+                f"reservoir storage, which needs a geothermal gen tech, not {gen_tech!r}"
             )
 
 

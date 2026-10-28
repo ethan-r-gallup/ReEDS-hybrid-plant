@@ -66,8 +66,11 @@ eq_ObjFn_inv(t)$tmodel(t)..
 *but hydro and geo rsc_fin_mult is equal to the same value as cost_cap_fin_mult
 * Note: for OSW, export cable, inter-array and POI/substations are eligible for ITC. The rest are not. 
 * However we apply the ITC to all transmission costs to be consistent with LBW format
+* Storage-hybrid wrappers pay through their own (sameas) rsc_agg entry only, not again
+* through their gen tech's entry, which matches the supply-curve cost in report.gms
                   + sum{(i,v,r,rscbin)$[m_rscfeas(r,i,rscbin)$valinv(i,v,r,t)$rsc_i(i)$(not spur_techs(i))],
-                      m_rsc_dat(r,i,rscbin,"cost") * rsc_fin_mult(i,r,t) * sum{ii$rsc_agg(i,ii), INV_RSC(ii,v,r,rscbin,t) } }
+                      m_rsc_dat(r,i,rscbin,"cost") * rsc_fin_mult(i,r,t)
+                      * sum{ii$[rsc_agg(i,ii)$(sameas(i,ii) or not storage_hybrid(ii))], INV_RSC(ii,v,r,rscbin,t) } }
 
 * ---cost of spur lines modeled explicitly---
 * NOTE: no rsc_fin_mult(i,r,t) here, but it's 1 for upv and wind-ons anyway

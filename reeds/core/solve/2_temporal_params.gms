@@ -346,7 +346,6 @@ $onlisting
 
 * Infer some forced outage rates from parent techs
 outage_forced_h(i,r,h)$pvb(i) = outage_forced_h("battery_li",r,h) ;
-outage_forced_h(i,r,h)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), outage_forced_h(ii,r,h) } ;
 outage_forced_h(i,r,h)$geo(i) = outage_forced_h("geothermal",r,h) ;
 
 outage_forced_h(i,r,h)$[i_water_cooling(i)$Sw_WaterMain] =
@@ -354,6 +353,9 @@ outage_forced_h(i,r,h)$[i_water_cooling(i)$Sw_WaterMain] =
 
 * Upgrade plants assume the same forced outage rate as what they're upgraded to
 outage_forced_h(i,r,h)$upgrade(i) = sum{ii$upgrade_to(i,ii), outage_forced_h(ii,r,h) } ;
+
+* Storage-hybrid wrappers take their gen tech's final rate (after the inferences above)
+outage_forced_h(i,r,h)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), outage_forced_h(ii,r,h) } ;
 
 parameter outage_scheduled_h(i,allh) "--fraction-- scheduled outage rate"
 /
@@ -367,7 +369,6 @@ $onlisting
 
 * Infer some scheduled outage rates from parent techs
 outage_scheduled_h(i,h)$pvb(i) = outage_scheduled_h("battery_li",h) ;
-outage_scheduled_h(i,h)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), outage_scheduled_h(ii,h) } ;
 outage_scheduled_h(i,h)$geo(i) = outage_scheduled_h("geothermal",h) ;
 
 outage_scheduled_h(i,h)$[i_water_cooling(i)$Sw_WaterMain] =
@@ -375,6 +376,9 @@ outage_scheduled_h(i,h)$[i_water_cooling(i)$Sw_WaterMain] =
 
 * Upgrade plants assume the same scheduled outage rate as what they're upgraded to
 outage_scheduled_h(i,h)$upgrade(i) = sum{ii$upgrade_to(i,ii), outage_scheduled_h(ii,h) } ;
+
+* Storage-hybrid wrappers take their gen tech's final rate (after the inferences above)
+outage_scheduled_h(i,h)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), outage_scheduled_h(ii,h) } ;
 
 * Calculate availability (includes forced and scheduled outage rates)
 avail(i,r,allh) = 0 ;
@@ -459,6 +463,10 @@ $onlisting
 
 cf_in(i,c,r,h)$[i_water_cooling(i)$Sw_WaterMain] =
   sum{ii$ctt_i_ii(i,ii), cf_in(ii,c,r,h) } ;
+
+* storage-hybrid wrappers on VRE use their gen tech's capacity factors
+cf_in(i,c,r,h)$storage_hybrid_vre(i) =
+  sum{ii$storage_hybrid_gentech(i,ii), cf_in(ii,c,r,h) } ;
 
 *initial assignment of capacity factors
 cf_rsc(i,c,v,r,allh,t)$i_c(i,c) = 0 ;

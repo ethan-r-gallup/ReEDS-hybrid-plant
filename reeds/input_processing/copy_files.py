@@ -29,24 +29,21 @@ STORAGE_HYBRID_EXPANDABLE_GEN_TECHS = {
     'egs-nearfield',
 }
 
-# Geothermal generation families that carry a resource supply curve (rsc_i) and,
-# where applicable, endogenous spur lines. Storage-hybrid wrappers built on these
-# families share the parent geo tech's supply curve and spur-line capacity rather
-# than being unconstrained (see append_storage_hybrid_subsets and
-# write_storage_hybrid_rsc_agg / b_inputs.gms storage_hybrid_geo_rsc_agg).
-STORAGE_HYBRID_GEO_RSC_FAMILIES = {
-    'geohydro-allkm',
-    'egs-allkm',
-    'egs-nearfield',
-}
+# tech-subset-table.csv flags that a wrapper copies from its gen tech
+# (append_storage_hybrid_subsets):
+# - RSC: the wrapper shares its gen tech's resource supply curve, which
+#   storage_hybrid_rsc_agg.csv links (see b_inputs.gms storage_hybrid_rsc_agg)
+# - cf_tech: the wrapper uses its gen tech's capacity factors (VRE gen techs)
+STORAGE_HYBRID_GEN_SUBSETS = ['RSC', 'cf_tech']
 
 # Per-tech input rows that storage-hybrid wrappers copy from their component techs
 # (propagate_storage_hybrid_tech_rows). Each entry is
 # (CSV file in inputs_case or inputs.h5 key, tech column, precedence):
 # - The tech column is a header name, or a column position for a headerless CSV.
 # - 'storage' precedence tries the storage tech first and then the gen tech;
-#   'gen' precedence does the reverse. Each tech is followed by its family root
-#   (upv_3 -> upv). The first tech that has rows supplies all of the wrapper's rows.
+#   'gen' precedence does the reverse, and 'gen_only' never falls back to the storage
+#   tech. Each tech is followed by its family root (upv_3 -> upv). The first tech that
+#   has rows supplies all of the wrapper's rows.
 # Inputs left out on purpose:
 # - tg-indexed inputs (cap_penalty, queue_limit, gbin_min, interconnection_queues):
 #   wrappers inherit tg_i from their gen tech, so they already count against its limits
@@ -74,10 +71,11 @@ STORAGE_HYBRID_ROW_CLONES = [
     ('maxage.csv', 0, 'gen'),
     ('mingen_fixed.csv', '*i', 'storage'),
     ('minloadfrac0.csv', 0, 'storage'),
-    # A wrapper is one unit whose storage side shares the generator's outages
-    ('mttr.csv', 'tech', 'gen'),
-    ('outage_forced_static.csv', 0, 'gen'),
-    ('outage_scheduled_static.csv', 0, 'gen'),
+    # A wrapper is one unit whose storage side shares the generator's outages. A gen tech
+    # without rows (upv, wind) has no outages, so the wrapper gets none either.
+    ('mttr.csv', 'tech', 'gen_only'),
+    ('outage_forced_static.csv', 0, 'gen_only'),
+    ('outage_scheduled_static.csv', 0, 'gen_only'),
     ('ramprate.csv', 0, 'storage'),
     ('startcost.csv', '*i', 'storage'),
     ('techs.csv', 'i', 'storage'),
@@ -104,12 +102,12 @@ def _storage_hybrid_canon_label(value):
     return str(value).strip().lower().replace('_', '-').replace(' ', '')
 
 
-def _storage_hybrid_gen_is_geo_rsc(gen_tech):
-    """Return True if `gen_tech` is a numbered geothermal supply-curve family member."""
-    canon = _storage_hybrid_canon_label(gen_tech)
-    match = re.match(r'^(.*)-\d+$', canon)
-    family = match.group(1) if match else canon
-    return family in STORAGE_HYBRID_GEO_RSC_FAMILIES
+def _storage_hybrid_tech_subsets(inputs_case):
+    """Return {subset: set of techs} from inputs_case/tech-subset-table.csv."""
+    return {
+        key: set(val) for key, val in reeds.techs.import_tech_groups(
+            os.path.join(inputs_case, 'tech-subset-table.csv')).items()
+    }
 
 
 def _storage_hybrid_expand_to_len(values, n, label, storage_hybrid_types):
@@ -292,15 +290,17 @@ def write_storage_hybrid_case_inputs(sw, inputs_case):
         }
     ).to_csv(os.path.join(inputs_case, 'storage_hybrid_gentechs.csv'), index=False)
 
-    # Map each geothermal storage-hybrid wrapper to its parent geo supply-curve tech.
-    # The parent tech is the FIRST index so that eq_rsc_INVlim is generated only for
-    # the parent (mirroring the UPV/PVB tg_rsc_upvagg pattern), and the wrapper's
-    # INV_RSC is summed into the parent's shared resource limit via rsc_agg.
-    geo_rsc_configs = [c for c in configs if _storage_hybrid_gen_is_geo_rsc(c['gen_tech'])]
+    # Map each wrapper whose gen tech has a resource supply curve (upv, wind, geothermal)
+    # to that gen tech. The gen tech is the FIRST index, as in tg_rsc_upvagg for PVB, so
+    # the gen tech's eq_rsc_INVlim also counts the wrapper's INV_RSC.
+    rsc_configs = []
+    if configs:
+        rsc_techs = _storage_hybrid_tech_subsets(inputs_case)['RSC']
+        rsc_configs = [c for c in configs if c['gen_tech'] in rsc_techs]
     pd.DataFrame(
         {
-            '*i': [c['gen_tech'] for c in geo_rsc_configs],
-            'ii': [c['storage_hybrid_tech'] for c in geo_rsc_configs],
+            '*i': [c['gen_tech'] for c in rsc_configs],
+            'ii': [c['storage_hybrid_tech'] for c in rsc_configs],
         }
     ).to_csv(os.path.join(inputs_case, 'storage_hybrid_rsc_agg.csv'), index=False)
 
@@ -464,22 +464,24 @@ def append_storage_hybrid_subsets(inputs_case, configs):
             + ', '.join(missing_cols)
         )
 
+    missing_cols = [col for col in STORAGE_HYBRID_GEN_SUBSETS if col not in df.columns]
+    if missing_cols:
+        raise ValueError(
+            "tech-subset-table.csv is missing required subset columns: "
+            + ', '.join(missing_cols)
+        )
+    subsets = _storage_hybrid_tech_subsets(inputs_case)
+
     for config in configs:
         tech = config['storage_hybrid_tech']
         if tech not in df.index:
             df.loc[tech] = ''
         df.loc[tech, required_cols] = 'YES'
-        # Geothermal storage-hybrid wrappers carry a resource supply curve so their
-        # buildout is bounded by the shared parent geo supply curve. Marking RSC='YES'
-        # puts the wrapper in rsc_i(i); the actual binding limit is enforced on the
-        # parent tech via storage_hybrid_geo_rsc_agg -> rsc_agg in b_inputs.gms.
-        if _storage_hybrid_gen_is_geo_rsc(config['gen_tech']):
-            if 'RSC' not in df.columns:
-                raise ValueError(
-                    "tech-subset-table.csv is missing the 'RSC' column required to "
-                    "enable geothermal storage-hybrid supply curves."
-                )
-            df.loc[tech, 'RSC'] = 'YES'
+        # RSC puts the wrapper in rsc_i(i). The binding resource limit is on the gen
+        # tech, through storage_hybrid_rsc_agg -> rsc_agg in b_inputs.gms.
+        for col in STORAGE_HYBRID_GEN_SUBSETS:
+            if config['gen_tech'] in subsets[col]:
+                df.loc[tech, col] = 'YES'
 
     df.to_csv(path)
 
@@ -1749,6 +1751,8 @@ def _storage_hybrid_source_order(config, precedence):
     techs = [config['storage_tech'], config['gen_tech']]
     if precedence == 'gen':
         techs.reverse()
+    elif precedence == 'gen_only':
+        techs = [config['gen_tech']]
     order = []
     for tech in techs:
         order.append(tech)
