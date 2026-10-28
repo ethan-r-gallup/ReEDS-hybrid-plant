@@ -55,15 +55,15 @@ STORAGE_HYBRID_GEO_RSC_FAMILIES = {
 # - upgrade and cooling-water link files: wrappers are never upgrades or cooling variants
 # - supply-curve aggregation sets (tg_rsc_upvagg, tg_rsc_cspagg): a copy would make the
 #   wrapper the parent of its own gen tech; storage_hybrid_rsc_agg.csv links them instead
-# - incentives, regional capital cost multipliers and plant characteristics: GAMS and
-#   plantcostprep.py derive the wrapper values from the component techs
+# - incentives, regional capital cost multipliers, plant characteristics, emission rates
+#   (emitrate) and state bans (techs_banned): GAMS and plantcostprep.py derive the
+#   wrapper values from the component techs
 # - tech-subset-table, ivt and i: the append_storage_hybrid_* functions extend them
 STORAGE_HYBRID_ROW_CLONES = [
     ('construction_times.csv', 'i', 'storage'),
     ('cost_opres_default.csv', '', 'storage'),
     ('cost_opres_market.csv', '', 'storage'),
     ('degradation_annual.csv', 0, 'storage'),
-    ('emitrate.csv', 'i', 'storage'),
     ('employment_factor_plant.csv', '', 'gen'),
     ('geo_discovery_factor.csv', '*i', 'storage'),
     ('geo_rsc.csv', '*i', 'storage'),
@@ -81,7 +81,6 @@ STORAGE_HYBRID_ROW_CLONES = [
     ('ramprate.csv', 0, 'storage'),
     ('startcost.csv', '*i', 'storage'),
     ('techs.csv', 'i', 'storage'),
-    ('techs_banned.csv', 'i', 'storage'),
     ('unitsize.csv', 'tech', 'gen'),
     ('years_until_endogenous.csv', 'i', 'storage'),
     ('ctt_cc_mult', 'i', 'storage'),
@@ -115,14 +114,14 @@ def _storage_hybrid_gen_is_geo_rsc(gen_tech):
 
 def _storage_hybrid_expand_to_len(values, n, label, storage_hybrid_types):
     values = [v for v in values if v != '']
-    if len(values) == 1 and n > 1:
+    if len(values) == 1:
         values = values * n
-    if len(values) < n:
+    if len(values) != n:
         raise ValueError(
             f"{label} must have 1 value or {n} values "
             f"(to match GSw_StorageHybrid_Types={storage_hybrid_types})"
         )
-    return values[:n]
+    return values
 
 
 def _load_storage_hybrid_techs(inputs_case):
@@ -265,11 +264,6 @@ def build_storage_hybrid_configs(sw, inputs_case):
 def write_storage_hybrid_case_inputs(sw, inputs_case):
     configs = build_storage_hybrid_configs(sw, inputs_case)
 
-    pd.Series(
-        [c['storage_hybrid_tech'] for c in configs],
-        dtype=str,
-    ).to_csv(os.path.join(inputs_case, 'storage_hybrid_config.csv'), index=False, header=False)
-
     pd.DataFrame(
         {
             '*storage-hybrid_type': [c['storage_hybrid_tech'] for c in configs],
@@ -321,11 +315,11 @@ def write_storage_hybrid_case_inputs(sw, inputs_case):
 def append_storage_hybrid_ivt(inputs_case, configs):
     """Append a vintage row to ivt.csv for each storage-hybrid wrapper tech.
 
-    ivt.csv is written by runbatch.get_ivt_numclass() before copy_files runs and
+    ivt.csv is written by runreeds.get_ivt_numclass() before copy_files runs and
     sources only static rows from inputs/userinput/ivt_{suffix}.csv. The
     dynamically generated storage-hybrid-{config}-{gentech} wrappers are not in
     that source, so without this patch they have no ivt(i,newv,t) entries and
-    GAMS never adds them to valcap (see b_inputs.gms valcap rules at L2556+).
+    GAMS never adds them to valcap (see the valcap rules in b_inputs.gms).
 
     Each wrapper inherits its gen tech's vintage schedule. This keeps newv
     vintages aligned with the gen tech (whose plant_char, supply curve, and

@@ -267,7 +267,7 @@ lcoe_built(i,r,t)$[ [sum{(v,h)$[valinv(i,v,r,t)$INV.l(i,v,r,t)], GEN.l(i,v,r,h,t
          sum{v$valinv(i,v,r,t),
              INV.l(i,v,r,t) * (cost_cap_fin_mult(i,r,t) * cost_cap(i,t) ) }
 *storage-hybrid INV_ENERGY is billed at the storage-side multiplier, matching the objective
-       + sum{v$[valinv(i,v,r,t)$(battery(i) or tes(i))],
+       + sum{v$[valinv(i,v,r,t)$(battery(i) or tes(i) or storage_hybrid(i))],
              INV_ENERGY.l(i,v,r,t) * cost_cap_energy(i,t)
              * (cost_cap_fin_mult(i,r,t)$(not storage_hybrid(i))
                 + cost_cap_fin_mult_storage_hybrid_s(i,r,t)$storage_hybrid(i)) }
@@ -277,7 +277,7 @@ lcoe_built(i,r,t)$[ [sum{(v,h)$[valinv(i,v,r,t)$INV.l(i,v,r,t)], GEN.l(i,v,r,h,t
              INV_RSC.l(i,v,r,rscbin,t) * m_rsc_dat(r,i,rscbin,"cost") * rsc_fin_mult(i,r,t) }
                  )
        + sum{v$valinv(i,v,r,t), cost_fom(i,v,r,t) * INV.l(i,v,r,t) }
-       + sum{v$[valinv(i,v,r,t)$(battery(i) or tes(i))], cost_fom_energy(i,v,r,t) * INV_ENERGY.l(i,v,r,t) }
+       + sum{v$[valinv(i,v,r,t)$(battery(i) or tes(i) or storage_hybrid(i))], cost_fom_energy(i,v,r,t) * INV_ENERGY.l(i,v,r,t) }
        + sum{v$[upgrade(i)$valcap(i,v,r,t)$Sw_Upgrades], cost_fom(i,v,r,t) * UPGRADES.l(i,v,r,t) }
        + sum{(v,h)$[valinv(i,v,r,t)$INV.l(i,v,r,t)], (cost_vom(i,v,r,t)+ heat_rate(i,v,r,t) * fuel_price(i,r,t)) * GEN.l(i,v,r,h,t) * hours(h) }
        + sum{(v,h)$[UPGRADES.l(i,v,r,t)$Sw_Upgrades], (cost_vom(i,v,r,t)+ heat_rate(i,v,r,t) * fuel_price(i,r,t)) * GEN.l(i,v,r,h,t) * hours(h) }
@@ -289,9 +289,9 @@ lcoe_built_nat(i,t)$[sum{(v,r)$valinv(i,v,r,t), INV.l(i,v,r,t) }] =
                   sum{r, lcoe_built(i,r,t) * sum{v$valinv(i,v,r,t), INV.l(i,v,r,t) } }
                     / sum{(v,r)$valinv(i,v,r,t), INV.l(i,v,r,t) } ;
 
-lcoe_pieces("capcost",i,r,t)$tmodel_new(t) =
+lcoe_pieces("capcost",i,r,t)$tmodel_new(t) = 
           sum{v$valinv(i,v,r,t), INV.l(i,v,r,t) * (cost_cap_fin_mult(i,r,t) * cost_cap(i,t) ) }
-        + sum{v$[valinv(i,v,r,t)$(battery(i) or tes(i))],
+        + sum{v$[valinv(i,v,r,t)$(battery(i) or tes(i) or storage_hybrid(i))],
               INV_ENERGY.l(i,v,r,t) * cost_cap_energy(i,t)
               * (cost_cap_fin_mult(i,r,t)$(not storage_hybrid(i))
                  + cost_cap_fin_mult_storage_hybrid_s(i,r,t)$storage_hybrid(i)) } ;
@@ -310,7 +310,7 @@ lcoe_pieces("rsccost",i,r,t)$tmodel_new(t) =
 
 lcoe_pieces("fomcost",i,r,t)$tmodel_new(t) =
                   sum{v$valinv(i,v,r,t), cost_fom(i,v,r,t) * INV.l(i,v,r,t) }
-                  + sum{v$[valinv(i,v,r,t)$(battery(i) or tes(i))], cost_fom_energy(i,v,r,t) * INV_ENERGY.l(i,v,r,t) }
+                  + sum{v$[valinv(i,v,r,t)$(battery(i) or tes(i) or storage_hybrid(i))], cost_fom_energy(i,v,r,t) * INV_ENERGY.l(i,v,r,t) }
                   + sum{v$[upgrade(i)$valcap(i,v,r,t)$Sw_Upgrades], cost_fom(i,v,r,t) * UPGRADES.l(i,v,r,t) } ;
 
 lcoe_pieces("vomcost",i,r,t)$tmodel_new(t) =
@@ -973,7 +973,6 @@ stor_energy_cap(i,v,r,t)$[tmodel_new(t)$valcap(i,v,r,t)] =
         + CAP_ENERGY.l(i,v,r,t)$(battery(i) or tes(i) or storage_hybrid(i)) ;
 
 * assign cap_energy_ivrt from the solved energy capacity for endogenous-energy techs
-* (previously only populated as a side effect of d3_data_dump's workfile values)
 cap_energy_ivrt(i,v,r,t)$[valcap(i,v,r,t)$(battery(i) or tes(i) or storage_hybrid(i))] = CAP_ENERGY.l(i,v,r,t) ;
 * add PSH energy capacity to cap_energy_ivrt
 cap_energy_ivrt(i,v,r,t)$[valcap(i,v,r,t)$psh(i)] = CAP.l(i,v,r,t) * storage_duration_m(i,v,r) ;
@@ -1231,7 +1230,7 @@ emit_r(etype,"CO2e",r,t)$tmodel_new(t) = sum{e,emit_r(etype,e,r,t)*gwp(e)} ;
 emit_nat(etype,eall,t)$tmodel_new(t) = sum{r, emit_r(etype,eall,r,t) } ;
 
 * Generation emissions by tech and region
-emit_irt(etype,e,i,r,t)$[tmodel_new(t)$(not sameas(e,"CO2"))$valgen_irt(i,r,t)] =
+emit_irt(etype,e,i,r,t)$[tmodel_new(t)$(not sameas(e,"CO2"))$valgen_irt(i,r,t)] = 
     sum{(v,h)$[valgen(i,v,r,t)],
          hours(h) * emit_rate(etype,e,i,v,r,t)
          * (GEN.l(i,v,r,h,t)$[not hybrid_plant(i)$(not csp(i))]
@@ -1848,7 +1847,8 @@ error_check('z') = (
                   cost_cap(i,t) * INV.l(i,v,r,t)
                   * (cost_cap_fin_mult(i,r,t) - cost_cap_fin_mult_out(i,r,t)) }
 
-            + sum{(i,v,r)$[valinv(i,v,r,t)$(battery(i) or tes(i))],
+* (storage-hybrid energy capital uses cost_cap_fin_mult_storage_hybrid_s in both, so it is excluded)
+            + sum{(i,v,r)$[valinv(i,v,r,t)$(battery(i) or tes(i))$(not storage_hybrid(i))],
                   cost_cap_energy(i,t) * INV_ENERGY.l(i,v,r,t)
                   * (cost_cap_fin_mult(i,r,t) - cost_cap_fin_mult_out(i,r,t)) }
                   

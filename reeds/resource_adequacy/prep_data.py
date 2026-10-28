@@ -191,7 +191,7 @@ def main(t, casedir, iteration=0):
     # Storage-hybrid wrappers (`storage_hybrid` GAMS set) need the same vintage-
     # collapse and PRAS-export treatment as standalone storage. Build a combined
     # tech list once and reuse it below. The `storage_hybrid` set is exported from
-    # GAMS via d3_data_dump.gms — fall back to an empty Series if it is missing
+    # GAMS via 6_data_dump.gms — fall back to an empty Series if it is missing
     # so older GDX files (pre-export) still load.
     _storage_hybrid_techs = (
         gdxreeds['storage_hybrid'].i if 'storage_hybrid' in gdxreeds

@@ -120,7 +120,7 @@ eq_ObjFn_inv(t)$tmodel(t)..
 
 * --- storage capacity credit---
 *small cost penalty to incentivize solver to fill shorter-duration bins first
-*(exclusion is csp only, matching the error_check replica in e_report.gms:
+*(exclusion is csp only, matching the error_check replica in report.gms:
 * storage-hybrid wrappers allocate CAP_SDBIN and pay the tie-break like batteries)
                   + sum{(i,v,r,ccseason,sdbin)$[valcap(i,v,r,t)$(storage(i) or hyd_add_pump(i))$(not csp(i))$Sw_PRM_CapCredit$Sw_StorageBinPenalty],
                          bin_penalty(sdbin) * CAP_SDBIN(i,v,r,ccseason,sdbin,t) }
@@ -232,7 +232,7 @@ eq_Objfn_op(t)$tmodel(t)..
                    cost_fom(i,v,r,t) * retire_penalty(t) *
                    (CAP(i,v,r,t)
                     - INV(i,v,r,t)$valinv(i,v,r,t)
-                    - INV_REFURB(i,v,r,t)$[valinv(i,v,r,t)$refurbtech(i)$Sw_Refurb]
+                    - INV_REFURB(i,v,r,t)$[valinv(i,v,r,t)$refurbtech(i)$Sw_Refurb] 
                     - UPGRADES(i,v,r,t)$[upgrade(i)$Sw_Upgrades] )
                    }
 

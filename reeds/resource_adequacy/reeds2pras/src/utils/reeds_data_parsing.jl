@@ -827,7 +827,7 @@ function process_storages(
                 gen_for,
                 timesteps,
                 mttr,
-                gen_sor,
+                gen_sor, 
             )
         end
     end

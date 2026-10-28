@@ -313,7 +313,6 @@ eq_interconnection_queues(tg,r,t)         "--MW-- capacity deployment limit base
  eq_storage_interday_max_level_start(i,v,r,allszn,t)      "--MWh-- enforce maximum SOC at first period of each partition"
  eq_storage_interday_max_level_end(i,v,r,allszn,t)        "--MWh-- enforce maximum SOC at last period of each partition"
  eq_storage_opres(i,v,r,allh,t)                   "--MWh-- there must be sufficient energy in the storage to be able to provide operating reserves"
-*  eq_storage_thermalres(i,v,r,allh,t)              "--MW-- thermal storage contribution to operating reserves is store_in only"
  eq_battery_minduration(i,v,r,t)                  "--MWh-- when power capacity is built, energy capacity should have a minimum capacity"
 
 * hybrid plant equations
@@ -2777,7 +2776,7 @@ eq_REC_Requirement(RPSCat,st,t)$[RecPerc(RPSCat,st,t)$(not tfirst(t))
       + ( sum{(i,v)$[valgen(i,v,r,t)$(not storage_standalone(i))], GEN(i,v,r,h,t)
           - (distloss * GEN(i,v,r,h,t))$(distpv(i))
           - STORAGE_IN_GRID(i,v,r,h,t)$[pvb(i)$Sw_PVB]
-          - STORAGE_IN_GRID(i,v,r,h,t)$[storage_hybrid(i)$Sw_StorageHybrid]}
+          - STORAGE_IN_GRID(i,v,r,h,t)$[storage_hybrid(i)$Sw_HybridPlant]}
           - can_exports_h(r,h,t)$[(Sw_Canada=1)$sameas(RPSCat,"CES")]
         )$(RecStyle(st,RPSCat)=2)
     )}
@@ -3230,7 +3229,7 @@ eq_storage_opres(i,v,r,h,t)
 
 *[minus] losses from reg reserves (only half because only charging half
 *the time while providing reg reserves)
-    - hours_daily(h) * (OPRES("reg",i,v,r,h,t)$[Sw_OpRes = 1] + OPRES("combo",i,v,r,h,t)$[Sw_OpRes = 2])
+    - hours_daily(h) * (OPRES("reg",i,v,r,h,t)$[Sw_OpRes = 1] + OPRES("combo",i,v,r,h,t)$[Sw_OpRes = 2])  
     * (1 - storage_eff(i,t)) / 2 * reg_energy_frac
 
     =g=

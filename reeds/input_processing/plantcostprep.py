@@ -392,7 +392,7 @@ dr_shed = pd.read_csv(os.path.join(inputs_case,'plantchar_dr_shed.csv'), index_c
 # FOM & VOM inputs are also state-level and need to be disaggregated
 fom = pd.read_csv(os.path.join(inputs_case,'plantchar_dr_shed_fom.csv'), index_col=0).round(6)
 vom = pd.read_csv(os.path.join(inputs_case,'plantchar_dr_shed_vom.csv'), index_col=0).round(6)
-# If there are no DR shed data for regions being run, write dr_shed_capcostmult.csv
+# If there are no DR shed data for regions being run, write dr_shed_capcostmult.csv 
 if dr_shed.empty:
     dr_shed_capcost_mult = dr_shed.copy()
     dr_shed_fom_regional = fom.copy()
@@ -401,7 +401,7 @@ else:
     state2r = pd.read_csv(os.path.join(inputs_case,'disagg_state_lpf.csv'),usecols=['state','r'])
     # Map each unique state to all r values within that state
     state2r = state2r.groupby('state')['r'].unique().apply(list).to_dict()
-
+        
     def disaggregate_to_regions(data, state2r):
         regional_data = {}
         for st in data['r'].unique():
@@ -531,7 +531,7 @@ for i in sw['GSw_PVB_Types'].split('_'):
 pvb = pd.concat(pvb, axis=1)
 
 #%%##################################
-#    -- Nuclear+Storage Cost Model --
+#    -- TES Heater Costs --
 #####################################
 heatercosts = pd.read_csv(os.path.join(inputs_case, 'heaterchars.csv'))
 heatercosts = deflate_func(heatercosts, sw.heaterscen)

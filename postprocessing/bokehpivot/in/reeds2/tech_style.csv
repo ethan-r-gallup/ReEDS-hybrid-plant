@@ -42,6 +42,8 @@ PVB,#D1C202,o
 Solar,#FFC903,o
 CAES,#FF4741,"(6,1,0)"
 Battery,#FF4A88,"(4,1,0)"
+TES,#C2571A,"(4,1,0)"
+Geothermal Storage,#6E3B1E,"(4,1,0)"
 DR Shed,#B9CBF5,o
 EVMC_Storage,#a55194,o
 EVMC_Shape,#ce6dbd,o

@@ -567,7 +567,6 @@ heaterchars.csv,.csv,1,None,9999,None,9999,0,constant,None,None,new; used to cre
 plantchar_flex_geo.csv,.csv,1,None,9999,None,9999,0,constant,None,None,new; used to create plantcharout.csv so no need to forecast,
 plantchar_tes.csv,.csv,1,None,9999,None,9999,0,constant,None,None,new; used to create plantcharout.csv so no need to forecast,
 storage_hybrid_bcr.csv,.csv,1,None,9999,None,9999,0,constant,None,None,new,
-storage_hybrid_config.csv,.csv,1,None,9999,None,9999,0,constant,None,None,new,
 storage_hybrid_gentechs.csv,.csv,1,None,9999,None,9999,0,constant,None,None,new,
 storage_hybrid_gridcharging.csv,.csv,1,None,9999,None,9999,0,constant,None,None,new,
 storage_hybrid_powerblock_share.csv,.csv,1,None,9999,None,9999,0,constant,None,None,new,

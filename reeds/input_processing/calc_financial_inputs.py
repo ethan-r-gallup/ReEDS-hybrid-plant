@@ -528,7 +528,7 @@ def calc_financial_inputs(inputs_case):
     itc_df = incentive_df[incentive_df['itc_frac']!=0]
     itc_out = itc_df[['i', 'country', 't', 'itc_frac', 'itc_tax_equity_penalty']]
     # Storage-hybrid wrappers earn ITC in the LP (cost_cap_fin_mult composed
-    # from component techs in d1_financials.gms) but match no incentive group
+    # from component techs in 2_financials.gms) but match no incentive group
     # here, so without these rows the retail rate module's inner merge on 'i'
     # assigns wrapper capex zero ITC. Clone the gen tech's rows: exact for the
     # reactor share of wrapper capex, a slight understatement overall because
