@@ -64,6 +64,11 @@ When you finish Phase 9, fill in section 9 of this file ("Results for Phase 8"),
 - Phases 5–6: VRE wrappers must not take outage inputs from their storage tech. Today upv and wind have no rows in `outage_forced_static`, `outage_scheduled_static` or `mttr`, so the registry falls back to battery_li or tes_ms values. Make those entries gen-only (no storage fallback), and check the result in the LP and in PRAS.
 - Phase 9: section 9 notes that `hyb_z54` results from code before Phase 3 (`6c494147`) include phantom prescribed SMR builds. The old cloner copied the X-energy and Natrium rows of `demonstration_plants.csv` to every nuclear-SMR wrapper (2.66 GW over 4 wrappers).
 
+**Plan changes Ethan accepted after Phase 4 (2026-10-28):**
+- `error_check('z')` excludes wrappers from the energy-capital fin-mult correction. This replaces the Phase 1 item that added `storage_hybrid(i)`. The objective and the report both bill wrapper energy capital at `cost_cap_fin_mult_storage_hybrid_s`, so the correction for wrappers is zero.
+- Phase 5: check whether the objective double counts supply-curve cost for wrappers that share a parent supply curve (`rsc_agg` includes the self-pair). Do this before VRE wrappers share supply curves.
+- Phase 9: find the cause of `error_check` z = 0.000286 in `hyb_ut` (base is −0.000019), and of the +2 LP variables per solve against upstream in `base_ut`.
+
 ## 4. Environment setup
 1. **Python:** upstream's `runreeds.py` rejects any env except one named `reeds` with pandas 3.x. Build it with `conda env create -f environment.yml` and run with `conda run --no-capture-output -n reeds python runreeds.py ...`.
 2. **Julia:** `Project.toml` pins `julia = "=1.12.1"` and PRAS ~0.9. Run `juliaup add 1.12.1`, then `julia +1.12.1 --project=. instantiate.jl` from the repo root. This creates `Manifest.toml` (git-ignored), which `runreeds.py` requires whenever `pras=2` or `GSw_PRM_StressIterateMax>0`.
