@@ -837,19 +837,25 @@ end
 """
     Process storage-hybrid wrapper techs into PRAS GeneratorStorages.
 
-    Each wrapper (i,r) becomes one GeneratorStorage mirroring the ReEDS LP:
-    - inflow = CAP (generator nameplate; outages applied via FOR/SOR/MTTR)
-    - charge_cap = discharge_cap = bcr*CAP  (eq_hybrid_storage_capacity_limit)
-    - energy_cap = CAP_ENERGY               (endogenous TES/battery energy)
-    - grid_withdrawl_cap = gridcharge_ratio*CAP  (eq_cap_storage_in_grid)
-    - grid_inj_cap = (1+bcr)*CAP            (eq_plant_capacity_limit envelope)
+    Each wrapper (i,r) fleet is split into units sized by the gen tech's unit size
+    (unitsize.csv, capped by the region's PRM-based maximum when
+    pras_max_unitsize_prm is on), as thermal fleets are. A fleet whose gen tech has
+    no forced outages (VRE) stays one unit. Each unit of capacity U [MW] (a share
+    U/CAP of the fleet) mirrors the ReEDS LP:
+    - inflow = U for dispatchable gen techs (outages applied via FOR/SOR/MTTR), or
+      the gen tech's available output times U/CAP for VRE gen techs
+      (pras_storage_hybrid_inflow_{t}.h5 from prep_data.py)
+    - charge_cap = discharge_cap = bcr*U   (eq_hybrid_storage_capacity_limit)
+    - energy_cap = CAP_ENERGY*U/CAP
+    - grid_withdrawl_cap = gridcharge_ratio*U   (eq_cap_storage_in_grid)
+    - grid_inj_cap = (1+bcr)*U             (eq_plant_capacity_limit envelope)
     - charge_eff from hybrid_config_{t}.csv: the plant-charging efficiency for
       plant-charging configs, or the grid-charging efficiency for grid-charge-only
       configs (flexible geothermal, where STORAGE_IN_PLANT is fixed to 0)
 
-    Outage data is looked up by the wrapper name; input_processing/copy_files.py
-    propagates those rows GEN-first, so the single PRAS unit (generator + storage
-    together) carries the gen tech's FOR/SOR/MTTR.
+    Outage data is looked up by the wrapper name first and then by the gen tech name,
+    so a unit (generator and storage together) carries the gen tech's FOR/SOR/MTTR.
+    A wrapper whose gen tech has no outage data (VRE) gets no outages.
 
     Parameters
     ----------
@@ -858,23 +864,29 @@ end
     storage_hybrid_builds : DataFrames.DataFrame
         Wrapper rows of max_cap from split_generator_types (full plant CAP)
     FOR_dict / forcedoutage_hourly / mttr_dict / scheduled_outage_hourly
-        Standard outage inputs, keyed by (wrapper) tech name
+        Standard outage inputs, keyed by tech name
+    unitsize_dict : Dict
+        Map from techs to characteristic unit size [MW]
     ReEDS_data : ReEDSdatapaths
     timesteps : Int
+    pras_max_unitsize_prm : Bool
+        If true, cap the unit size at the region's max_unitsize_{t}.csv value
 
     Returns
     -------
-    genstor_array with one Gen_Storage appended per wrapper (i,r)
+    genstor_array with the Gen_Storage units of every wrapper (i,r) appended
 """
 function process_storage_hybrids(
     genstor_array::Vector{Gen_Storage},
     storage_hybrid_builds::DataFrames.DataFrame,
     FOR_dict::Dict,
     forcedoutage_hourly::DataFrames.DataFrame,
+    unitsize_dict::Dict,
     ReEDS_data,
     timesteps::Int,
     mttr_dict::Dict;
     scheduled_outage_hourly::Union{Nothing, DataFrames.DataFrame},
+    pras_max_unitsize_prm = true,
 )
     if DataFrames.nrow(storage_hybrid_builds) == 0
         return genstor_array
@@ -888,6 +900,7 @@ function process_storage_hybrids(
     config_df = get_storage_hybrid_config(ReEDS_data)
     hybrid_config = Dict(
         String(r.i) => (
+            gentech = String(r.gentech),
             bcr = Float64(r.bcr),
             gridcharge = Float64(r.gridcharge_ratio),
             charge_eff = Float64(r.charge_eff),
@@ -904,10 +917,22 @@ function process_storage_hybrids(
         for r in DataFrames.eachrow(energy_capacity_df)
     )
 
+    inflow_vre = get_storage_hybrid_inflow_data(ReEDS_data)
+    max_unitsize = pras_max_unitsize_prm ? get_max_unitsize(ReEDS_data) : Dict()
+
+    ## Case-insensitive lookups, tried for the wrapper first and then its gen tech
+    for_lc = Dict(lowercase(String(k)) => v for (k, v) in FOR_dict)
+    mttr_lc = Dict(lowercase(String(k)) => v for (k, v) in mttr_dict)
+    unitsize_lc = Dict(lowercase(String(k)) => v for (k, v) in unitsize_dict)
+    hourly_for_names = Set(DataFrames.names(forcedoutage_hourly))
+    hourly_sor_names = isnothing(scheduled_outage_hourly) ?
+        Set{String}() : Set(DataFrames.names(scheduled_outage_hourly))
+
     for row in DataFrames.eachrow(hybrid_builds)
         tech = String(row.i)
         region = String(row.r)
         cap = Float64(row.MW_sum)
+        cap > 0 || continue
 
         if !haskey(hybrid_config, tech)
             # Hard error: silently skipping would drop the ENTIRE plant
@@ -920,6 +945,7 @@ function process_storage_hybrids(
             )
         end
         cfg = hybrid_config[tech]
+        sources = [lowercase(tech), lowercase(cfg.gentech)]
 
         energy_mwh = get(energy_cap_dict, (tech, region), 0.0)
         if energy_mwh == 0.0
@@ -927,41 +953,73 @@ function process_storage_hybrids(
         end
 
         i_r = "$(tech)|$(region)"
-        gen_for = if i_r in DataFrames.names(forcedoutage_hourly)
-            Float32.(forcedoutage_hourly[!, i_r])
+        is_vre = i_r in DataFrames.names(inflow_vre)
+
+        hourly_for = findfirst(s -> "$(s)|$(region)" in hourly_for_names, sources)
+        static_for = findfirst(s -> haskey(for_lc, s), sources)
+        gen_for = if !isnothing(hourly_for)
+            Float32.(forcedoutage_hourly[!, "$(sources[hourly_for])|$(region)"])
+        elseif !isnothing(static_for)
+            fill(Float32(for_lc[sources[static_for]]), timesteps)
         else
-            fill(Float32(FOR_dict[lowercase(tech)]), timesteps)
+            is_vre || @warn "$(i_r) has no forced outage rate for itself or $(cfg.gentech); using 0"
+            zeros(Float32, timesteps)
         end
 
-        gen_sor = zeros(Float32, timesteps)
-        if !isnothing(scheduled_outage_hourly) && tech in DataFrames.names(scheduled_outage_hourly)
-            gen_sor = Float32.(scheduled_outage_hourly[!, tech])
+        hourly_sor = findfirst(s -> s in hourly_sor_names, sources)
+        gen_sor = isnothing(hourly_sor) ?
+            zeros(Float32, timesteps) :
+            Float32.(scheduled_outage_hourly[!, sources[hourly_sor]])
+
+        mttr_source = findfirst(s -> haskey(mttr_lc, s), sources)
+        mttr = isnothing(mttr_source) ? 24 : Int64(mttr_lc[sources[mttr_source]])
+
+        ## Unit sizes: one unit if there are no forced outages, otherwise the gen tech's
+        ## unit size (capped by the regional maximum) with a smaller last unit
+        unitsize_source = findfirst(s -> haskey(unitsize_lc, s), sources)
+        unit_mw = isnothing(unitsize_source) ? cap : Float64(unitsize_lc[sources[unitsize_source]])
+        if get(max_unitsize, region, 0) > 0
+            unit_mw = min(unit_mw, Float64(max_unitsize[region]))
         end
+        unit_sizes = if all(gen_for .== 0) || unit_mw >= cap
+            [cap]
+        else
+            n_units = floor(Int, cap / unit_mw)
+            remainder = cap - n_units * unit_mw
+            vcat(fill(unit_mw, n_units), remainder > 0.5 ? [remainder] : Float64[])
+        end
+        ## Give any remainder below 0.5 MW to the last unit so the fleet total is kept
+        unit_sizes[end] += cap - sum(unit_sizes)
 
-        mttr = Int64(mttr_dict[tech])
+        plant_inflow = is_vre ? Float64.(inflow_vre[!, i_r]) : fill(cap, timesteps)
 
-        push!(
-            genstor_array,
-            Gen_Storage(
-                name = i_r,
-                timesteps = timesteps,
-                region_name = region,
-                type = tech,
-                charge_cap = fill(cfg.bcr * cap, timesteps),
-                discharge_cap = fill(cfg.bcr * cap, timesteps),
-                energy_cap = fill(energy_mwh, timesteps),
-                inflow = fill(cap, timesteps),
-                grid_withdrawl_cap = fill(cfg.gridcharge * cap, timesteps),
-                grid_inj_cap = fill((1.0 + cfg.bcr) * cap, timesteps),
-                legacy = "New",
-                charge_eff = cfg.charge_eff,
-                discharge_eff = 1.0,
-                carryover_eff = 1.0,
-                FOR = gen_for,
-                SOR = gen_sor,
-                MTTR = mttr,
-            ),
-        )
+        for (k, unit_cap) in enumerate(unit_sizes)
+            share = unit_cap / cap
+            push!(
+                genstor_array,
+                Gen_Storage(
+                    name = "$(i_r)|new|$(k)",
+                    timesteps = timesteps,
+                    region_name = region,
+                    type = tech,
+                    charge_cap = fill(cfg.bcr * unit_cap, timesteps),
+                    discharge_cap = fill(cfg.bcr * unit_cap, timesteps),
+                    energy_cap = fill(energy_mwh * share, timesteps),
+                    inflow = max.(plant_inflow .* share, 0.0),
+                    grid_withdrawl_cap = fill(cfg.gridcharge * unit_cap, timesteps),
+                    grid_inj_cap = fill((1.0 + cfg.bcr) * unit_cap, timesteps),
+                    legacy = "New",
+                    charge_eff = cfg.charge_eff,
+                    discharge_eff = 1.0,
+                    carryover_eff = 1.0,
+                    FOR = gen_for,
+                    SOR = gen_sor,
+                    MTTR = mttr,
+                ),
+            )
+        end
+        @info "$(i_r): $(round(cap, digits=1)) MW in $(length(unit_sizes)) GeneratorStorage unit(s)" *
+            (is_vre ? " with $(cfg.gentech) inflow profile" : "")
     end
     return genstor_array
 end

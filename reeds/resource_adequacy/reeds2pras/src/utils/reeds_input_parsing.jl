@@ -120,6 +120,24 @@ function get_vg_cf_data(data::ReEDSdatapaths)
 end
 
 """
+    Get the available plant output [MW] of storage-hybrid wrappers on VRE gen techs,
+    with one column per "wrapper|region". prep_data.py writes the file only when
+    such wrappers exist, so a missing file returns an empty DataFrame.
+"""
+function get_storage_hybrid_inflow_data(data::ReEDSdatapaths)
+    filepath = joinpath(
+        data.ReEDSfilepath,
+        "handoff",
+        "reeds_data",
+        "pras_storage_hybrid_inflow_$(string(data.year)).h5",
+    )
+    isfile(filepath) || return DataFrames.DataFrame()
+    columns = HDF5.h5read(filepath, "columns")
+    data = HDF5.h5read(filepath, "data")
+    return DataFrames.DataFrame(transpose(data), columns)
+end
+
+"""
     Get tech-dependent MTTR.
 
     Parameters

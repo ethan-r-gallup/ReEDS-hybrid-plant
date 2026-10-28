@@ -134,10 +134,12 @@ function parse_reeds_data(
         storage_hybrids,
         FOR_dict,
         forcedoutage_hourly,
+        unitsize_dict,
         ReEDS_data,
         timesteps,
         mttr_dict,
         scheduled_outage_hourly = scheduled_outage_hourly,
+        pras_max_unitsize_prm = pras_max_unitsize_prm,
     )
 
     return lines, regions, gens_array, storage_array, genstor_array

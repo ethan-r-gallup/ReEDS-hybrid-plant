@@ -76,7 +76,7 @@ def errorcheck_reeds2pras(casedir, csvout, h5out):
             raise ValueError(f'{check} are not in pras_load')
 
     ### Make sure there are no missing values in data sent to ReEDS2PRAS
-    for key in ['pras_load', 'pras_vre_gen']:
+    for key in [k for k in ['pras_load', 'pras_vre_gen', 'pras_storage_hybrid_inflow'] if k in h5out]:
         if h5out[key].isnull().sum().sum() > 0:
             missing_data_cols = [i for i in h5out[key] if h5out[key][i].isnull().sum(axis=0) > 0]
             print(missing_data_cols)
@@ -92,10 +92,16 @@ def errorcheck_reeds2pras(casedir, csvout, h5out):
     outage_techs = outage_forced.columns.get_level_values('i').unique()
     ## ReEDS2PRAS does not disaggregate batteries
     battery_techs = reeds.techs.get_tech_subset_table(casedir).loc[['BATTERY']].tolist()
+    ## Storage-hybrid wrappers on VRE have no outages, like their gen techs
+    no_outage_techs = (
+        h5out['pras_storage_hybrid_inflow'].columns.map(lambda x: x.split('|')[0]).tolist()
+        if 'pras_storage_hybrid_inflow' in h5out else []
+    )
     for check, infile in [
         ([i for i in max_cap_techs if i not in unitsize.index.tolist() + battery_techs], 'unitsize.csv'),
-        ([i for i in max_cap_techs if i not in mttr.index], 'mttr.csv'),
-        ([i for i in max_cap_techs if i not in outage_techs], 'outage_forced_hourly.h5'),
+        ([i for i in max_cap_techs if i not in mttr.index.tolist() + no_outage_techs], 'mttr.csv'),
+        ([i for i in max_cap_techs if i not in outage_techs.tolist() + no_outage_techs],
+         'outage_forced_hourly.h5'),
     ]:
         if len(check):
             raise ValueError(f'{check} are missing from {infile}')
@@ -315,6 +321,15 @@ def main(t, casedir, iteration=0):
 
     pras_vre_gen.columns = ['|'.join(c) for c in pras_vre_gen.columns]
     h5out['pras_vre_gen'] = pras_vre_gen
+
+    ### Store the available plant output [MW] of storage-hybrid wrappers on VRE gen techs
+    ### for PRAS, where it is the inflow of their GeneratorStorages
+    pras_storage_hybrid_inflow = gen_vre_resources.loc[
+        :, gen_vre_resources.columns.get_level_values('i').isin(sh_vre_gentech.index)]
+    if pras_storage_hybrid_inflow.shape[1]:
+        pras_storage_hybrid_inflow.columns = [
+            '|'.join(c) for c in pras_storage_hybrid_inflow.columns]
+        h5out['pras_storage_hybrid_inflow'] = pras_storage_hybrid_inflow
 
 
     ###### Store marginal CF by (i,r) for capacity_credit.py
