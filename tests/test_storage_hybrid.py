@@ -187,6 +187,25 @@ def test_clone_headerless_and_existing_row(tmp_path):
         b'nuclear,0.02\nstorage-hybrid-1-nuclear,0.5\nstorage-hybrid-2-nuclear,0.02\n')
 
 
+def test_registry_gen_tech_timing():
+    ## A wrapper is built, degrades and counts toward national generation targets like
+    ## its gen tech, so these entries must never take the storage tech's rows first
+    precedence = {entry: prec for entry, _, prec in copy_files.STORAGE_HYBRID_ROW_CLONES}
+    for entry in [
+        'years_until_endogenous.csv', 'firstyear', 'degradation_annual.csv',
+        'nat_gen_tech_frac',
+    ]:
+        assert precedence[entry] == 'gen', entry
+
+
+def test_clone_lead_time_from_gen_tech(tmp_path):
+    path = tmp_path / 'years_until_endogenous.csv'
+    path.write_bytes(b'i,years_from_now\ntes_ms,0\nNuclear,8\n')
+    copy_files._clone_storage_hybrid_csv_rows(
+        str(path), 'i', 'gen', [config('nuclear', 'tes_ms')])
+    assert path.read_bytes().endswith(b'storage-hybrid-1-nuclear,8\n')
+
+
 def test_clone_missing_column(csv_with_header):
     with pytest.raises(ValueError, match="no 'i' column"):
         copy_files._clone_storage_hybrid_csv_rows(

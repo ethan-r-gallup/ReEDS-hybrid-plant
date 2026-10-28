@@ -218,6 +218,11 @@ Run one case at a time.
 6. **z54:** run `hyb_z54`, `hyb_cc_z54` and `base_z54` (endyear 2040).
 7. **Hand back:** fill in section 9, commit, push (normal push), and tell Ethan.
 
+### Phase 9.1 — realism and fidelity check (placeholder, added 2026-10-28)
+A sanity check that wrapper behavior in the Phase 9 runs is realistic and faithful to
+actual systems. Ethan and the agent flesh out the scope after Phase 9 is complete; do
+not start it before then.
+
 ## 8. Things the original agent will do in Phase 8 (do not do them)
 - Fix every stale path and every claim in `docs/source/storage_hybrid.md` that contradicts the code: inputs.h5 `i`, powerblock subtraction, ramprate source, TES efficiency 0.999, the dispatchable limit, the sign of local charging, PTC, "IDs 1–8".
 - Add the "Changes to existing behavior" section: the rename, the PVB equation changes, battery energy-capacity retirement, prescription slack and reporting.

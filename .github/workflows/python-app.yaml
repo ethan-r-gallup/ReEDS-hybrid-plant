@@ -194,6 +194,10 @@ jobs:
           SCENARIO: ${{ matrix.scenario }}
         run: echo "RUN_FOLDER=$GITHUB_WORKSPACE/runs/${batch}_${SCENARIO}" >> "$GITHUB_ENV"
 
+      - name: Run storage-hybrid unit tests
+        if: matrix.scenario == 'github_StorageHybrid'
+        run: python -m pytest tests/test_storage_hybrid.py
+
       - name: Run ReEDS model
         env:
           SCENARIO: ${{ matrix.scenario }}

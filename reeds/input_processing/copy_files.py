@@ -60,7 +60,8 @@ STORAGE_HYBRID_ROW_CLONES = [
     ('construction_times.csv', 'i', 'storage'),
     ('cost_opres_default.csv', '', 'storage'),
     ('cost_opres_market.csv', '', 'storage'),
-    ('degradation_annual.csv', 0, 'storage'),
+    # GAMS also sets wrapper degradation from the gen tech
+    ('degradation_annual.csv', 0, 'gen'),
     ('employment_factor_plant.csv', '', 'gen'),
     ('geo_discovery_factor.csv', '*i', 'storage'),
     ('geo_rsc.csv', '*i', 'storage'),
@@ -76,16 +77,19 @@ STORAGE_HYBRID_ROW_CLONES = [
     ('mttr.csv', 'tech', 'gen_only'),
     ('outage_forced_static.csv', 0, 'gen_only'),
     ('outage_scheduled_static.csv', 0, 'gen_only'),
+    # Storage first on purpose: GAMS also sets wrapper ramprate (used only for
+    # reserve_frac) from the storage tech, which provides the wrapper's flexibility
     ('ramprate.csv', 0, 'storage'),
     ('startcost.csv', '*i', 'storage'),
     ('techs.csv', 'i', 'storage'),
     ('unitsize.csv', 'tech', 'gen'),
-    ('years_until_endogenous.csv', 'i', 'storage'),
+    # A wrapper can first be built when its gen tech can (e.g. 2034 for nuclear)
+    ('years_until_endogenous.csv', 'i', 'gen'),
     ('ctt_cc_mult', 'i', 'storage'),
     ('ctt_cost_vom_mult', 'i', 'storage'),
     ('ctt_hr_mult', 'i', 'storage'),
     ('employment_factor_plant', 'i', 'gen'),
-    ('firstyear', 'i', 'storage'),
+    ('firstyear', 'i', 'gen'),
     ('fuel2tech', 'i', 'storage'),
     ('i_c', 'i', 'gen'),
     ('i_geotech', 'i', 'storage'),
@@ -93,7 +97,8 @@ STORAGE_HYBRID_ROW_CLONES = [
     ('i_water_nocooling', 'i', 'storage'),
     ('minCF_input', 'i', 'storage'),
     ('min_retire_age', 'i', 'storage'),
-    ('nat_gen_tech_frac', 'i', 'storage'),
+    # GAMS also sets wrapper nat_gen_tech_frac from the gen tech
+    ('nat_gen_tech_frac', 'i', 'gen'),
     ('water_with_cons_rate', 'i', 'storage'),
 ]
 
