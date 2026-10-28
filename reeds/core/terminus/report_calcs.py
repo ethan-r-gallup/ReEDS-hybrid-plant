@@ -155,7 +155,8 @@ def main(case):
     dictout = {
         **calc_iq(dictin),
         **calc_co2_stor(dictin),
-        **calc_transmission(dictin),
+        ## A single-region case has no lines, so FLOW is empty and there is nothing to report
+        **(calc_transmission(dictin) if len(dictin['FLOW']) else {}),
     }
     ## Drop zeros to reduce file size and match GAMS convention
     for key, df in dictout.items():

@@ -4,6 +4,7 @@ endyear,2035,2035,2035,2040,2040
 GSw_ZoneSet,z54,z54,z54,z54,z54
 GSw_Region,,,,st/UT,st/UT
 GSw_GasCurve,,,,2,2
+GSw_gopt,,,,2,2
 GSw_PRM_StressIterateMax,3,0,0,3,3
 GSw_PRM_CapCredit,0,1,1,0,0
 GSw_Retire,5,4,5,5,5
