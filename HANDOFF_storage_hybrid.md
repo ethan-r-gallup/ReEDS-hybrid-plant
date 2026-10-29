@@ -248,7 +248,7 @@ A sanity check that wrapper behavior in the Phase 9 runs is realistic and faithf
 If you change something these docs describe, note it in section 9 so the original agent documents the final behavior.
 
 ## 9. Results for Phase 8 (fill in)
-Filled in 2026-10-28 by the second agent. All runs are on this machine (Windows, `reeds` env, CPLEX via `GSw_gopt=2` for Utah). Runs went concurrently rather than one at a time, because this machine has 250 GB of memory.
+Filled in 2026-10-28 by the second agent, and updated 2026-10-29 for Phase 9a. All runs are on this machine (Windows, `reeds` env, CPLEX via `GSw_gopt=2` for Utah). Runs went concurrently rather than one at a time, because this machine has 250 GB of memory.
 
 ### Commits by phase
 | Phase | Commit | Summary |
@@ -263,8 +263,9 @@ Filled in 2026-10-28 by the second agent. All runs are on this machine (Windows,
 | 7 | `ebfb7bb7` | CI scenario, `check_inputs` entries, unit tests |
 | 7b | `5518eb3b` | gen-first timing inputs for wrappers; unit tests in CI |
 | 9 | `db5975eb` | Phase 9 case columns |
+| 9a | `c0193adb` | gas, Clean Air Act and capacity-credit outage rules cover wrappers; coal, biopower and BECCS gen techs rejected |
 
-Plan-change records: `d8a0ec17`, `308bc18a`, `d349eec3`, `cdb8e736`, `1146328b`.
+Plan-change records: `d8a0ec17`, `308bc18a`, `d349eec3`, `cdb8e736`, `1146328b`, `72a991b6`.
 
 ### Phase 1 compile fixes
 - The merged code compiled and ran with no GAMS changes.
@@ -282,15 +283,26 @@ Plan-change records: `d8a0ec17`, `308bc18a`, `d349eec3`, `cdb8e736`, `1146328b`.
 ### Hybrid Utah results
 All runs solve every year (model status 1). `test_outputs` fails only on `bars_retirements_additions.png` for every Utah run, base included (see open issues).
 
+Results with the Phase 9a code (`p9a_*` runs, commit `c0193adb`):
+
 | Case | Wrappers built (2040) | `error_check` z | PRAS units | NEUE ppm (2030 last iteration / 2035 / 2040) | Other checks |
 |---|---|---|---|---|---|
-| `base_ut` | none | −1.9e-05 | — | 0.59 / 0 / 0.041 | identical to upstream |
-| `hyb_ut` | gas-cc+battery (type 5, 0.25 grid charging) 5,016 MW | 0.000216 | 21 units of about 240 MW | 0.36 / 0.025 / 0.028 | `gen_plant_h`, `storage_in_grid_h`, `storage_in_plant_h`, `gen_storage_h`, `cap_energy_ivrt` all non-empty |
-| `hyb_cc_ut` | gas-cc+battery 2,805 MW | 0 (not written; see open issues) | 12 units | 257 / 397 / 392 (PRAS is diagnostic only in capacity-credit mode) | grid charging non-empty |
-| `hyb_vre_ut` | none (not economic) | −1.9e-05 | — | same as base | results equal `base_ut` to 1e-16 |
-| `nukeban_ut` (`GSw_Nuclear=0`, `GSw_NuclearSMR=0`) | gas-cc only | — | — | — | nuclear and SMR wrappers inherit `bannew`/`ban` and have no valid new capacity |
+| `base_ut` | none | −1.9e-05 | — | 0.59 / 0 / 0.041 | identical to upstream; identical to the pre-9a branch, including LP size |
+| `hyb_ut` | none | −1.9e-05 | — | 0.59 / 0 / 0.041 | results equal `base_ut` to 1e-16 |
+| `hyb_cc_ut` | none | 0 (not written; see open issues) | — | 257 / 332 / 315 (PRAS is diagnostic only in capacity-credit mode) | wrapper `mean_forced_outage_rate` equals gas-cc's (UT 2040: 3.74% cold, 2.95% hot) |
+| `hyb_vre_ut` | none (not economic) | −1.9e-05 | — | same as base | results equal `base_ut` to 1e-16 (pre-9a run; no gas wrappers, so 9a does not change it) |
+| `nukeban_ut` (`GSw_Nuclear=0`, `GSw_NuclearSMR=0`) | — | — | — | — | nuclear and SMR wrappers inherit `bannew`/`ban` and have no valid new capacity (pre-9a run) |
+| `p9s_hyb_ut` (sandbox: `hyb_ut` with gas-wrapper capital × 0.7 and energy capital × 0.5 in the run-local GAMS copy only) | gas-cc+battery (type 5, 0.25 grid charging) 6,317 MW | −2.2e-05 | 26 units | 0.36 / 0.065 / 0 | see below |
 
-- **z is stress-period operating cost.** `report.gms` drops stress hours (`h(h)$[not h_rep(h)] = no`, line 122) before it rebuilds costs, but the objective includes operating cost in those hours. In `hyb_ut` 2040, objective fuel in stress hours is $626,924, exactly the fuel gap. The VOM and CO2 gaps are the same kind and also occur in base. `hyb_cc_ut` has no stress periods and z is exactly 0. Every wrapper cost category (capital, FOM, fuel, VOM) matches the objective exactly.
+- **Pre-9a results, for the record.** Before Phase 9a, `hyb_ut` built 5,016 MW of the type-5 gas-cc wrapper (z 0.000216, 21 PRAS units), and `hyb_cc_ut` built 2,805 MW (12 units). Those builds came from the gaps Phase 9a closed. In Utah (`GSw_GasCurve=2`, static gas prices), plain gas-cc pays the seasonal gas-price multiplier `gasprice_adj_r` and the wrapper did not. A diagnostic run of `hyb_ut` with `GSw_Clean_Air_Act=0` under the 9a code also builds no wrappers, so the price multiplier was the deciding gap there.
+- **Wrapper builds now need the sandbox.** With the 9a code, no Utah case builds a wrapper on its own economics. The sandbox run `p9s_hyb_ut` provides the evidence for the build paths. In 2040:
+  - every new gas-wrapper vintage runs at exactly `caa_gas_max_cf` = 0.40 of plant-side capacity, and `eq_caa_max_cf` has a positive marginal, so the cap binds;
+  - `repgasquant_irt` reports 0.1471 quads for the wrapper. The LP's plant-side burn over all hours is 0.1473 quads. The gap is the stress hours the report drops (see the z note below).
+  - the wrapper pays nothing in the fixed-price fuel term, and its gas cost goes through the gas terms ($595M in `op_fuelcosts_objfn`);
+  - `gen_plant_h`, `storage_in_grid_h` (grid charging), `gen_storage_h` and `cap_energy_ivrt` are non-empty, and PRAS splits the fleet into 26 units.
+- The pre-9a `hyb_ut` run is also valid evidence for the dispatch, grid-charging and PRAS paths. Phase 9a changed none of them.
+
+- **z is stress-period operating cost.** `report.gms` drops stress hours (`h(h)$[not h_rep(h)] = no`, line 122) before it rebuilds costs, but the objective includes operating cost in those hours. In the pre-9a `hyb_ut` 2040, objective fuel in stress hours is $626,924, exactly the fuel gap. The VOM and CO2 gaps are the same kind and also occur in base. `hyb_cc_ut` has no stress periods and z is exactly 0. Every wrapper cost category (capital, FOM, fuel, VOM) matches the objective exactly.
 - **VRE wrappers** are not economic in Utah: they cost about the same as separate upv plus battery. Utah and Wyoming also have no onshore-wind supply curve in the current upstream inputs; upstream's Utah run has none either. As agreed, the Phase 5 sandbox runs are the evidence for VRE builds. Those runs cut wrapper capital cost in the run-local GAMS copy only; they are `p5x2_hyb_vre_ut`, `p5y2_cc_vre_ut`, `p5w_vre_wy` and `p6x_hyb_vre_ut`. In them:
   - `m_cf`, `avail`, ILR, CF adjustment, supply-curve data, `rsc_fin_mult` and RPS multipliers equal the gen tech's;
   - plant output stays within `m_cf` × CAP in every hour, and grid charging peaks at exactly 0.25 × CAP;
@@ -298,10 +310,25 @@ All runs solve every year (model status 1). `test_outputs` fails only on `bars_r
   - PRAS gets the gen tech's inflow profile (mean/capacity = the upv CF, peak/capacity = 1/ILR).
 - **Spur lines** (`GSw_SpurScen=1`, Utah to 2030): solves, z = 8.2e-05, and wrappers map to the same spur sites as their gen techs.
 - **Validation old bugs:** `runreeds.py` stops before creating a run folder for `GSw_HybridPlant=0` and for mismatched list lengths.
-- **CI scenario** `github_StorageHybrid` (run locally): solves to 2030, z = −0.000188, and builds a 574 MW upv+battery wrapper on its own economics.
+- **CI scenario** `github_StorageHybrid` (run locally, before and after 9a): solves to 2030, z = −0.000188, and builds a 574 MW upv+battery wrapper on its own economics. Its PRAS unit gets the upv_3 inflow profile.
 
 ### z54 results
-(see the z54 subsection below; filled after the runs finish)
+All z54 runs solve every year (model status 1), with `endyear=2040`.
+
+| Case | Code | Wrappers built (2040) | `error_check` z | PRAS wrapper units | NEUE ppm (2020 / 2025 / 2030 / 2035 / 2040) |
+|---|---|---|---|---|---|
+| `base_z54` | pre-9a (`db5975eb`) | — | 0 (not written) | — | 710 / 55 / 0.40 / 20 / 51 |
+| `hyb_z54` (stress periods) | pre-9a | none, including the wind-ons type 9 wrapper | 4.6e-05 | — | 710 / 55 / 0.001 / 0 / 0.02 |
+| `hyb_cc_z54` | pre-9a | gas-cc+battery (type 2) 117.0 GW in 22 regions | 0 (not written) | e.g. PA 32.5 GW in 132 units | 710 / 55 / 0.74 / 23 / 59 |
+| `hyb_cc_z54` | 9a (`c0193adb`) | none | 0 (not written) | — | 710 / 55 / 0.41 / 24 / 56 |
+
+- **The pre-9a `hyb_cc_z54` build came from the gaps 9a closed.** Its switches match the 9a run, so the comparison is clean. The 117 GW of wrappers replaced 110 GW of plain gas-cc and about 70 GW of upv, wind and battery. They cut reported system cost by $53.4B (2.2%), almost all of it investment.
+  - The capacity-credit gap mattered most. Wrappers had a `mean_forced_outage_rate` of 0, while gas-cc had about 3.5%. With 9a the two are equal (PA 2040: 3.50% cold, 3.42% hot).
+  - The gas gap shifted the fuel price. Wrapper gas burn was missing from the gas supply curves, so the national gas price was understated ($2.89 against $3.11 per MMBtu in 2040), even though total gas burn was higher.
+  - The Clean Air Act gap let new wrappers run at a 0.63 capacity factor against the 0.40 cap.
+- **The stress-period run `hyb_z54` built no wrappers even before 9a**, because stress periods and PRAS already applied the gen tech's outages. Phase 9a only tightens the rules for gas wrappers, so I did not rerun it.
+- **`base_z54` is not a matched base for either hybrid z54 case** (see open issues). It uses capacity credit like `hyb_cc_z54`, but the retirement settings of `hyb_z54`. Comparisons against it mix wrapper effects with those settings.
+- `hyb_z54` results from code before Phase 3 (`6c494147`) include phantom prescribed SMR builds. The old cloner copied the X-energy and Natrium rows of `demonstration_plants.csv` to every nuclear-SMR wrapper (2.66 GW over 4 wrappers). The runs above use current code.
 
 ### Behavior changes the docs must describe
 - **Refurbishment (Phase 2):** battery-backed wrappers get one battery energy refurbishment every `batt_years_until_refurb` years over their gen tech's `maxage`. The discounted cost beyond battery_li's single refurbishment goes into `storage_hybrid_refurb_energy.csv`.
@@ -317,6 +344,7 @@ All runs solve every year (model status 1). `test_outputs` fails only on `bars_r
   - each list needs 1 or N values;
   - BCR > 0 and 0 ≤ GridCharging ≤ BCR;
   - gen techs must be in GENTECH and not an upgrade, cooling variant, storage, H2-fueled, hydro or distributed PV;
+  - gen techs may not burn coal or biomass (`coal`, `cofire`, `bio`, `beccs`; Phase 9a), because the Clean Air Act coal rules, biomass supply curve and carbon-removal limits have no wrapper terms;
   - storage techs must be in STORAGE and not hybrid_plant, demand_flex or RSC;
   - TES may not pair with a VRE gen tech; flex-geo needs a geothermal gen tech.
 - **Costs (Phase 4):**
@@ -350,6 +378,13 @@ All runs solve every year (model status 1). `test_outputs` fails only on `bars_r
   - the new scenario keeps `github_Pacific`'s end year of 2030, so its nuclear wrapper exercises setup only;
   - `check_inputs` checks the wrapper parameters;
   - `gridcharge_ratio` is not checked, because zero is a valid value that GAMS does not store.
+- **Tech-group rules (Phase 9a):** a wrapper belongs only to the STORAGE, HYBRID_PLANT and STORAGE-HYBRID groups, so a rule keyed on its gen tech's group skips it unless the rule has a wrapper term. Copying group flags wholesale would be wrong, because a wrapper's `GEN` includes storage discharge, which burns no fuel. Phase 9a adds these wrapper terms:
+  - `storage_hybrid_gas(i)` (`b_inputs.gms`) holds wrappers whose gen tech is in `gas`.
+  - Their plant-side burn (`GEN_PLANT`) counts in `eq_gasused`, `eq_gasaccounting_regional`, `eq_gasaccounting_national` and the gas objective terms for `GSw_GasCurve` 1 and 2, including the seasonal multiplier `gasprice_adj_r`. They are out of the fixed-price fuel term.
+  - `eq_caa_max_cf` limits their `GEN_PLANT` to `caa_gas_max_cf` of CAP, unless the gen tech is CCS.
+  - `6_data_dump.gms` (`repgasquant`, which sets next year's gas price) and `report.gms` (gas quantity, price, gas share and fuel cost) count the same burn.
+  - Capacity credit keeps the gen tech's forced-outage rates for wrappers (`reeds.techs.add_storage_hybrid_gentech_members`, used on the `TEMP_DERATE` list in `capacity_credit.py`). Before 9a, the wrapper's `mean_forced_outage_rate` was 0.
+  - Wrappers take the gen tech's `quarter_cap_frac_delta` and `ccseason_cap_frac_delta` (seasonal capacity changes). Under default settings these are zero for new vintages.
 
 ### Audit claims that turned out wrong
 - Wrapper VOM did not skip regional multipliers (`cost_vom` has none); the real gap was vintage averaging, and power FOM had it too.
@@ -363,7 +398,10 @@ All runs solve every year (model status 1). `test_outputs` fails only on `bars_r
 - **`check_error.py` fragility (upstream):** it raises `KeyError` when z rounds to exactly 0 (capacity-credit runs).
 - **`test_read_h5_files.py::test_read_h5py_file` fails on upstream too.**
 - **PVB supply-curve double count (upstream, not changed):** the objective charges PVB's supply-curve investment through both upv's and its own `rsc_agg` entries, while the report counts it once.
-- **Wrapper gas pricing:** gas-cc wrappers are not in `gas(i)`, so their fuel is billed at the fixed `fuel_price` without the hourly gas-price adjustment, and it stays outside the gas supply curves (`GSw_GasCurve` 0, 1, 3). The objective and report agree, so z is unaffected. It is a fidelity question for Phase 9.1.
+- **`base_z54` matches neither hybrid z54 case.** It sets `GSw_PRM_CapCredit=1` (like `hyb_cc_z54`), but `GSw_Retire=5`, `GSw_NukeNoRetire=1` and `GSw_RetirePenalty=1` (like `hyb_z54`). `hyb_cc_z54` sets `GSw_Retire=4` and the other two to 0 (commit `d41cafeb`). A matched base needs one more column, or `hyb_cc_z54` back on the `hyb_z54` retirement settings.
+- **No dispatchable wrapper is economic in the test cases with 9a.** Wrapper builds are exercised by the gas sandbox run `p9s_hyb_ut`, the VRE sandbox runs from Phase 5, the CI scenario's upv+battery wrapper, and the pre-9a runs, which used the same dispatch and PRAS code.
+- **Coal, biopower and BECCS wrappers** are rejected rather than supported (Phase 9a). Supporting them needs wrapper terms in `eq_caa_rate_standard` and the forced coal retirement, `eq_bioused`, `eq_biousedlimit` and the biomass cost, and `eq_cdr_cap`.
+- **Seasonal derate on the storage side:** wrappers apply `seas_cap_frac_delta` to storage discharge as well as plant output (`c_model.gms` storage capacity limit). That fits TES, which discharges through the shared powerblock. For a battery it is approximate, and it only matters when `thermal_summer_cap_delta` is nonzero (a climate-heuristics setting).
 - **POI sizing** counts wrapper CAP but not storage discharge (BCR × CAP).
 - **VRE wrappers** add no operating-reserve requirement (unlike PV/PVB), and curtailment reports leave them out.
 - **LCOE** VOM omits the storage-side VOM.
