@@ -79,6 +79,10 @@ When you finish Phase 9, fill in section 9 of this file ("Results for Phase 8"),
 - Phase 7: CI also runs `pytest tests/test_storage_hybrid.py`.
 - Phase 7: `github_StorageHybrid` keeps `github_Pacific`'s end year of 2030, so its nuclear wrapper exercises setup only.
 
+**Plan changes Ethan accepted during Phase 9 (2026-10-29):**
+- New Phase 9a, before hand-back: connect gas-cc wrappers to the gas, Clean Air Act and capacity-credit outage rules they skip today, and reject coal, biopower and BECCS gen techs. Details are in section 7.
+- The Phase 9.1 placeholder becomes Phase 9b. It is a sanity check, scoped with Ethan in conversation, and it starts after Phase 9a.
+
 ## 4. Environment setup
 1. **Python:** upstream's `runreeds.py` rejects any env except one named `reeds` with pandas 3.x. Build it with `conda env create -f environment.yml` and run with `conda run --no-capture-output -n reeds python runreeds.py ...`.
 2. **Julia:** `Project.toml` pins `julia = "=1.12.1"` and PRAS ~0.9. Run `juliaup add 1.12.1`, then `julia +1.12.1 --project=. instantiate.jl` from the repo root. This creates `Manifest.toml` (git-ignored), which `runreeds.py` requires whenever `pras=2` or `GSw_PRM_StressIterateMax>0`.
@@ -218,10 +222,22 @@ Run one case at a time.
 6. **z54:** run `hyb_z54`, `hyb_cc_z54` and `base_z54` (endyear 2040).
 7. **Hand back:** fill in section 9, commit, push (normal push), and tell Ethan.
 
-### Phase 9.1 — realism and fidelity check (placeholder, added 2026-10-28)
-A sanity check that wrapper behavior in the Phase 9 runs is realistic and faithful to
-actual systems. Ethan and the agent flesh out the scope after Phase 9 is complete; do
-not start it before then.
+### Phase 9a — tech-group rules that skip wrappers (added 2026-10-29)
+A wrapper belongs only to the STORAGE, HYBRID_PLANT and STORAGE-HYBRID tech groups, so every rule keyed on its gen tech's groups skips it. The z54 runs showed the cost: `hyb_cc_z54` builds 117 GW of gas-cc wrappers, and `hyb_z54` (stress periods) builds none. Copying the group flags wholesale is wrong, because a wrapper's `GEN` includes storage discharge, which burns no fuel. Each rule needs its own wrapper term that uses `GEN_PLANT`.
+1. **Gas:** add a set of wrappers whose gen tech is in `gas`. Count their `GEN_PLANT` gas burn in:
+   - `eq_gasused` (`GSw_GasCurve` 0 and 3)
+   - `eq_gasaccounting_regional` and `eq_gasaccounting_national` (`GSw_GasCurve` 1)
+   - the gas objective terms for `GSw_GasCurve` 1 and 2, including `gasprice_adj_r`
+
+   Take these wrappers out of the fixed `fuel_price` term. Mirror the changes in `report.gms` and `6_data_dump.gms` (gas quantity, gas price, fuel cost).
+2. **Clean Air Act 111:** `eq_caa_max_cf` limits gas wrappers' `GEN_PLANT`.
+3. **Capacity-credit outages:** `capacity_credit.py` gives each wrapper whose gen tech is in `TEMP_DERATE` its gen tech's hourly forced-outage column. Today the wrapper gets a `mean_forced_outage_rate` of 0, while gas-cc gets 3.5%. `b_inputs.gms` sets wrapper `ccseason_cap_frac_delta` from the gen tech.
+4. **Rejections:** `check_storage_hybrid` rejects gen techs in `coal` (`eq_caa_rate_standard`, forced coal retirement), `bio` or `cofire` (`eq_bioused`, `eq_biousedlimit`, biomass cost) and `beccs` (`eq_cdr_cap`), until those rules have wrapper terms.
+5. **Tests:** unit tests for the rejections and for the outage inheritance.
+6. **Reruns:** `hyb_ut`, `hyb_cc_ut` and `hyb_cc_z54`. Check that z stays at its earlier level, that wrapper gas burn appears in `repgasquant`, that the wrapper's `mean_forced_outage_rate` equals gas-cc's, and that new gas wrappers stay within `caa_gas_max_cf`.
+
+### Phase 9b — sanity check (placeholder, added 2026-10-28)
+A sanity check that wrapper behavior in the Phase 9 runs is realistic and faithful to actual systems. Ethan and the agent scope it in conversation after Phase 9a is complete; do not start it before then.
 
 ## 8. Things the original agent will do in Phase 8 (do not do them)
 - Fix every stale path and every claim in `docs/source/storage_hybrid.md` that contradicts the code: inputs.h5 `i`, powerblock subtraction, ramprate source, TES efficiency 0.999, the dispatchable limit, the sign of local charging, PTC, "IDs 1–8".
@@ -232,11 +248,124 @@ not start it before then.
 If you change something these docs describe, note it in section 9 so the original agent documents the final behavior.
 
 ## 9. Results for Phase 8 (fill in)
-- Commits by phase:
-- Phase 1 compile fixes:
-- Base equivalence (`base_ut` upstream vs branch): systemcost, cap, gen_ann, LP sizes, and the cause of each difference:
-- Hybrid Utah results (per case): wrappers built, error_check, test_outputs, PRAS:
-- z54 results:
-- Behavior changes the docs must describe (refurbishment choice, PRAS mapping and approximations, VRE wrapper behavior, validation rules, anything else):
-- Audit claims that turned out wrong:
-- Open issues:
+Filled in 2026-10-28 by the second agent. All runs are on this machine (Windows, `reeds` env, CPLEX via `GSw_gopt=2` for Utah). Runs went concurrently rather than one at a time, because this machine has 250 GB of memory.
+
+### Commits by phase
+| Phase | Commit | Summary |
+|---|---|---|
+| setup | `74faa48e` | Utah test cases and this file |
+| 1 | `7a1a2aea` | single-region PRAS and reporting fixes; CPLEX op2 for Utah |
+| 2 | `65ac225b` | upstream-driven adaptations (queue limits, gen-first clones, battery refurbishment, futurefiles, READMEs, z54 to 2040) |
+| 3 | `6c494147` | explicit row-cloning registry replaces the heuristic cloner |
+| 4 | `20b2cb28` | bans, validation, heat rate, VOM/FOM vintages, financials, LCOE, cleanup |
+| 5 | `d0ad2c3a` | VRE wrappers (capacity factors, shared supply curve, RPS, capacity credit) |
+| 6 | `0c2f8aed` | PRAS unit disaggregation, outage fallbacks, VRE inflow |
+| 7 | `ebfb7bb7` | CI scenario, `check_inputs` entries, unit tests |
+| 7b | `5518eb3b` | gen-first timing inputs for wrappers; unit tests in CI |
+| 9 | `db5975eb` | Phase 9 case columns |
+
+Plan-change records: `d8a0ec17`, `308bc18a`, `d349eec3`, `cdb8e736`, `1146328b`.
+
+### Phase 1 compile fixes
+- The merged code compiled and ran with no GAMS changes.
+- Two upstream bugs in single-region runs, both fixed and kept (they belong in the PR as upstream fixes):
+  - `make_pras_interfaces` raised `BoundsError` with no lines;
+  - `report_calcs.py` raised `KeyError` on an empty `FLOW`.
+- CPLEX barrier with `barcolnz 30` reports the Utah 2030 LP infeasible; upstream fails identically. The Utah columns use `GSw_gopt=2`.
+
+### Base equivalence (`base_ut`, upstream `6c175c4f` vs branch `db5975eb`)
+- `systemcost`, `cap` and `gen_ann`: identical in every year. `error_check` z = −1.9e-05 in both.
+- LP equations: identical in every solve.
+- LP variables and nonzeros: +2 each in every solve. The two extra columns are `CAP_ABOVE_LIM(tes,UT,t)` and `CAP_ABOVE_LIM(geo-storage,UT,t)`: the queue-overflow slacks for the two tech groups this branch adds to `cap_penalty.csv`. In a base run no tech uses those groups, so each column has only its objective coefficient. It is harmless.
+- `tes_ms` and `flex_geo`: no trace in the base LP.
+
+### Hybrid Utah results
+All runs solve every year (model status 1). `test_outputs` fails only on `bars_retirements_additions.png` for every Utah run, base included (see open issues).
+
+| Case | Wrappers built (2040) | `error_check` z | PRAS units | NEUE ppm (2030 last iteration / 2035 / 2040) | Other checks |
+|---|---|---|---|---|---|
+| `base_ut` | none | −1.9e-05 | — | 0.59 / 0 / 0.041 | identical to upstream |
+| `hyb_ut` | gas-cc+battery (type 5, 0.25 grid charging) 5,016 MW | 0.000216 | 21 units of about 240 MW | 0.36 / 0.025 / 0.028 | `gen_plant_h`, `storage_in_grid_h`, `storage_in_plant_h`, `gen_storage_h`, `cap_energy_ivrt` all non-empty |
+| `hyb_cc_ut` | gas-cc+battery 2,805 MW | 0 (not written; see open issues) | 12 units | 257 / 397 / 392 (PRAS is diagnostic only in capacity-credit mode) | grid charging non-empty |
+| `hyb_vre_ut` | none (not economic) | −1.9e-05 | — | same as base | results equal `base_ut` to 1e-16 |
+| `nukeban_ut` (`GSw_Nuclear=0`, `GSw_NuclearSMR=0`) | gas-cc only | — | — | — | nuclear and SMR wrappers inherit `bannew`/`ban` and have no valid new capacity |
+
+- **z is stress-period operating cost.** `report.gms` drops stress hours (`h(h)$[not h_rep(h)] = no`, line 122) before it rebuilds costs, but the objective includes operating cost in those hours. In `hyb_ut` 2040, objective fuel in stress hours is $626,924, exactly the fuel gap. The VOM and CO2 gaps are the same kind and also occur in base. `hyb_cc_ut` has no stress periods and z is exactly 0. Every wrapper cost category (capital, FOM, fuel, VOM) matches the objective exactly.
+- **VRE wrappers** are not economic in Utah: they cost about the same as separate upv plus battery. Utah and Wyoming also have no onshore-wind supply curve in the current upstream inputs; upstream's Utah run has none either. As agreed, the Phase 5 sandbox runs are the evidence for VRE builds. Those runs cut wrapper capital cost in the run-local GAMS copy only; they are `p5x2_hyb_vre_ut`, `p5y2_cc_vre_ut`, `p5w_vre_wy` and `p6x_hyb_vre_ut`. In them:
+  - `m_cf`, `avail`, ILR, CF adjustment, supply-curve data, `rsc_fin_mult` and RPS multipliers equal the gen tech's;
+  - plant output stays within `m_cf` × CAP in every hour, and grid charging peaks at exactly 0.25 × CAP;
+  - the gen tech's `eq_rsc_INVlim` row includes the wrapper's `INV_RSC`, and no bin is exceeded;
+  - PRAS gets the gen tech's inflow profile (mean/capacity = the upv CF, peak/capacity = 1/ILR).
+- **Spur lines** (`GSw_SpurScen=1`, Utah to 2030): solves, z = 8.2e-05, and wrappers map to the same spur sites as their gen techs.
+- **Validation old bugs:** `runreeds.py` stops before creating a run folder for `GSw_HybridPlant=0` and for mismatched list lengths.
+- **CI scenario** `github_StorageHybrid` (run locally): solves to 2030, z = −0.000188, and builds a 574 MW upv+battery wrapper on its own economics.
+
+### z54 results
+(see the z54 subsection below; filled after the runs finish)
+
+### Behavior changes the docs must describe
+- **Refurbishment (Phase 2):** battery-backed wrappers get one battery energy refurbishment every `batt_years_until_refurb` years over their gen tech's `maxage`. The discounted cost beyond battery_li's single refurbishment goes into `storage_hybrid_refurb_energy.csv`.
+- **Row-cloning registry (Phase 3, 7b):** `STORAGE_HYBRID_ROW_CLONES` in `copy_files.py` lists every copied input with `storage`, `gen` or `gen_only` precedence.
+  - Outage inputs are `gen_only`.
+  - `years_until_endogenous`, `firstyear`, `degradation_annual`, `nat_gen_tech_frac`, `maxage`, `unitsize`, `i_c` and `employment_factor_plant` are gen-first.
+  - `ramprate` is storage-first on purpose: GAMS sets it from the storage tech, and it only sets `reserve_frac`.
+  - GAMS also sets wrapper `firstyear`, `degrade_annual`, `min_retire_age`, `maxage`, outage rates and `nat_gen_tech_frac` from the gen tech, so the copies only keep the case inputs consistent.
+- **Bans (Phase 4):** a wrapper inherits `ban`, `bannew` and `tech_banned` from either component. Standalone `tes_ms` and `flex_geo*` are `bannew`.
+- **Validation rules (`reeds/checks.py` `check_storage_hybrid`):**
+  - requires `GSw_HybridPlant` 2 or 3;
+  - Types must be non-empty, alphanumeric and unique;
+  - each list needs 1 or N values;
+  - BCR > 0 and 0 ≤ GridCharging ≤ BCR;
+  - gen techs must be in GENTECH and not an upgrade, cooling variant, storage, H2-fueled, hydro or distributed PV;
+  - storage techs must be in STORAGE and not hybrid_plant, demand_flex or RSC;
+  - TES may not pair with a VRE gen tech; flex-geo needs a geothermal gen tech.
+- **Costs (Phase 4):**
+  - heat rate, VOM and FOM are vintage-averaged from the gen tech;
+  - wrappers inherit the gen tech's emissions, capture and upstream methane;
+  - gas wrappers carry the gas cost-recovery penalty;
+  - the shared-powerblock cost is no longer subtracted for battery wrappers;
+  - LCOE includes energy capital and energy FOM.
+- **VRE wrappers (Phase 5):**
+  - copy the gen tech's `cf_in` in GAMS;
+  - take the gen tech's `cf_tech` and `RSC` flags;
+  - share its supply curve through `storage_hybrid_rsc_agg` (formerly geothermal-only);
+  - take the UPV ILR (so wrapper CAP and BCR are DC-based, like PVB);
+  - pay the gen tech's `rsc_fin_mult`;
+  - join its spur lines;
+  - inherit every RPS/CES category, voluntary RECs and the CCS partial CES credit;
+  - get capacity credit from their own resources, which reuse the gen tech's profile.
+- **Supply-curve cost (Phase 5):** a wrapper's supply-curve investment is charged once in the objective, through its own `rsc_agg` entry.
+- **Spur-site limit (Phase 5):** with endogenous spur lines, only a wrapper's `GEN_PLANT` counts against site availability.
+- **PRAS mapping (Phase 6):**
+  - each wrapper fleet becomes `GeneratorStorage` units of the gen tech's unit size, capped at the regional PRM-based maximum (`pras_max_unitsize_prm`);
+  - fleets with no forced outages stay one unit;
+  - per unit of capacity U: charge = discharge = BCR × U, energy = CAP_ENERGY × U/CAP, grid withdrawal = GridCharging × U, grid injection = (1+BCR) × U;
+  - inflow = U for dispatchable gen techs, or the gen tech's available output for VRE;
+  - outage lookups fall back from the wrapper to its gen tech;
+  - approximation: the LP caps charge plus discharge jointly at BCR × CAP, while PRAS caps each separately. PRAS gains nothing by doing both in the same hour, so they should agree in practice.
+- **Reporting fix (Phase 5):** `report.gms` no longer multiplies energy-capacity FOM by ILR.
+- **Upstream fix (Phase 5):** `writecapdat.py` no longer matches wrapper vintage rows by substring; that had doubled upv/wind prescribed builds whenever a VRE wrapper was configured.
+- **Tests (Phase 7):**
+  - CI runs `github_StorageHybrid` and `tests/test_storage_hybrid.py`;
+  - the new scenario keeps `github_Pacific`'s end year of 2030, so its nuclear wrapper exercises setup only;
+  - `check_inputs` checks the wrapper parameters;
+  - `gridcharge_ratio` is not checked, because zero is a valid value that GAMS does not store.
+
+### Audit claims that turned out wrong
+- Wrapper VOM did not skip regional multipliers (`cost_vom` has none); the real gap was vintage averaging, and power FOM had it too.
+- Geothermal `rsc_fin_mult` needed no composition (it is 1).
+- The PRAS `KeyError` risk applied only to wrappers without outage rows, which after Phase 5 are the VRE wrappers. Gas-cc wrappers already had their gen tech's hourly rates.
+- Nuclear wrappers were never buildable before 2034. GAMS already sets wrapper `firstyear` from the gen tech (`b_inputs.gms` line 1195). Only the case-input copies disagreed (fixed in 7b).
+- The Phase 1 plan to add wrappers to `error_check('z')`'s energy-capital correction was wrong. Wrapper energy capital uses the storage-side multiplier in both the objective and the report, so wrappers are excluded instead.
+
+### Open issues
+- **Local plotting crash:** `single_case_plots.py` segfaults in this Windows environment when `map_zone_capacity` opens `report.xlsx` with `openpyxl`. It does this for base runs and for upstream's script too, and it stops the script before `bars_retirements_additions.png`. CI on Linux is the real check.
+- **`check_error.py` fragility (upstream):** it raises `KeyError` when z rounds to exactly 0 (capacity-credit runs).
+- **`test_read_h5_files.py::test_read_h5py_file` fails on upstream too.**
+- **PVB supply-curve double count (upstream, not changed):** the objective charges PVB's supply-curve investment through both upv's and its own `rsc_agg` entries, while the report counts it once.
+- **Wrapper gas pricing:** gas-cc wrappers are not in `gas(i)`, so their fuel is billed at the fixed `fuel_price` without the hourly gas-price adjustment, and it stays outside the gas supply curves (`GSw_GasCurve` 0, 1, 3). The objective and report agree, so z is unaffected. It is a fidelity question for Phase 9.1.
+- **POI sizing** counts wrapper CAP but not storage discharge (BCR × CAP).
+- **VRE wrappers** add no operating-reserve requirement (unlike PV/PVB), and curtailment reports leave them out.
+- **LCOE** VOM omits the storage-side VOM.
+- **`hybrid_cc_derate`** is always 1, for PVB and wrappers alike (never computed).
+- **MGA** weights wrappers once for each subset they belong to (Phase 2 note; not changed).
