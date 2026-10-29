@@ -83,6 +83,7 @@ When you finish Phase 9, fill in section 9 of this file ("Results for Phase 8"),
 - New Phase 9a, before hand-back: connect gas-cc wrappers to the gas, Clean Air Act and capacity-credit outage rules they skip today, and reject coal, biopower and BECCS gen techs. Details are in section 7.
 - The Phase 9.1 placeholder becomes Phase 9b. It is a sanity check, scoped with Ethan in conversation, and it starts after Phase 9a.
 - Phase 9b scope (accepted 2026-10-29, after Phase 9a): steps A–D in section 7. Hand-back (section 9 final, push) moves to after Phase 9b.
+- Phase 9b fixes (accepted 2026-10-30, after steps A–C): fixes 1–7 and decisions J1–J3, listed under step D in section 7. Gas-CCS gen techs are rejected rather than connected.
 
 ## 4. Environment setup
 1. **Python:** upstream's `runreeds.py` rejects any env except one named `reeds` with pandas 3.x. Build it with `conda env create -f environment.yml` and run with `conda run --no-capture-output -n reeds python runreeds.py ...`.
@@ -242,7 +243,17 @@ Goal: confirm that the formulation errors found in the earlier round (in PRAS, i
 - **A. Tracker port audit (code only).** For each item SH-01 to SH-47 in `debug_storage-hybrid.md` on branch `endogenous-nuclear-learning`, record whether it is fixed here, not applicable to this branch, or regressed. Re-rate every item marked latent under this PR's gen techs (gas, VRE, geothermal), because the earlier round tested nuclear+TES only. Extend the Phase 9a tech-group scan to all GAMS files and to the Python, PRAS and reporting code.
 - **B. Value-stream decomposition.** Run three Utah sandbox cases (gas+battery, nuclear+TES, upv+battery), with wrapper cost cut in the run-local GAMS copy so the model builds wrappers. For each built wrapper vintage, decompose revenue (energy, capacity, reserves, policy credits) from the LP marginals and check that it equals cost. Compare each stream with the same stream for the gen tech plus standalone storage of the same size. Differences other than the shared interconnection or powerblock and plant charging are findings. Check that PRAS gives a wrapper fleet about the adequacy of its gen tech plus storage of the same size.
 - **C. Behavior realism.** Plot dispatch and state of charge for a few days. Report capacity factor, cycles per year and the grid-charging share. Compare with reference projects (Natrium; gas-turbine/battery hybrids). List the modeling judgment calls for Ethan.
-- **D. Reruns, only if A–C change code:** the Utah set, then one z54 capacity-credit run.
+- **D. Fixes from A–C, then reruns** (the Utah set, the CI case, one sandbox per wrapper type, then one z54 capacity-credit run):
+  1. `plantcostprep.py`: expand range rows in `maxage.csv` (`upv_1*upv_10,30`) before looking up a wrapper's life for battery refurbishments. Today VRE and geothermal wrappers fall back to `maxage_default` = 100 years and pay five extra refurbishments.
+  2. Geothermal wrappers get outage rows: the row copies and the hourly outage broadcast fall back to `geothermal` for gen techs in GEO, as `2_temporal_params.gms` does.
+  3. Wrappers inherit `techs_banned_imports_rps` from the gen tech (GAMS).
+  4. `eq_batterymandate` counts `bcr × CAP` of wrappers whose storage tech is a battery, and no other wrappers (TES and flex-geo do not qualify in real life). `eq_RPS_OFSWind` counts wind-ofs wrappers' CAP (pending Ethan's confirmation).
+  5. Validation rejects gas-CCS gen techs (`ccs`, `ccsflex`): 45Q, CO2 transport and storage, capture accounting, `eq_cdr_cap` and the CCS clean-energy exclusion do not cover wrappers.
+  6. CSAPR NOx uses `GEN_PLANT` for wrappers.
+  7. `flex_geo` gets a `ramprate.csv` row equal to Geothermal's (0.04), so geothermal+flex-geo wrappers can provide reserves.
+  - J1: wrappers pay POI (and spur-line) capacity for their full grid injection, CAP/ILR + BCR × CAP, so the shared interconnection gives no free capacity.
+  - J2: PRAS keeps coupling the storage to the unit outage; documented as conservative for gas+battery.
+  - J3: each wrapper takes the minimum duration of its storage class where one exists (battery, TES), instead of the wrapper-wide 1.5 h.
 
 ## 8. Things the original agent will do in Phase 8 (do not do them)
 - Fix every stale path and every claim in `docs/source/storage_hybrid.md` that contradicts the code: inputs.h5 `i`, powerblock subtraction, ramprate source, TES efficiency 0.999, the dispatchable limit, the sign of local charging, PTC, "IDs 1–8".
