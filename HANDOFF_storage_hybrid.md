@@ -83,7 +83,7 @@ When you finish Phase 9, fill in section 9 of this file ("Results for Phase 8"),
 - New Phase 9a, before hand-back: connect gas-cc wrappers to the gas, Clean Air Act and capacity-credit outage rules they skip today, and reject coal, biopower and BECCS gen techs. Details are in section 7.
 - The Phase 9.1 placeholder becomes Phase 9b. It is a sanity check, scoped with Ethan in conversation, and it starts after Phase 9a.
 - Phase 9b scope (accepted 2026-10-29, after Phase 9a): steps A–D in section 7. Hand-back (section 9 final, push) moves to after Phase 9b.
-- Phase 9b fixes (accepted 2026-10-30, after steps A–C): fixes 1–7 and decisions J1–J3, listed under step D in section 7. Gas-CCS gen techs are rejected rather than connected.
+- Phase 9b fixes (accepted 2026-10-29, after steps A–C): fixes 1–7 and decisions J1–J3, listed under step D in section 7. Gas-CCS gen techs are rejected rather than connected.
 
 ## 4. Environment setup
 1. **Python:** upstream's `runreeds.py` rejects any env except one named `reeds` with pandas 3.x. Build it with `conda env create -f environment.yml` and run with `conda run --no-capture-output -n reeds python runreeds.py ...`.
