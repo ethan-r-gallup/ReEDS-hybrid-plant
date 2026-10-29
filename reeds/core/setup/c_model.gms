@@ -2641,8 +2641,10 @@ eq_cdr_cap(t)
 
 *Under the Clean Air Act Section 111, new gas plants (CCs or CTs) can operate above caa_gas_max_cf percent before caa_coal_retire_year 
 *During and after caa_coal_retire_year, they need to either A) operate at <= caa_gas_max_cf percent CF, B) upgrade with CCS or C) retire
+*Storage-hybrid wrappers on gas gen techs are limited on their plant-side generation
 eq_caa_max_cf(i,v,r,t)$[tmodel(t)$valgen(i,v,r,t)
-                        $gas(i)$(not ccs(i))
+                        $(gas(i) or storage_hybrid_gas(i))$(not ccs(i))
+                        $(not sum{ii$storage_hybrid_gentech(i,ii), ccs(ii) })
                         $heat_rate(i,v,r,t)
                         $(firstyear_v(i,v)>=caa_first_year)
                         $(yeart(t)>=caa_coal_retire_year)
@@ -2655,7 +2657,8 @@ eq_caa_max_cf(i,v,r,t)$[tmodel(t)$valgen(i,v,r,t)
     =g=
 
 *must exceed total annual generation
-    sum{h$h_rep(h), hours(h) * GEN(i,v,r,h,t)}
+    sum{h$h_rep(h), hours(h) * ( GEN(i,v,r,h,t)$(not storage_hybrid(i))
+                                + GEN_PLANT(i,v,r,h,t)$storage_hybrid(i) ) }
 ;
 
 * ---------------------------------------------------------------------------
@@ -2975,6 +2978,10 @@ eq_gasused(cendiv,h,t)$[tmodel(t)$((Sw_GasCurve=0) or (Sw_GasCurve=3))]..
     sum{(i,v,r)$[valgen(i,v,r,t)$gas(i)$r_cendiv(r,cendiv)],
          heat_rate(i,v,r,t) * (GEN(i,v,r,h,t) + CCSFLEX_POW(i,v,r,h,t)$[ccsflex(i)$(Sw_CCSFLEX_BYP OR Sw_CCSFLEX_STO OR Sw_CCSFLEX_DAC)]) } / gas_scale
 
+*storage-hybrid wrappers on gas gen techs burn gas on the plant side only
+    + sum{(i,v,r)$[valgen(i,v,r,t)$storage_hybrid_gas(i)$r_cendiv(r,cendiv)],
+         heat_rate(i,v,r,t) * GEN_PLANT(i,v,r,h,t) } / gas_scale
+
     + (sum{(v,r)$[valcap("dac_gas",v,r,t)$r_cendiv(r,cendiv)],
          dac_gas_cons_rate("dac_gas",v,t) * PRODUCE("DAC","dac_gas",v,r,h,t) } / gas_scale)$Sw_DAC_Gas
 
@@ -3016,6 +3023,11 @@ eq_gasaccounting_regional(cendiv,t)$[tmodel(t)$(Sw_GasCurve=1)]..
     sum{(i,v,r,h)$[valgen(i,v,r,t)$gas(i)$r_cendiv(r,cendiv)],
          hours(h) * heat_rate(i,v,r,t) * GEN(i,v,r,h,t)
        }
+
+*storage-hybrid wrappers on gas gen techs burn gas on the plant side only
+    + sum{(i,v,r,h)$[valgen(i,v,r,t)$storage_hybrid_gas(i)$r_cendiv(r,cendiv)],
+         hours(h) * heat_rate(i,v,r,t) * GEN_PLANT(i,v,r,h,t)
+       }
 ;
 
 * ---------------------------------------------------------------------------
@@ -3028,6 +3040,11 @@ eq_gasaccounting_national(t)$[tmodel(t)$(Sw_GasCurve=1)]..
 
     sum{(i,v,r,h)$[valgen(i,v,r,t)$gas(i)],
          hours(h) * heat_rate(i,v,r,t) * GEN(i,v,r,h,t)
+       }
+
+*storage-hybrid wrappers on gas gen techs burn gas on the plant side only
+    + sum{(i,v,r,h)$[valgen(i,v,r,t)$storage_hybrid_gas(i)],
+         hours(h) * heat_rate(i,v,r,t) * GEN_PLANT(i,v,r,h,t)
        }
 ;
 

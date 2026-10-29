@@ -844,6 +844,11 @@ set storage_hybrid_vre(i)          "storage-hybrid configs whose gen tech is VRE
 set storage_hybrid_dispatchable(i) "storage-hybrid configs whose gen tech is dispatchable (non-VRE)" ;
 storage_hybrid_vre(i)$[storage_hybrid(i)$sum{ii$storage_hybrid_gentech(i,ii), vre(ii)}] = yes ;
 storage_hybrid_dispatchable(i)$[storage_hybrid(i)$(not storage_hybrid_vre(i))] = yes ;
+* Wrappers are not in gas(i), because their GEN includes storage discharge, which burns no fuel.
+* storage_hybrid_gas(i) lets the gas supply curves, gas prices and Clean Air Act limits count
+* the plant-side gas burn (GEN_PLANT) instead.
+set storage_hybrid_gas(i) "storage-hybrid configs whose gen tech burns natural gas" ;
+storage_hybrid_gas(i)$[storage_hybrid(i)$sum{ii$storage_hybrid_gentech(i,ii), gas(ii)}] = yes ;
 
 * Inherit tech-group membership from each storage-hybrid config's gen tech so that downstream
 * group-keyed logic (valinv_tg, RPS state aggregations, etc.) recognizes the config.
@@ -3207,6 +3212,11 @@ quarter_cap_frac_delta(i,v,r,quarter,t)$[conv(i)$sameas(quarter,'summ')] =
 ccseason_cap_frac_delta(i,v,r,ccseason,t)$[conv(i)$sameas(ccseason,'hot')] =
     climate_heuristics_finalyear('thermal_summer_cap_delta') * climate_heuristics_yearfrac(t)
 ;
+* Storage-hybrid wrappers take their gen tech's seasonal capacity changes
+quarter_cap_frac_delta(i,v,r,quarter,t)$storage_hybrid(i) =
+    sum{ii$storage_hybrid_gentech(i,ii), quarter_cap_frac_delta(ii,v,r,quarter,t) } ;
+ccseason_cap_frac_delta(i,v,r,ccseason,t)$storage_hybrid(i) =
+    sum{ii$storage_hybrid_gentech(i,ii), ccseason_cap_frac_delta(ii,v,r,ccseason,t) } ;
 
 
 

@@ -165,7 +165,9 @@ def reeds_cc(t, tnext, casedir):
     tech_subset_table = reeds.techs.expand_GAMS_tech_groups(
         reeds.techs.get_tech_subset_table(casedir).reset_index()
     ).set_index('tech_group').i
-    techs_to_keep = tech_subset_table.loc['TEMP_DERATE'].tolist()
+    ## Storage-hybrid wrappers keep their outage rates when their gen tech does
+    techs_to_keep = reeds.techs.add_storage_hybrid_gentech_members(
+        tech_subset_table.loc['TEMP_DERATE'], inputs_case)
     techs_to_drop = [
         col for col in forced_outage_rate.columns.get_level_values('i').unique()
         if col not in techs_to_keep

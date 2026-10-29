@@ -253,6 +253,9 @@ def test_validation_passes(sw):
     ({'GridCharging': '1.0'}, 'between 0 and the matching'),
     ({'Types': '1_1'}, 'duplicate'),
     ({'GenTechs': 'h2-ct'}, 'hydrogen'),
+    ({'GenTechs': 'coal-new'}, 'burns coal'),
+    ({'GenTechs': 'biopower'}, 'burns biomass'),
+    ({'GenTechs': 'beccs-mod'}, 'burns biomass'),
     ({'GenTechs': 'battery-li'}, 'includes storage'),
     ({'GenTechs': 'distpv'}, 'distributed PV'),
     ({'StorageTechs': 'caes'}, 'must be a storage'),
@@ -281,3 +284,14 @@ def test_add_vre_resources(inputs_case):
     assert added['resource'].tolist() == [
         'storage-hybrid-1-upv_2|p1', 'storage-hybrid-1-upv_2|p2']
     assert gentechs.to_dict() == {'storage-hybrid-1-upv_2': 'upv_2'}
+
+
+#%% Capacity-credit forced outages for wrappers
+def test_add_gentech_members(inputs_case):
+    pd.DataFrame({
+        '*storage-hybrid_type': ['storage-hybrid-1-gas-cc', 'storage-hybrid-2-upv_2'],
+        'gen_tech': ['Gas-CC', 'upv_2'],
+    }).to_csv(inputs_case / 'storage_hybrid_gentechs.csv', index=False)
+    out = reeds.techs.add_storage_hybrid_gentech_members(
+        pd.Series(['gas-cc', 'nuclear']), str(inputs_case))
+    assert out == ['gas-cc', 'nuclear', 'storage-hybrid-1-gas-cc']

@@ -258,7 +258,7 @@ eq_Objfn_op(t)$tmodel(t)..
 * When using endogenous H2 price (Sw_H2=1 or Sw_H2=2), H2 fuel cost is captured elsewhere
 * via the capex + opex costs of H2 production and its associated electricity demand.
               + sum{(i,v,r,h)$[valgen(i,v,r,t)$heat_rate(i,v,r,t)
-                             $(not gas(i))$(not bio(i))$(not cofire(i))
+                             $(not gas(i))$(not storage_hybrid_gas(i))$(not bio(i))$(not cofire(i))
                              $((not h2_gen(i)) or h2_gen(i)$[(Sw_H2=0) or h_stress(h)])],
                                               hours(h) * heat_rate(i,v,r,t) * fuel_price(i,r,t)
                                               * ( GEN(i,v,r,h,t)$(not storage_hybrid(i))
@@ -280,6 +280,10 @@ eq_Objfn_op(t)$tmodel(t)..
               + sum{(i,v,r,h)$[valgen(i,v,r,t)$gas(i)$heat_rate(i,v,r,t)$(Sw_GasCurve = 2)],
                    hours(h) * heat_rate(i,v,r,t) * fuel_price(i,r,t) * GEN(i,v,r,h,t) * gasprice_adj_r(r,h) }
 
+*storage-hybrid wrappers on gas gen techs burn gas on the plant side only (GEN_PLANT)
+              + sum{(i,v,r,h)$[valgen(i,v,r,t)$storage_hybrid_gas(i)$heat_rate(i,v,r,t)$(Sw_GasCurve = 2)],
+                   hours(h) * heat_rate(i,v,r,t) * fuel_price(i,r,t) * GEN_PLANT(i,v,r,h,t) * gasprice_adj_r(r,h) }
+
 *second - gas consumed by gas-powered DAC
               + sum{(v,r,h)$[valcap("dac_gas",v,r,t)$(Sw_GasCurve = 2)],
                    hours(h) * dac_gas_cons_rate("dac_gas",v,t) * PRODUCE("DAC","dac_gas",v,r,h,t) }$Sw_DAC_Gas
@@ -299,6 +303,10 @@ eq_Objfn_op(t)$tmodel(t)..
               + (sum{(i,r,v,cendiv,h)$[valgen(i,v,r,t)$gas(i)],
                    gasmultterm(cendiv,t) * cendiv_weights(r,cendiv) *
                    hours(h) * heat_rate(i,v,r,t) * GEN(i,v,r,h,t) * gasprice_adj_r(r,h) }
+
+              + sum{(i,r,v,cendiv,h)$[valgen(i,v,r,t)$storage_hybrid_gas(i)],
+                   gasmultterm(cendiv,t) * cendiv_weights(r,cendiv) *
+                   hours(h) * heat_rate(i,v,r,t) * GEN_PLANT(i,v,r,h,t) * gasprice_adj_r(r,h) }
 
 *second - adjustments based on changes from last year's consumption at the regional and national level
               + sum{(fuelbin,cendiv),

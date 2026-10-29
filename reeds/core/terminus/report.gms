@@ -538,6 +538,9 @@ repgasquant(cendiv,t)$[(Sw_GasCurve = 0 or Sw_GasCurve = 3)$tmodel_new(t)] =
 repgasquant(cendiv,t)$[(Sw_GasCurve = 1 or Sw_GasCurve = 2)$tmodel_new(t)] =
     ( sum{(i,v,r,h)$[r_cendiv(r,cendiv)$valgen(i,v,r,t)$gas(i)$heat_rate(i,v,r,t)],
           hours(h) * heat_rate(i,v,r,t) * GEN.l(i,v,r,h,t)}
+* storage-hybrid wrappers on gas gen techs burn gas on the plant side only
+    + sum{(i,v,r,h)$[r_cendiv(r,cendiv)$valgen(i,v,r,t)$storage_hybrid_gas(i)$heat_rate(i,v,r,t)],
+          hours(h) * heat_rate(i,v,r,t) * GEN_PLANT.l(i,v,r,h,t)}
     + sum{(v,r,h)$[valcap("dac_gas",v,r,t)$r_cendiv(r,cendiv)],
           hours(h) * dac_gas_cons_rate("dac_gas",v,t) * PRODUCE.l("DAC","dac_gas",v,r,h,t) }$Sw_DAC_Gas
     + sum{(p,i,v,r,h)$[r_cendiv(r,cendiv)$valcap(i,v,r,t)$smr(i)],
@@ -547,6 +550,8 @@ repgasquant(cendiv,t)$[(Sw_GasCurve = 1 or Sw_GasCurve = 2)$tmodel_new(t)] =
 repgasquant_irt(i,r,t)$tmodel_new(t) =
     ( sum{(v,h)$[valgen(i,v,r,t)$gas(i)$heat_rate(i,v,r,t)],
           hours(h) * heat_rate(i,v,r,t) * GEN.l(i,v,r,h,t)  }
+    + sum{(v,h)$[valgen(i,v,r,t)$storage_hybrid_gas(i)$heat_rate(i,v,r,t)],
+          hours(h) * heat_rate(i,v,r,t) * GEN_PLANT.l(i,v,r,h,t)  }
     + sum{(v,h)$[valcap("dac_gas",v,r,t)],
           hours(h) * dac_gas_cons_rate("dac_gas",v,t) * PRODUCE.l("DAC","dac_gas",v,r,h,t) }$Sw_DAC_Gas
     + sum{(p,v,h)$[valcap(i,v,r,t)$smr(i)],
@@ -564,9 +569,11 @@ repgasprice(cendiv,t)$[(Sw_GasCurve = 0)$tmodel_new(t)$repgasquant(cendiv,t)] =
     } ;
 
 repgasprice(cendiv,t)$[(Sw_GasCurve = 2)$tmodel_new(t)$repgasquant(cendiv,t)] =
-    sum{(i,v,r,h)$[r_cendiv(r,cendiv)$valgen(i,v,r,t)$gas(i)$heat_rate(i,v,r,t)],
-          hours(h) * heat_rate(i,v,r,t) * fuel_price(i,r,t) * GEN.l(i,v,r,h,t) * gasprice_adj_r(r,h)
-       } / (repgasquant(cendiv,t) * 1e9) ;
+    ( sum{(i,v,r,h)$[r_cendiv(r,cendiv)$valgen(i,v,r,t)$gas(i)$heat_rate(i,v,r,t)],
+          hours(h) * heat_rate(i,v,r,t) * fuel_price(i,r,t) * GEN.l(i,v,r,h,t) * gasprice_adj_r(r,h) }
+    + sum{(i,v,r,h)$[r_cendiv(r,cendiv)$valgen(i,v,r,t)$storage_hybrid_gas(i)$heat_rate(i,v,r,t)],
+          hours(h) * heat_rate(i,v,r,t) * fuel_price(i,r,t) * GEN_PLANT.l(i,v,r,h,t) * gasprice_adj_r(r,h) }
+    ) / (repgasquant(cendiv,t) * 1e9) ;
 
 repgasprice_r(r,t)$[(Sw_GasCurve = 0 or Sw_GasCurve = 2)$tmodel_new(t)] = sum{cendiv$r_cendiv(r,cendiv), repgasprice(cendiv,t) } ;
 
@@ -592,9 +599,9 @@ repgasprice_nat(t)$[tmodel_new(t)$sum{cendiv, repgasquant(cendiv,t) }] =
 *========================================
 
 gasshare_ba(r,cendiv,t)$[r_cendiv(r,cendiv)$tmodel_new(t)$repgasquant(cendiv,t)] =
-                 sum{i$[valgen_irt(i,r,t)$gas(i)],repgasquant_irt(i,r,t) / repgasquant(cendiv,t) } ;
+                 sum{i$[valgen_irt(i,r,t)$(gas(i) or storage_hybrid_gas(i))],repgasquant_irt(i,r,t) / repgasquant(cendiv,t) } ;
 
-gasshare_techba(i,r,cendiv,t)$[r_cendiv(r,cendiv)$tmodel_new(t)$repgasquant(cendiv,t)$gas(i)] =
+gasshare_techba(i,r,cendiv,t)$[r_cendiv(r,cendiv)$tmodel_new(t)$repgasquant(cendiv,t)$(gas(i) or storage_hybrid_gas(i))] =
                  repgasquant_irt(i,r,t) / repgasquant(cendiv,t) ;
 
 gasshare_cendiv(cendiv,t)$[sum{cendiv2,repgasquant(cendiv2,t)}] = repgasquant(cendiv,t) / sum{cendiv2,repgasquant(cendiv2,t)} ;
@@ -604,6 +611,9 @@ gascost_cendiv(cendiv,t)$tmodel_new(t) =
               + sum{(i,v,r,h)$[r_cendiv(r,cendiv)$valgen(i,v,r,t)$gas(i)$heat_rate(i,v,r,t)
                               $[not bio(i)]$[not cofire(i)]$[Sw_GasCurve = 2]],
                    hours(h) * heat_rate(i,v,r,t) * fuel_price(i,r,t) * GEN.l(i,v,r,h,t) * gasprice_adj_r(r,h) }
+              + sum{(i,v,r,h)$[r_cendiv(r,cendiv)$valgen(i,v,r,t)$storage_hybrid_gas(i)$heat_rate(i,v,r,t)
+                              $[Sw_GasCurve = 2]],
+                   hours(h) * heat_rate(i,v,r,t) * fuel_price(i,r,t) * GEN_PLANT.l(i,v,r,h,t) * gasprice_adj_r(r,h) }
 
 *cost of natural gas for Sw_GasCurve = 0 (census division supply curves natural gas prices)
               + sum{gb, sum{h,hours(h) * GASUSED.l(cendiv,gb,h,t) * gasprice_adj_cendiv(cendiv,h) } * gasprice(cendiv,gb,t)
@@ -618,6 +628,9 @@ gascost_cendiv(cendiv,t)$tmodel_new(t) =
               + (sum{(i,v,r,h)$[valgen(i,v,r,t)$gas(i)],
                    gasmultterm(cendiv,t) * cendiv_weights(r,cendiv) *
                    hours(h) * heat_rate(i,v,r,t) * GEN.l(i,v,r,h,t) * gasprice_adj_r(r,h) }
+              + sum{(i,v,r,h)$[valgen(i,v,r,t)$storage_hybrid_gas(i)],
+                   gasmultterm(cendiv,t) * cendiv_weights(r,cendiv) *
+                   hours(h) * heat_rate(i,v,r,t) * GEN_PLANT.l(i,v,r,h,t) * gasprice_adj_r(r,h) }
 *second - adjustments based on changes from last year's consumption at the regional and national level
               + sum{(fuelbin),
                    gasbinp_regional(fuelbin,cendiv,t) * VGASBINQ_REGIONAL.l(fuelbin,cendiv,t) }
@@ -1464,7 +1477,7 @@ systemcost_techba("op_fuelcosts_objfn",i,r,t)$tmodel_new(t)  =
 *cost of coal and nuclear fuel (except coal used for cofiring)
 *for storage_hybrid, only the plant side burns fuel (use GEN_PLANT, matching objective function)
               + sum{(v,h)$[valgen(i,v,r,t)$heat_rate(i,v,r,t)
-                         $(not gas(i))$(not bio(i))$(not cofire(i))
+                         $(not gas(i))$(not storage_hybrid_gas(i))$(not bio(i))$(not cofire(i))
                          $((not h2_gen(i)) or h2_gen(i)$[(Sw_H2=0) or h_stress(h)])],
                    hours(h) * heat_rate(i,v,r,t) * fuel_price(i,r,t)
                    * ( GEN.l(i,v,r,h,t)$(not storage_hybrid(i))

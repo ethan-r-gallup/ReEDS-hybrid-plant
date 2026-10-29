@@ -188,6 +188,10 @@ repgasquant(cendiv,t)$[(Sw_GasCurve = 0 or Sw_GasCurve = 3)$tcur(t)] =
 repgasquant(cendiv,t)$[(Sw_GasCurve = 1 or Sw_GasCurve = 2)$tcur(t)] =
     sum{(i,v,r,h)$[r_cendiv(r,cendiv)$valgen(i,v,r,t)$gas(i)$heat_rate(i,v,r,t)],
           hours(h) * heat_rate(i,v,r,t) * GEN.l(i,v,r,h,t)
+       }
+* storage-hybrid wrappers on gas gen techs burn gas on the plant side only
+  + sum{(i,v,r,h)$[r_cendiv(r,cendiv)$valgen(i,v,r,t)$storage_hybrid_gas(i)$heat_rate(i,v,r,t)],
+          hours(h) * heat_rate(i,v,r,t) * GEN_PLANT.l(i,v,r,h,t)
        } ;
 
 *============================

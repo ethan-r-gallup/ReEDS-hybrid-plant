@@ -132,6 +132,15 @@ def check_storage_hybrid(sw):
                 problem = 'includes storage'
             elif member in subsets['h2_gen']:
                 problem = 'is fueled by hydrogen'
+            elif (member in subsets['coal']) or (member in subsets['cofire']):
+                problem = (
+                    'burns coal; the Clean Air Act coal rules do not cover wrappers yet'
+                )
+            elif (member in subsets['bio']) or (member in subsets['beccs']):
+                problem = (
+                    'burns biomass; the biomass supply curve and carbon-removal '
+                    'limits do not cover wrappers yet'
+                )
             elif (member in subsets['hydro']) or (member in subsets['vre_distributed']):
                 problem = (
                     'is hydropower or distributed PV, whose generation profiles '

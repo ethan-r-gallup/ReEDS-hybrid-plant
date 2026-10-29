@@ -138,6 +138,20 @@ def get_storage_hybrid_gentechs(inputs_case):
     return pd.read_csv(path, index_col='*storage-hybrid_type')['gen_tech']
 
 
+def add_storage_hybrid_gentech_members(techs, inputs_case):
+    """
+    Return techs (lower-case tech names) plus each storage-hybrid wrapper whose gen tech
+    is in techs, so tech-group lists keyed on the gen tech also cover its wrappers.
+    """
+    techs = list(techs)
+    techs += [
+        wrapper.lower()
+        for wrapper, gen_tech in get_storage_hybrid_gentechs(inputs_case).items()
+        if gen_tech.lower() in techs
+    ]
+    return techs
+
+
 def add_storage_hybrid_vre_resources(resources, inputs_case):
     """
     Add a row to resources (from inputs_case/resources.csv) for each storage-hybrid
