@@ -229,10 +229,17 @@ def broadcast_gen_shapes_to_wrappers(df_prefill, inputs_case):
         gentech_map.wrapper.str.lower(), gentech_map.gen_tech.str.lower()
     ))
 
+    ## Geothermal techs share one 'geothermal' profile (GAMS maps it through geo(i))
+    geo = {
+        tech.lower() for tech in reeds.techs.import_tech_groups(
+            os.path.join(inputs_case, 'tech-subset-table.csv')).get('GEO', [])
+    }
     included = df_prefill.columns.get_level_values('i').unique()
     frames = []
     mapped = []
     for wrapper, gentech in wrapper_gentech.items():
+        if (gentech not in included) and (gentech in geo):
+            gentech = 'geothermal'
         if (wrapper in included) or (gentech not in included):
             continue
         sub = df_prefill.loc[:, df_prefill.columns.get_level_values('i') == gentech].copy()

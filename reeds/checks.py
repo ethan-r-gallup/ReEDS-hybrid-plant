@@ -141,6 +141,11 @@ def check_storage_hybrid(sw):
                     'burns biomass; the biomass supply curve and carbon-removal '
                     'limits do not cover wrappers yet'
                 )
+            elif (member in subsets['ccs']) or (member in subsets['ccsflex']):
+                problem = (
+                    'captures CO2; the 45Q credit, CO2 transport and storage, and '
+                    'capture accounting do not cover wrappers yet'
+                )
             elif (member in subsets['hydro']) or (member in subsets['vre_distributed']):
                 problem = (
                     'is hydropower or distributed PV, whose generation profiles '

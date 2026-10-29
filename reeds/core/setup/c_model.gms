@@ -1207,6 +1207,15 @@ eq_spurclip(x,h,t)
     =g=
 
     AVAIL_SITE(x,h,t)
+
+* plus the storage discharge capacity (bcr * CAP) of storage-hybrid wrappers at the site,
+* which shares the spur line but is not part of the site's available generation
+    + sum{(i,v,r,rscbin)
+          $[storage_hybrid(i)
+          $spurline_sitemap(i,r,rscbin,x)
+          $valcap(i,v,r,t)],
+          bcr(i) * CAP_RSC(i,v,r,rscbin,t)
+      }
 ;
 
 * ---------------------------------------------------------------------------
@@ -1226,10 +1235,12 @@ eq_spur_noclip(x,t)
 * must be >= to the wind/solar capacity installed at x
 * (Since PV capacity is in DC, we divide CAP_RSC [DC] by ILR [DC/AC] to get AC spur line capacity.
 *  ILR is 1 for all non-PV techs.)
+* (storage-hybrid wrappers add their storage discharge capacity, bcr * CAP)
     sum{(i,v,r,rscbin)
         $[spurline_sitemap(i,r,rscbin,x)
         $valcap(i,v,r,t)],
         CAP_RSC(i,v,r,rscbin,t) / ilr(i)
+        + (bcr(i) * CAP_RSC(i,v,r,rscbin,t))$storage_hybrid(i)
     }
 ;
 
@@ -2090,7 +2101,9 @@ eq_POI_cap(r,t)
     =g=
 
 * must be greater than the sum of all generation capacity [AC] without explicit spur lines...
-    sum{(i,v)$[valcap(i,v,r,t)$(not spur_techs(i))], CAP(i,v,r,t) / ilr(i) }
+* (storage-hybrid wrappers can inject plant output plus storage discharge, bcr * CAP)
+    sum{(i,v)$[valcap(i,v,r,t)$(not spur_techs(i))],
+        CAP(i,v,r,t) / ilr(i) + (bcr(i) * CAP(i,v,r,t))$storage_hybrid(i) }
 * and spur-line capacity if explicitly tracked (use total capacity, not just new investments,
 * to make sure we account for the existing spur line capacity already included in poi_cap_init)...
     + sum{x$[xfeas(x)$x_r(x,r)$Sw_SpurScen], CAP_SPUR(x,t) }
@@ -2545,9 +2558,11 @@ eq_CSAPR_Budget(csapr_group,t)$[Sw_CSAPR$tmodel(t)$(yeart(t)>=csapr_startyr)]..
     =g=
 
 *must exceed the summed-over-state hourly-weighted nox emissions by csapr group
+*(storage-hybrid wrappers emit on the plant side only)
     sum{st$csapr_group_st(csapr_group,st),
       sum{(i,v,h,r)$[r_st(r,st)$valgen(i,v,r,t)$h_rep(h)],
-         h_weight_csapr(h) * hours(h) * emit_rate("process","NOX",i,v,r,t) * GEN(i,v,r,h,t)
+         h_weight_csapr(h) * hours(h) * emit_rate("process","NOX",i,v,r,t)
+         * ( GEN(i,v,r,h,t)$(not storage_hybrid(i)) + GEN_PLANT(i,v,r,h,t)$storage_hybrid(i) )
        }
       }
 ;
@@ -2566,7 +2581,8 @@ eq_CSAPR_Assurance(st,t)$[stfeas(st)$(yeart(t)>=csapr_startyr)
 
 *must exceed the csapr-hourly-weighted nox emissions by state
     sum{(i,v,h,r)$[r_st(r,st)$valgen(i,v,r,t)$h_rep(h)],
-      h_weight_csapr(h) * hours(h) * emit_rate("process","NOX",i,v,r,t) * GEN(i,v,r,h,t)
+      h_weight_csapr(h) * hours(h) * emit_rate("process","NOX",i,v,r,t)
+      * ( GEN(i,v,r,h,t)$(not storage_hybrid(i)) + GEN_PLANT(i,v,r,h,t)$storage_hybrid(i) )
     }
 ;
 
@@ -2903,8 +2919,8 @@ eq_RPS_OFSWind(st,t)$[tmodel(t)$stfeas(st)$offshore_cap_req(st,t)$Sw_StateRPS
 * existing capacity of wind
     sum{(i,v,r)$[r_st(r,st)$ofswind(i)], m_capacity_exog(i,v,r,t) }
 
-* investments over time
-    + sum{(i,v,r,tt)$[r_st(r,st)$ofswind(i)$inv_cond(i,v,r,t,tt)$(tmodel(tt) or tfix(tt))],
+* investments over time (wrappers on offshore wind count their turbines)
+    + sum{(i,v,r,tt)$[r_st(r,st)$(ofswind(i) or storage_hybrid_ofswind(i))$inv_cond(i,v,r,t,tt)$(tmodel(tt) or tfix(tt))],
           INV(i,v,r,tt) + INV_REFURB(i,v,r,tt)$[refurbtech(i)$Sw_Refurb] }
 
     =g=
@@ -2920,7 +2936,8 @@ eq_batterymandate(st,t)
     $Sw_BatteryMandate
     $(not Sw_PCM)]..
 *battery capacity
-    sum{(i,v,r)$[r_st(r,st)$valcap(i,v,r,t)$(battery(i) or pvb(i))], bcr(i) * CAP(i,v,r,t) }
+    sum{(i,v,r)$[r_st(r,st)$valcap(i,v,r,t)$(battery(i) or pvb(i) or storage_hybrid_battery(i))],
+        bcr(i) * CAP(i,v,r,t) }
 
     =g=
 
@@ -3329,10 +3346,13 @@ eq_battery_minduration(i,v,r,t)$[valcap(i,v,r,t)$tmodel(t)$newv(v)$(battery(i) o
     CAP(i,v,r,t) * minbatteryduration$battery(i)
 
 *TES-paired storage-hybrid wrappers are in tes(i) but take the bcr-scaled
-*storage-hybrid minimum below instead (otherwise the two terms stack)
+*minimum below instead (otherwise the two terms stack)
     + CAP(i,v,r,t) * mintesduration$[tes(i)$(not storage_hybrid(i))]
 
-    + CAP(i,v,r,t) * bcr(i) * min_storage_hybrid_duration$storage_hybrid(i)
+*storage-hybrid wrappers take their storage class's minimum duration per MW of
+*storage power (bcr * CAP); geothermal reservoir storage has none
+    + CAP(i,v,r,t) * bcr(i) * minbatteryduration$storage_hybrid_battery(i)
+    + CAP(i,v,r,t) * bcr(i) * mintesduration$storage_hybrid_with_tes(i)
 ;
 
 * ---------------------------------------------------------------------------

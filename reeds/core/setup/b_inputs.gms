@@ -849,6 +849,12 @@ storage_hybrid_dispatchable(i)$[storage_hybrid(i)$(not storage_hybrid_vre(i))] =
 * the plant-side gas burn (GEN_PLANT) instead.
 set storage_hybrid_gas(i) "storage-hybrid configs whose gen tech burns natural gas" ;
 storage_hybrid_gas(i)$[storage_hybrid(i)$sum{ii$storage_hybrid_gentech(i,ii), gas(ii)}] = yes ;
+* Wrappers with battery storage count toward state battery mandates (TES and geothermal
+* reservoir storage do not), and wrappers on offshore wind toward offshore wind mandates
+set storage_hybrid_battery(i) "storage-hybrid configs whose storage tech is a battery"
+    storage_hybrid_ofswind(i) "storage-hybrid configs whose gen tech is offshore wind" ;
+storage_hybrid_battery(i)$[storage_hybrid(i)$sum{ii$storage_hybrid_stortech(i,ii), battery(ii)}] = yes ;
+storage_hybrid_ofswind(i)$[storage_hybrid(i)$sum{ii$storage_hybrid_gentech(i,ii), ofswind(ii)}] = yes ;
 
 * Inherit tech-group membership from each storage-hybrid config's gen tech so that downstream
 * group-keyed logic (valinv_tg, RPS state aggregations, etc.) recognizes the config.
@@ -2690,6 +2696,10 @@ $offdelim
 $onlisting
 ;
 $offempty
+
+* storage-hybrid wrappers face their gen tech's REC import bans
+techs_banned_imports_rps(i,st)$storage_hybrid(i) =
+    sum{ii$storage_hybrid_gentech(i,ii), techs_banned_imports_rps(ii,st) } ;
 
 *CCS technologies have a variety of capture rates, so we assign them below after reading in capture rates
 
@@ -5557,6 +5567,10 @@ m_rsc_dat(r,i,rscbin,"cost")$[m_rsc_dat(r,i,rscbin,"cap")$(upv(i) or pvb(i))] = 
 m_rsc_dat(r,i,rscbin,"cost")
     $[m_rsc_dat(r,i,rscbin,"cap")$storage_hybrid(i)$sum{ii$[storage_hybrid_gentech(i,ii)$upv(ii)], 1 }]
     = m_rsc_dat(r,i,rscbin,"cost") / ilr(i) ;
+*A storage-hybrid wrapper's storage discharge (bcr * CAP, AC) also uses the spur line,
+*so its supply-curve spur cost covers that capacity too, as eq_POI_cap does for the POI
+m_rsc_dat(r,i,rscbin,"cost")$[m_rsc_dat(r,i,rscbin,"cap")$storage_hybrid(i)$(not sccapcosttech(i))]
+    = m_rsc_dat(r,i,rscbin,"cost") * (1 + bcr(i) * ilr(i)) ;
 
 *Fill in cost_trans for outputs.
 m_rsc_dat(r,i,rscbin,"cost_trans")$[m_rsc_dat(r,i,rscbin,"cost")$[not sccapcosttech(i)]] =

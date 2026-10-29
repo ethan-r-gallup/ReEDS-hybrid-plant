@@ -263,9 +263,11 @@ battery = battery.reset_index()
 # before retirement, not just once. The battery_li energy capital cost above already
 # includes one refurbishment; write the discounted cost of the extra ones, which
 # b_inputs.gms adds to the wrapper's energy capital cost.
+## maxage.csv uses GAMS range rows (upv_1*upv_10), so expand them before the lookup
 maxage = (
-    pd.read_csv(os.path.join(inputs_case,'maxage.csv'), header=None, index_col=0)
-    .squeeze(1).rename(lambda x: x.lower())
+    reeds.techs.expand_GAMS_tech_groups(
+        pd.read_csv(os.path.join(inputs_case,'maxage.csv'), header=None, names=['i','maxage']))
+    .set_index('i').maxage.rename(lambda x: x.lower())
 )
 storage_hybrid_stor = pd.read_csv(
     os.path.join(inputs_case,'storage_hybrid_storagetechs.csv'), index_col=0).squeeze(1)

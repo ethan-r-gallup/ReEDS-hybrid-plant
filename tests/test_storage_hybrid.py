@@ -176,6 +176,15 @@ def test_clone_family_root(tmp_path):
     assert path.read_bytes() == b'tech,MW\nupv,100\nstorage-hybrid-1-upv_3,100\n'
 
 
+def test_clone_geothermal_alias(tmp_path):
+    ## Outage files list geothermal techs only as 'geothermal' (GAMS maps it through geo(i))
+    path = tmp_path / 'outage_forced_static.csv'
+    path.write_bytes(b'geothermal,0.129\n')
+    geo_config = {**config('egs_allkm_5', 'flex_geo'), 'gen_alias': 'geothermal'}
+    copy_files._clone_storage_hybrid_csv_rows(str(path), 0, 'gen_only', [geo_config])
+    assert path.read_bytes() == b'geothermal,0.129\nstorage-hybrid-1-egs_allkm_5,0.129\n'
+
+
 def test_clone_headerless_and_existing_row(tmp_path):
     ## Position-indexed column, no trailing newline, and a wrapper that already has a row
     path = tmp_path / 'outage.csv'
@@ -256,6 +265,8 @@ def test_validation_passes(sw):
     ({'GenTechs': 'coal-new'}, 'burns coal'),
     ({'GenTechs': 'biopower'}, 'burns biomass'),
     ({'GenTechs': 'beccs-mod'}, 'burns biomass'),
+    ({'GenTechs': 'gas-cc-ccs-mod'}, 'captures CO2'),
+    ({'GenTechs': 'gas-cc-ccs-f1'}, 'captures CO2'),
     ({'GenTechs': 'battery-li'}, 'includes storage'),
     ({'GenTechs': 'distpv'}, 'distributed PV'),
     ({'StorageTechs': 'caes'}, 'must be a storage'),

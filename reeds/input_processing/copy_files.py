@@ -1764,6 +1764,10 @@ def _storage_hybrid_source_order(config, precedence):
         family = re.sub(r'[-_]\d+$', '', tech)
         if family != tech:
             order.append(family)
+        ## Some inputs list a tech group under one name (geothermal techs are 'geothermal'
+        ## in the outage files, which GAMS maps through geo(i)), so try that name last
+        if (tech == config['gen_tech']) and config.get('gen_alias'):
+            order.append(config['gen_alias'])
     return order
 
 
@@ -1880,6 +1884,13 @@ def propagate_storage_hybrid_tech_rows(sw, inputs_case):
     configs = build_storage_hybrid_configs(sw, inputs_case)
     if not configs:
         return
+    geo = {
+        _storage_hybrid_canon_label(t)
+        for t in _storage_hybrid_tech_subsets(inputs_case).get('GEO', set())
+    }
+    for config in configs:
+        if _storage_hybrid_canon_label(config['gen_tech']) in geo:
+            config['gen_alias'] = 'geothermal'
 
     modified = []
     for name, column, precedence in STORAGE_HYBRID_ROW_CLONES:
