@@ -85,6 +85,10 @@ When you finish Phase 9, fill in section 9 of this file ("Results for Phase 8"),
 - Phase 9b scope (accepted 2026-10-29, after Phase 9a): steps A–D in section 7. Hand-back (section 9 final, push) moves to after Phase 9b.
 - Phase 9b fixes (accepted 2026-10-29, after steps A–C): fixes 1–7 and decisions J1–J3, listed under step D in section 7. Gas-CCS gen techs are rejected rather than connected.
 
+**Plan changes Ethan accepted after Phase 9b (2026-10-30):**
+- Wind-ofs wrappers count toward the offshore-wind mandate (`eq_RPS_OFSWind`).
+- New Phase 9c, before hand-back: make the CI case build wrappers again, so CI exercises the code that runs only for built wrappers. Details are in section 7.
+
 ## 4. Environment setup
 1. **Python:** upstream's `runreeds.py` rejects any env except one named `reeds` with pandas 3.x. Build it with `conda env create -f environment.yml` and run with `conda run --no-capture-output -n reeds python runreeds.py ...`.
 2. **Julia:** `Project.toml` pins `julia = "=1.12.1"` and PRAS ~0.9. Run `juliaup add 1.12.1`, then `julia +1.12.1 --project=. instantiate.jl` from the repo root. This creates `Manifest.toml` (git-ignored), which `runreeds.py` requires whenever `pras=2` or `GSw_PRM_StressIterateMax>0`.
@@ -254,6 +258,13 @@ Goal: confirm that the formulation errors found in the earlier round (in PRAS, i
   - J1: wrappers pay POI (and spur-line) capacity for their full grid injection, CAP/ILR + BCR × CAP, so the shared interconnection gives no free capacity.
   - J2: PRAS keeps coupling the storage to the unit outage; documented as conservative for gas+battery.
   - J3: each wrapper takes the minimum duration of its storage class where one exists (battery, TES), instead of the wrapper-wide 1.5 h.
+
+### Phase 9c — CI case builds wrappers (added 2026-10-30)
+After Phase 9b, no wrapper is economic in `github_StorageHybrid` (it built 574 MW before 9a). CI then skips the code that runs only for built wrappers: PRAS GeneratorStorage units, wrapper capacity credit and outages, and the hourly wrapper outputs and their reports.
+1. New switch `GSw_StorageHybrid_CostMult` (default 1, for testing only) multiplies wrapper capital cost (`cost_cap` and `cost_cap_energy`) in `b_inputs.gms`. At 1 it changes nothing.
+2. `github_StorageHybrid` sets the multiplier low enough that it builds wrappers by 2030.
+3. A CI step fails if the CI run's `cap.csv` has no wrapper capacity, so the coverage cannot silently vanish again.
+4. Rerun the CI case locally and check that wrappers are built, PRAS gets wrapper units, and `test_outputs` passes.
 
 ## 8. Things the original agent will do in Phase 8 (do not do them)
 - Fix every stale path and every claim in `docs/source/storage_hybrid.md` that contradicts the code: inputs.h5 `i`, powerblock subtraction, ramprate source, TES efficiency 0.999, the dispatchable limit, the sign of local charging, PTC, "IDs 1–8".
