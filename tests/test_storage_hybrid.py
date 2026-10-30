@@ -249,6 +249,7 @@ def validation_sw(**kwargs):
     validation_sw(),
     validation_sw(Types='1', GenTechs='upv', StorageTechs='battery-li', GridCharging='0'),
     validation_sw(Types='1', GenTechs='geohydro-allkm', StorageTechs='flex-geo', GridCharging='0'),
+    validation_sw(CostMult='0.5'),
     {'GSw_StorageHybrid': '0'},
 ])
 def test_validation_passes(sw):
@@ -260,6 +261,8 @@ def test_validation_passes(sw):
     ({'BCR': '0.5_0.5_0.5'}, 'must have 1 value or 2'),
     ({'BCR': '0'}, 'must be > 0'),
     ({'GridCharging': '1.0'}, 'between 0 and the matching'),
+    ({'CostMult': '0'}, 'CostMult must be a number > 0'),
+    ({'CostMult': 'low'}, 'CostMult must be a number > 0'),
     ({'Types': '1_1'}, 'duplicate'),
     ({'GenTechs': 'h2-ct'}, 'hydrogen'),
     ({'GenTechs': 'coal-new'}, 'burns coal'),

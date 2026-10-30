@@ -71,3 +71,4 @@ GSw_StorageHybrid_GenTechs,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,nuclear_gas-cc_upv
 GSw_StorageHybrid_StorageTechs,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,tes-ms_battery-li_battery-li
 GSw_StorageHybrid_BCR,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,0.5
 GSw_StorageHybrid_GridCharging,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,0.0_0.25_0.0
+GSw_StorageHybrid_CostMult,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,0.5

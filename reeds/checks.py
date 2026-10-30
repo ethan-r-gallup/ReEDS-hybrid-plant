@@ -88,6 +88,15 @@ def check_storage_hybrid(sw):
                 "GSw_StorageHybrid_GridCharging entries must be between 0 and the matching "
                 f"GSw_StorageHybrid_BCR entry but one is {gridcharging} (BCR={bcr})"
             )
+    try:
+        costmult = float(sw.get('GSw_StorageHybrid_CostMult', 1))
+    except ValueError:
+        costmult = None
+    if not (costmult is not None and costmult > 0):
+        raise ValueError(
+            "GSw_StorageHybrid_CostMult must be a number > 0 "
+            f"but is {sw['GSw_StorageHybrid_CostMult']}"
+        )
 
     ### Technologies
     canon = copy_files._storage_hybrid_canon_label

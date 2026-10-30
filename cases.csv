@@ -332,6 +332,7 @@ GSw_StorageHybrid_GenTechs,'_'-delimited gen techs or approved numbered families
 GSw_StorageHybrid_StorageTechs,'_'-delimited storage techs to pair with the gen tech (i.e. battery-li_tes-ms_flex-geo_flex-geo-high_flex-geo-med_flex-geo-low),N/A,tes-ms_tes-ms_tes-ms_tes-ms_tes-ms_tes-ms,
 GSw_StorageHybrid_BCR,'_'-delimited storage capacity ratio of storage to gen tech capacity (i.e. 0.5 or 0.5_1.0_1.5),N/A,0.25_0.5_0.75_0.25_0.5_0.75,
 GSw_StorageHybrid_GridCharging,'_'-delimited grid charging capacity ratio relative to gen tech capacity (i.e. 0.0 or 0.0_0.5_1.0),N/A,0.0_0.0_0.0_0.0_0.0_0.0,
+GSw_StorageHybrid_CostMult,"Multiplier on storage-hybrid wrapper capital costs (power and energy). For testing only, so a small case builds wrappers; 1 applies no change",N/A,1,
 GSw_TechCostAdjust,"Fractional adjustments to overnight capital costs by technology group and year (inputs/plant_characteristics/tech_cost_adjustments_{GSw_TechCostAdjust}.csv). Groups are column names in inputs/tech-subset-table.csv; 'none' applies no adjustment",none; ATB_2025,none,
 GSw_TCPhaseout,Switch for whether tax credit Phaseout is enabled (0=no; 1=yes),0; 1,1,
 GSw_TCPhaseout_forceyear,(0=off by default) Indicate a year in which to force the start of the tax credit phaseout,N/A,2032,

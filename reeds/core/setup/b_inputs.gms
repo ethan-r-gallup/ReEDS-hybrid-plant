@@ -5089,6 +5089,10 @@ cost_cap(i,t)$[storage_hybrid(i)$(not thermal_storage(i))$(not geo_storage(i))] 
 cost_cap(i,t)$[storage_hybrid(i)$geo_storage(i)] = cost_cap_storage_hybrid_p(i,t)
                                  + powerblock_cost_storage_hybrid(i,t) * bcr(i) ;
 
+* Testing only: scale wrapper capital cost so a small case (the CI case) builds wrappers
+cost_cap(i,t)$storage_hybrid(i) = %GSw_StorageHybrid_CostMult% * cost_cap(i,t) ;
+cost_cap_energy(i,t)$storage_hybrid(i) = %GSw_StorageHybrid_CostMult% * cost_cap_energy(i,t) ;
+
 * --- Storage Duration ---
 
 * For PSH, tech-specific storage duration sets a default value.

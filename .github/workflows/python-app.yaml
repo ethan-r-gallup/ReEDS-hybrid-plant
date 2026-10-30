@@ -214,6 +214,14 @@ jobs:
           script: |
             core.setFailed('ReEDS run failed. Check log to diagnose.')
 
+      - name: Check that the storage-hybrid case builds wrappers
+        if: matrix.scenario == 'github_StorageHybrid'
+        run: |
+          grep -q '^storage-hybrid-' "$RUN_FOLDER/outputs/cap.csv" || {
+            echo "::error::github_StorageHybrid built no storage-hybrid wrappers, so CI skips their PRAS and reporting code. Lower GSw_StorageHybrid_CostMult in cases_test.csv."
+            exit 1
+          }
+
       - name: Run output validation tests
         env:
           SCENARIO: ${{ matrix.scenario }}
