@@ -405,12 +405,12 @@ All z54 runs solve every year (model status 1), with `endyear=2040`.
 ### Phase 9c results
 - The CI case was run locally at `GSw_StorageHybrid_CostMult` = 0.3, 0.5 and 0.7 (batch `p9d`). All three solve to 2030 with no errors.
 - Only upv+battery wrappers build:
-  - 0.3: 61.3 GW in 8 regions;
-  - 0.5: 55.0 GW in 7 regions;
+  - 0.3: 61.3 GW in 7 regions;
+  - 0.5: 55.0 GW in 6 regions;
   - 0.7: 1.0 GW in 2 regions.
 - The gas-cc+battery wrapper builds at none of the three. The case builds only 670 MW of new plain gas-cc in 2030, so there is little gas capacity for a wrapper to replace. The nuclear wrapper cannot build before 2034. The old CI case never built either type.
 - `cases_test.csv` sets 0.5. At 0.7 the build is marginal, so a small upstream cost change could remove it and fail the new CI check. At 0.5 the build is near its 0.3 level, which leaves margin.
-- At 0.5, z is 7e-06 and NEUE is 9.5 / 0 / 0 ppm (2020 / 2025 / 2030). PRAS gets one GeneratorStorage unit per wrapper region, each with its upv class's inflow profile.
+- At 0.5, z is 7e-06 and NEUE is 9.5 / 0 / 0 ppm (2020 / 2025 / 2030). PRAS gets one GeneratorStorage unit per wrapper and region, each with its upv class's inflow profile.
 - The new CI check passes on the 0.5 run. `test_outputs` fails only on the local plotting PNG. The 46 unit tests pass.
 
 ### Behavior changes the docs must describe
