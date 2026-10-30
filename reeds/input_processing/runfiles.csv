@@ -223,6 +223,7 @@ startcost.csv,inputs/plant_characteristics/startcost.csv,int(sw.GSw_StartCost) !
 state_cap.csv,inputs/emission_constraints/state_cap.csv,int(sw.GSw_StateCap) != 0,ignore,ignore,*st,t,,0,0,,,,,,
 storage_duration.csv,inputs/storage/storage_duration.csv,int(sw.GSw_Storage) != 0,ignore,ignore,,,,,0,,,parameter,,--hours-- storage duration by tech,
 storage_mandates.csv,inputs/state_policies/storage_mandates.csv,int(sw.GSw_BatteryMandate) != 0,ignore,ignore,*st,t,,0,0,,,,,,
+nuclear_cap_trajectory.csv,inputs/capacity_mandate/nuclear_cap_trajectory_{GSw_NuclearCapMandateScen}.csv,int(sw.GSw_NuclearCapMandate) != 0,ignore,ignore,,,,0,0,,,,,,
 stressperiods_user.csv,inputs/temporal/stressperiods_{GSw_PRM_StressModel}.csv,sw.GSw_PRM_StressModel == 'user*',ignore,ignore,,,,,,,,,,,
 supply_chain_adjust.csv,inputs/financials/supply_chain_adjust.csv,1,ignore,ignore,,,,,0,,,,,,
 supplycurve_egs.csv,inputs/supply_curve/supplycurve_egs-reference.csv,int(sw.GSw_Geothermal) != 0,ignore,ignore,region,,,,0,,,,,,No fix_col (only region_col) because this is an intermediate input file

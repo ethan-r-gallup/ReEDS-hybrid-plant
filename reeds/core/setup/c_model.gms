@@ -229,6 +229,8 @@ eq_interconnection_queues(tg,r,t)         "--MW-- capacity deployment limit base
  eq_REC_BundleLimit(RPSCat,st,ast,t)      "--RECS-- trade in bundle recs must be less than interstate electricity transmission"
  eq_REC_unbundledLimit(RPScat,st,t)       "--RECS-- unbundled RECS cannot exceed some percentage of total REC requirements"
  eq_RPS_OFSWind(st,t)                     "--MW-- MW of offshore wind capacity must be greater than or equal to RPS amount"
+ eq_nuclear_cap_mandate(t)                "--MW-- total nuclear capacity must be at least the mandated national trajectory"
+ eq_nuclear_cap_mandate_ub(t)             "--MW-- with Sw_NuclearCapMandate=2, total nuclear capacity must also not exceed the mandated trajectory (equality mode)"
  eq_national_gen(t)                       "--MWh-- e.g. a national RPS or CES. require a certain amount of total generation to be from specified sources."
 
 * fuel supply curve equations
@@ -2943,6 +2945,45 @@ eq_batterymandate(st,t)
 
 *must be greater than the required level
     batterymandate(st,t)
+;
+
+* ---------------------------------------------------------------------------
+
+* Nuclear capacity mandate (GSw_NuclearCapMandate): total nuclear capacity
+* (standalone nuclear plus the gen-side nameplate of nuclear storage-hybrid
+* wrappers) must follow the mandated national trajectory, scaled by
+* Sw_NuclearCapMandate_Scale for sub-national runs. This constrains CAPACITY,
+* unlike eq_national_gen which constrains generation share. Not applied before
+* new nuclear can be built (firstyear_nuclear), where a rising trajectory would
+* be infeasible by construction.
+
+eq_nuclear_cap_mandate(t)
+    $[tmodel(t)$nuclear_cap_trajectory(t)$(yeart(t)>=firstyear_nuclear)
+    $Sw_NuclearCapMandate
+    $(not Sw_PCM)]..
+
+    sum{(i,v,r)$[valcap(i,v,r,t)$(nuclear(i) or nuclear_storage_hybrid(i))], CAP(i,v,r,t) }
+
+    =g=
+
+    nuclear_cap_trajectory(t)
+;
+
+* Equality mode (Sw_NuclearCapMandate=2): also cap capacity at the trajectory,
+* so deployment follows the schedule instead of treating it as a floor.
+* Prescribed builds and lumpy existing capacity can make this infeasible
+* if they exceed the (scaled) trajectory.
+
+eq_nuclear_cap_mandate_ub(t)
+    $[tmodel(t)$nuclear_cap_trajectory(t)$(yeart(t)>=firstyear_nuclear)
+    $(Sw_NuclearCapMandate=2)
+    $(not Sw_PCM)]..
+
+    sum{(i,v,r)$[valcap(i,v,r,t)$(nuclear(i) or nuclear_storage_hybrid(i))], CAP(i,v,r,t) }
+
+    =l=
+
+    nuclear_cap_trajectory(t)
 ;
 
 * ---------------------------------------------------------------------------

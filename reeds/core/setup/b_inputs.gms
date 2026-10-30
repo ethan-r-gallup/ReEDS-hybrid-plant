@@ -1393,6 +1393,31 @@ $offempty
 scalar firstyear_battery "--year-- the first year battery technologies can be built, used to enforce storage mandate" ;
 firstyear_battery = smin(i$battery(i),firstyear(i)) ;
 
+* National nuclear capacity mandate trajectory (GSw_NuclearCapMandate;
+* eq_nuclear_cap_mandate in c_model.gms). GSw_NuclearCapMandateScen selects the
+* file in inputs/capacity_mandate; see the README there.
+$onempty
+parameter nuclear_cap_trajectory(allt) "--MW-- national nuclear capacity mandate trajectory (existing + new)"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%nuclear_cap_trajectory.csv
+$offdelim
+$onlisting
+/ ;
+$offempty
+
+* Sub-national runs apply a fraction of the national trajectory
+nuclear_cap_trajectory(allt) = nuclear_cap_trajectory(allt) * Sw_NuclearCapMandate_Scale ;
+
+scalar firstyear_nuclear "--year-- the first year new nuclear can be built, used to enforce the nuclear capacity mandate" ;
+firstyear_nuclear = smin(i$nuclear(i),firstyear(i)) ;
+
+* Storage-hybrid wrappers whose gen tech is nuclear; their gen-side capacity
+* counts toward the nuclear capacity mandate
+set nuclear_storage_hybrid(i) "storage-hybrid wrappers whose gen tech is nuclear" ;
+nuclear_storage_hybrid(i)$[storage_hybrid(i)$sum{ii$[storage_hybrid_gentech(i,ii)$nuclear(ii)], 1 }] = yes ;
+
 $onempty
 table offshore_cap_req(st,allt) "--MW-- offshore wind capacity requirement by state"
 $offlisting
