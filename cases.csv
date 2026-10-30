@@ -151,7 +151,7 @@ GSw_GasPriceAdjMethod,"Select method for adjusting gas prices (0 = no adjustment
 GSw_GasRegionSmooth,Exponential decay length [km] to use when smoothing regional (census division) gas prices together (if 0 then no smoothing is applied and r:cendiv map is used 1:1),float,150,
 GSw_GasSector,Select sector scope of gas curves,electric_sector; energy_sector,electric_sector,
 GSw_GenMandate,Turn on/off national Gen Requirement. 2 turns on and applies constraint at busbar.,0; 1; 2,0,
-GSw_GenMandateList,Select technology list for national generation standard (see inputs/national_generation/nat_gen_tech_frac.csv),RE; Nuclear; NuclearCCS,RE,
+GSw_GenMandateList,Select technology list for national generation standard (see inputs/national_generation/nat_gen_tech_frac.csv). Nuclear = RE plus nuclear; Nuke = nuclear and nuclear-smr only,RE; Nuclear; NuclearCCS; Nuke,RE,
 GSw_GenMandateScen,Select trajectory for national generation standard (see inputs/national_generation/gen_mandate_trajectory.csv),N/A,100_2035,
 GSw_interpolate_mandates,Optional: build a custom national generation-mandate trajectory by piecewise-linear interpolation instead of GSw_GenMandateScen. Format: <year>-<fraction>_<year>-<fraction>[_<year>-<fraction>...] (e.g. 2035-0.1_2050-0.25). Trajectory is 0 before the first year and held constant after the last. Set to 0 to disable.,0; \d{4}-\d*\.?\d+(?:_\d{4}-\d*\.?\d+)+,0,
 GSw_Geothermal,"Geothermal can be turned off [0], left to the default representation [1], or have an extended representation [2]",0; 1; 2,1,
