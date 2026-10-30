@@ -247,7 +247,7 @@ Goal: confirm that the formulation errors found in the earlier round (in PRAS, i
   1. `plantcostprep.py`: expand range rows in `maxage.csv` (`upv_1*upv_10,30`) before looking up a wrapper's life for battery refurbishments. Today VRE and geothermal wrappers fall back to `maxage_default` = 100 years and pay five extra refurbishments.
   2. Geothermal wrappers get outage rows: the row copies and the hourly outage broadcast fall back to `geothermal` for gen techs in GEO, as `2_temporal_params.gms` does.
   3. Wrappers inherit `techs_banned_imports_rps` from the gen tech (GAMS).
-  4. `eq_batterymandate` counts `bcr × CAP` of wrappers whose storage tech is a battery, and no other wrappers (TES and flex-geo do not qualify in real life). `eq_RPS_OFSWind` counts wind-ofs wrappers' CAP (pending Ethan's confirmation).
+  4. `eq_batterymandate` counts `bcr × CAP` of wrappers whose storage tech is a battery, and no other wrappers (TES and flex-geo do not qualify in real life). `eq_RPS_OFSWind` counts wind-ofs wrappers' CAP (Ethan confirmed on 2026-10-30).
   5. Validation rejects gas-CCS gen techs (`ccs`, `ccsflex`): 45Q, CO2 transport and storage, capture accounting, `eq_cdr_cap` and the CCS clean-energy exclusion do not cover wrappers.
   6. CSAPR NOx uses `GEN_PLANT` for wrappers.
   7. `flex_geo` gets a `ramprate.csv` row equal to Geothermal's (0.04), so geothermal+flex-geo wrappers can provide reserves.
