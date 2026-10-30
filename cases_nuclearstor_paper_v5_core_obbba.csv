@@ -8,6 +8,7 @@ plantchar_nuclear_smr,Small modular reactor (SMR) cost and performance character
 plantchar_battery,Battery cost and performance inputs (inputs\plant_characteristics\{plantchar_battery}.csv). The options for plantchar_battery start with 'battery_' and the switch should be set to the entire file name (ex: battery_ATB_2024_advanced),battery_ATB_2024_moderate,,,,,,,,,,,,,,,,,,
 GSw_Nuclear,Turn on/off new nuclear (existing nuclear still remains),1,,,,,,,,,,,,,,,,,,
 GSw_NuclearDemo,Turn on or off nuclear demonstration plants,0,,,,,,,,,,,,,,,,,,
+GSw_NuclearFirstYear,First year new nuclear and nuclear-smr (and their storage-hybrid wrappers) can be built. 0 = this_year + years_until_endogenous.csv (2034 for this_year 2026). Values below 2027 (this_year + years_until_min) are raised to 2027 in b_inputs.gms.,2031,,,,,,,,,,,,,,,,,,
 GSw_NukeStateBan,Switch to limit nuclear with state bans. [0] off / [1] full ban / [2] cost multiplier,1,,,,,,,,,,,,,,,,,,
 GSw_StorageHybrid,Turn on [1] / off [0] Storage-Hybrid,1,,,,,,0,0,0,0,0,,0,,0,,0,,0
 GSw_StorageHybrid_Types,'_'-delimited storage-hybrid configuration IDs (not source technologies) used to generate run-specific wrappers (i.e. 1 or 1_2 or 1_2_3),1_2_3_4_5_6,,,,,,,,,,,,,,,,,,

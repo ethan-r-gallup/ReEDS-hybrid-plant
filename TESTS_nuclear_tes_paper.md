@@ -4,7 +4,7 @@ This branch adds the nuclear+TES paper inputs to `storage-hybrid-pr`. The machin
 
 ## What the branch changes
 
-The branch adds 7 commits on top of `storage-hybrid-pr` at `73cfa977`:
+The branch adds these commits on top of `storage-hybrid-pr` at `73cfa977`:
 
 | Commit | Change |
 |---|---|
@@ -14,6 +14,7 @@ The branch adds 7 commits on top of `storage-hybrid-pr` at `73cfa977`:
 | `1338ca45` | `tes_threshold_modrte_{pct}pct.csv`: TES cost sensitivity files at 10–200% of ATB 2024 moderate |
 | `e2ee8679` | `hourly_load.py`: builds the load twice, compares the two builds, and validates the result before it writes `load.h5` |
 | `923f48c5`, `401e1622` | The v5 casefiles: core (18 cases), core OBBBA sensitivity (18) and broad TES sweep (63) |
+| (latest) | `GSw_NuclearFirstYear`: overrides the first year new nuclear can be built; the v5 casefiles set 2031 |
 
 ## Setup
 
@@ -51,23 +52,24 @@ Pass criteria, in order:
 1. **GAMS compile.** Each case gets past `b_inputs.gms` and `c_model.gms` without a compile error. The new code is the `$include` of `nuclear_cap_trajectory`, the set `nuclear_storage_hybrid(i)`, and the equations `eq_nuclear_cap_mandate` and `eq_nuclear_cap_mandate_ub`.
 2. **Load gate.** Each case's log prints `Load builds 1 and 2 agree` (or a later pair of builds). If a case prints `WARNING: load builds ... disagree` 12 times and stops, the load build is not deterministic on that machine. Record the case name and the message.
 3. **Optimal solves.** Every solve year in every case is optimal.
-4. **Capacity floor.** In each `capm_*` case, total nuclear capacity is at or above the trajectory in each solve year from 2035 to 2050. Total nuclear capacity counts `nuclear`, `nuclear-smr` and the `storage-hybrid-*-nuclear*` wrappers. The mandate starts in 2035 because new nuclear can be built from 2034 (`this_year` 2026 + 8 years in `years_until_endogenous.csv`). In the `_ctrl` cases the floor should bind in most years after 2035.
+4. **Capacity floor.** In each `capm_*` case, total nuclear capacity is at or above the trajectory in each solve year from 2032 to 2050. Total nuclear capacity counts `nuclear`, `nuclear-smr` and the `storage-hybrid-*-nuclear*` wrappers. The casefiles set `GSw_NuclearFirstYear=2031`, so new nuclear can be built from 2031, the year the trajectories start to rise. 2032 is the first solve year at or after 2031. Without the switch, the base inputs give 2034 (`this_year` 2026 + 8 years in `years_until_endogenous.csv`). In the `_ctrl` cases the floor should bind in most years.
+   Also check that `firstyear` in `inputs_case/inputs.h5` is 2031 for `Nuclear` and `Nuclear-SMR`.
 5. **Energy mandate.** In `n15`, `n20`, `n25` and `n50`, the 2050 nuclear share of generation is close to 15, 20, 25 and 50%. The mandate's base is bus-bar load, not total generation. So the share of total generation can sit up to about 1–2 percentage points below the target.
 6. **Hybrids only in the test cases.** The `ctrl_*` and `capm_*_ctrl` cases build no `storage-hybrid-*` capacity. The test cases may or may not build wrappers: the paper studies exactly that. Record the 2050 wrapper capacity in each test case.
 7. **No demo plants.** No case builds the prescribed nuclear demonstration plants (`GSw_NuclearDemo=0`).
 
 ### Feasibility risk to watch
 
-New nuclear can be built from 2034, and 2035 is the first solve year that the mandate applies to. The two steepest trajectories therefore need a large build in the 2032→2035 step:
+New nuclear can be built from 2031, and 2032 is the first solve year that the mandate applies to. The 2032 solve covers new builds for 2031 and 2032:
 
-| Trajectory | 2035 floor (GW) | Build needed above about 97 GW existing |
-|---|---|---|
-| `abou_jaoude` (atb) | 100 | about 3 |
-| `mckinsey` (mck) | 114.5 | about 18 |
-| `cop28` | 132 | about 35 |
-| `eo2025` (eo25) | 147 | about 50 |
+| Trajectory | 2032 floor (GW) | 2035 floor (GW) | Build needed by 2032 above about 97 GW existing |
+|---|---|---|---|
+| `abou_jaoude` (atb) | 98.8 | 100 | about 2 |
+| `mckinsey` (mck) | 104 | 114.5 | about 7 |
+| `cop28` | 111 | 132 | about 14 |
+| `eo2025` (eo25) | 117 | 147 | about 20 |
 
-If `capm_eo25_*` or `capm_cop28_*` is infeasible in 2035, record it and stop. Do not change the trajectories. The fix is a modeling decision for Ethan.
+If any `capm_*` case is infeasible in 2032 or 2035, record it and stop. Do not change the trajectories. The fix is a modeling decision for Ethan.
 
 ### Check script
 
@@ -114,7 +116,7 @@ for case in sorted(os.listdir('runs')):
         traj = pd.read_csv(
             f'inputs/capacity_mandate/nuclear_cap_trajectory_{TRAJ[tag]}.csv', index_col=0
         ).squeeze(1) / 1e3
-        years = [t for t in nuc_cap.index if int(t) >= 2035]
+        years = [t for t in nuc_cap.index if int(t) >= 2032]
         row['min_floor_slack_GW'] = round(min(nuc_cap[t] - traj[int(t)] for t in years), 2)
     for k, v in TARGET.items():
         if name.endswith('_' + k):

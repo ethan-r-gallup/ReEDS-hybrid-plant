@@ -245,6 +245,7 @@ GSw_NuclearCapMandate,"Nuclear CAPACITY mandate: force total nuclear capacity (s
 GSw_NuclearCapMandateScen,"National nuclear capacity trajectory (selects inputs/capacity_mandate/nuclear_cap_trajectory_{scen}.csv; see inputs/capacity_mandate/README.md). 2050 national totals: eia_aeo_high 114.3 GW; abou_jaoude 131 (ATB Moderate); iaea_high 169.3; mckinsey 197; cop28 297 (the tripling pledge launched at COP28); eo2025 397.",abou_jaoude; iaea_high; cop28; eo2025; eia_aeo_high; mckinsey,abou_jaoude,
 GSw_NuclearCapMandate_Scale,"Fraction of the national trajectory applied to the modeled region (the trajectories are national; set <1 for sub-national runs, e.g. ~0.01-0.05 for a single state).",float,1,
 GSw_NuclearDemo,Turn on or off nuclear demonstration plants,0; 1,0,
+GSw_NuclearFirstYear,"First year new nuclear and nuclear-smr (and their storage-hybrid wrappers) can be built. 0 = this_year + years_until_endogenous.csv (2034 for this_year 2026). Values below 2027 (this_year + years_until_min) are raised to 2027 in b_inputs.gms.",0; 20[2-4]\d,0,
 GSw_NuclearSMR,Turn on [1] / off [0] Nuclear-SMR,0; 1,1,
 GSw_NukeCoalFOM,Turn on or off nuclear and coal FOM adders similar to NEMS,0; 1,1,
 GSw_NukeFlex,"Switch to enable more flexible nuclear operations (lower mingen, higher ramp rate)",0; 1,0,

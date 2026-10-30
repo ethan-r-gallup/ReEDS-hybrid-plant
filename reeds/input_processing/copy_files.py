@@ -1552,6 +1552,11 @@ def write_miscellaneous_files(
         ).squeeze(1)
         + int(scalars.this_year)
     )
+    # Optionally override the first year new nuclear can be built.
+    # Nuclear storage-hybrid wrappers inherit it from their gen tech in b_inputs.gms.
+    nuclear_firstyear = int(sw.get('GSw_NuclearFirstYear', 0))
+    if nuclear_firstyear:
+        firstyear.loc[firstyear.index.str.lower().isin(['nuclear', 'nuclear-smr'])] = nuclear_firstyear
     reeds.io.write_to_inputs_h5(
         firstyear, 'firstyear', inputs_case, gamstype='parameter',
         comment='first year where new investment is allowed',
