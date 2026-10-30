@@ -103,6 +103,59 @@ STORAGE_HYBRID_ROW_CLONES = [
 ]
 
 
+_INTERPOLATE_MANDATES_SPEC_RE = re.compile(
+    r"^(?:\d{4}-\d*\.?\d+)(?:_\d{4}-\d*\.?\d+)+$"
+)
+
+
+def _parse_interpolate_mandates_spec(spec):
+    """Parse year-fraction pairs: <year>-<fraction>_<year>-<fraction>[_...]."""
+    spec = str(spec).strip()
+    if not _INTERPOLATE_MANDATES_SPEC_RE.match(spec):
+        raise ValueError(
+            "GSw_interpolate_mandates must be '0' (disabled) or match "
+            "<year>-<fraction>_<year>-<fraction>[_<year>-<fraction>...]. "
+            f"Got: {spec!r}"
+        )
+
+    points = []
+    for part in spec.split('_'):
+        year_str, frac_str = part.split('-', 1)
+        year = int(year_str)
+        frac = float(frac_str)
+        if (frac < 0) or (frac > 1):
+            raise ValueError(
+                "GSw_interpolate_mandates fractions must be in [0, 1]. "
+                f"Got: year={year} fraction={frac} in {spec!r}"
+            )
+        points.append((year, frac))
+
+    years_only = [y for y, _ in points]
+    if any(y1 <= y0 for y0, y1 in zip(years_only[:-1], years_only[1:])):
+        raise ValueError(
+            "GSw_interpolate_mandates years must be strictly increasing. "
+            f"Got: {years_only} in {spec!r}"
+        )
+
+    return points
+
+
+def _build_piecewise_linear_mandate_trajectory(years, points):
+    """0 before the first point; piecewise-linear between points; hold the last value after."""
+    years_arr = np.asarray(years, dtype=int)
+    values = np.zeros_like(years_arr, dtype=float)
+
+    last_year, last_frac = points[-1]
+    values[years_arr > last_year] = last_frac
+
+    # Interpolate each segment (inclusive endpoints)
+    for (y0, f0), (y1, f1) in zip(points[:-1], points[1:]):
+        mask = (years_arr >= y0) & (years_arr <= y1)
+        values[mask] = f0 + (f1 - f0) * ((years_arr[mask] - y0) / (y1 - y0))
+
+    return pd.Series(values, index=years_arr)
+
+
 def _storage_hybrid_canon_label(value):
     return str(value).strip().lower().replace('_', '-').replace(' ', '')
 
@@ -1590,10 +1643,23 @@ def write_miscellaneous_files(
         comment='full set of years',
     )
 
-    gen_mandate_trajectory = pd.read_csv(
+    gen_mandate_traj = pd.read_csv(
         os.path.join(reeds_path,'inputs','national_generation','gen_mandate_trajectory.csv'),
         index_col='GSw_GenMandateScen'
-    ).loc[sw['GSw_GenMandateScen']].rename_axis('allt')
+    )
+    interpolate_spec = str(sw.get('GSw_interpolate_mandates', '0')).strip()
+    if interpolate_spec.lower() not in ['0', 'false', 'none', '']:
+        # Custom piecewise-linear trajectory over the same years as
+        # gen_mandate_trajectory.csv; overrides GSw_GenMandateScen
+        points = _parse_interpolate_mandates_spec(interpolate_spec)
+        gen_mandate_trajectory = _build_piecewise_linear_mandate_trajectory(
+            years=[int(y) for y in gen_mandate_traj.columns], points=points,
+        ).round(5)
+        gen_mandate_trajectory.index = gen_mandate_traj.columns
+        gen_mandate_trajectory = gen_mandate_trajectory.rename_axis('allt')
+    else:
+        gen_mandate_trajectory = (
+            gen_mandate_traj.loc[sw['GSw_GenMandateScen']].rename_axis('allt'))
     reeds.io.write_to_inputs_h5(
         gen_mandate_trajectory, 'national_gen_frac', inputs_case, gamstype='parameter',
         comment='--fraction-- national fraction of load + losses that must be met by RE',
