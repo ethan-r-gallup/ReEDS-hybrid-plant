@@ -171,6 +171,7 @@
   - `tes_ATB_2024_advanced.csv`:
   - `tes_ATB_2024_conservative.csv`:
   - `tes_ATB_2024_moderate.csv`:
+- `tes_threshold_modrte_{pct}pct.csv`: TES cost sensitivity files. Each one scales the capital, fixed O&M and variable O&M costs of `tes_ATB_2024_moderate.csv` to `pct` percent and keeps the moderate round-trip efficiency. Levels: 10–60 in steps of 10, 70–95 in steps of 5, and 120, 150 and 200. Selected by the `plantchar_tes` switch.
 
 - `unitsize_atb.csv`:
 
