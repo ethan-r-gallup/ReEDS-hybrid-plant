@@ -907,8 +907,9 @@ def setupEnvironment(
                     + '\n> '.join([c for c in df_cases.columns])
                 )
                 raise ValueError(err)
-        df_cases = df_cases[single.split(',')].copy()
-        casenames = single.split(',')
+        # Keep casefile order so casenames line up with caseList and caseSwitches
+        casenames = [c for c in df_cases.columns if c in single.split(',')]
+        df_cases = df_cases[casenames].copy()
 
     # Make sure the run folders don't already exist
     outpaths = [os.path.join(reeds_path,'runs',f'{BatchName}_{case}') for case in casenames]
