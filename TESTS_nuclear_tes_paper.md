@@ -166,7 +166,7 @@ Each file has 24 cases: for each mandate, a control (`_ctrl`, hybrids off) and t
 
 Run these three commands in order. Each one uses its own batch name or casefile, so no run folder collides with another.
 
-1. **Memory pilot.** Run one 1-hour case alone, and record its peak memory:
+1. **Memory pilot.** Run one 1-hour case alone, and record its peak memory. The 1-hour batch runs this case again under its own name; keep both, since the repeat also checks that a rerun gives the same result:
    ```
    python runreeds.py -b v5w0pilot -c nuclearstor_paper_v5_wave0_h1 -s w0_h1_eo25_ta20 -r 1
    ```
@@ -179,12 +179,12 @@ Run these three commands in order. Each one uses its own batch name or casefile,
    python runreeds.py -b v5w0 -c nuclearstor_paper_v5_wave0_h1 -r <N>
    ```
 
-On HPC, `-r` is ignored, and `runreeds.py` asks for cases per node. Set it from the same memory figures. If you run a subset with `-s`, list the cases in casefile order, and check `inputs_case/switches.csv` in each run folder afterward.
+On HPC, `-r` is ignored, and `runreeds.py` asks for cases per node. Set it from the same memory figures. If you rerun a subset with `-s`, check `inputs_case/switches.csv` in each run folder afterward.
 
 ### Pass criteria
 
 - All 48 cases solve to 2050, and every solve is optimal.
-- In the atb and eo25 cases, the capacity floor holds from 2032. In the n15 and n50 cases, the 2050 nuclear generation share is 0.15 or 0.50.
+- In the atb and eo25 cases, the capacity floor holds from 2032. In the n15 and n50 cases, the 2050 nuclear share of total generation is at least 0.13 or 0.48. The mandate's base is bus-bar load, so the share can sit up to about 2 points below the target.
 - No `_ctrl` case builds a wrapper. Hybrid cases build only `storage-hybrid-{1..5}-nuclear-smr`.
 - The check script below runs and writes `wave0_summary.csv`. Send that file back with the outputs.
 
@@ -211,6 +211,7 @@ def is_nuclear(i):
     return i in ('nuclear', 'nuclear-smr') or i.startswith('storage-hybrid-')
 
 rows = []
+missing = []
 for case in sorted(os.listdir('runs')):
     m = re.match(rf'{BATCH}_w0_(h[13])_(n15|n50|atb|eo25)_(ctrl|ta\d+)$', case)
     if not m:
@@ -218,7 +219,7 @@ for case in sorted(os.listdir('runs')):
     res, mandate, arm = m.groups()
     path = os.path.join('runs', case)
     if not os.path.exists(os.path.join(path, 'outputs', 'cap.csv')):
-        print(f'{case}: no outputs, run did not finish')
+        missing.append(case)
         continue
     cap = read(path, 'cap', ['i', 'r', 't', 'MW'])
     cap['t'] = cap.t.astype(int)
@@ -245,8 +246,11 @@ for case in sorted(os.listdir('runs')):
         sc = read(path, 'systemcost_bulk', ['cost', 't', 'value'])
         row['systemcost_bulk_B$'] = round(sc.value.sum() / 1e9, 3)
     # Mandate checks
+    # The mandate is a floor on a bus-bar-load basis, so the share of total
+    # generation may sit up to about 2 points below the target, or above it
     if mandate in SHARE:
-        row['share_ok'] = abs(row['nuc_share_2050'] - SHARE[mandate]) < 0.01
+        row['share_minus_target'] = round(row['nuc_share_2050'] - SHARE[mandate], 3)
+        row['share_ok'] = row['share_minus_target'] >= -0.02
     else:
         traj = pd.read_csv(
             os.path.join(path, 'inputs_case', 'nuclear_cap_trajectory.csv'), index_col=0
@@ -259,6 +263,8 @@ for case in sorted(os.listdir('runs')):
 df = pd.DataFrame(rows).set_index('case')
 df.to_csv('wave0_summary.csv')
 print(df.to_string())
+assert not missing, f'{len(missing)} cases have no outputs: {missing}'
+assert len(df) == 48, f'expected 48 cases but found {len(df)}'
 assert (df.loc[df.arm == 'ctrl', 'wrap_GW_2050'] == 0).all(), 'a control case built wrappers'
 if 'min_floor_slack_GW' in df:
     assert (df['min_floor_slack_GW'].dropna() >= -0.01).all(), 'a capacity floor was violated'
@@ -273,7 +279,7 @@ The withdrawn files `nuclearstor_paper_v5_core_obbba` and `nuclearstor_paper_v5_
 
 Run 2026-10-30 to 2026-11-04 on a 24-core, 253 GB machine. Step 2 first ran as batch `v5core` with `-r 6`. Only 5 of 18 cases finished: `capm_eo25_{base,ctrl}` and `ctrl_n{15,25,50}`. The other 13 were rerun as `v5core_r2` with `-r 3` and `-s`, and all of them finished. The final Step 2 results combine the two batches.
 
-**The folder names of 4 `v5core_r2` cases are swapped.** `runs/v5core_r2_capm_cop28_{base,ctrl}` ran the `mckinsey` trajectory, and `runs/v5core_r2_capm_mck_{base,ctrl}` ran `cop28`. Check `GSw_NuclearCapMandateScen` in each case's `inputs_case/switches.csv`. Within each pair, this is the only switch that differs, so the runs are valid with their labels swapped. The cause is a bug in `runreeds.py`. With `-s`, `caseSwitches` and `caseList` stay in casefile order, but `casenames = single.split(',')` puts the folder names in the order given to `-s`. If the `-s` order differs from the casefile order, each folder gets another case's switches. The `-s` list for the rerun put cop28 before mck. Until the bug is fixed, pass `-s` cases in casefile order.
+**The folder names of 4 `v5core_r2` cases are swapped.** `runs/v5core_r2_capm_cop28_{base,ctrl}` ran the `mckinsey` trajectory, and `runs/v5core_r2_capm_mck_{base,ctrl}` ran `cop28`. Check `GSw_NuclearCapMandateScen` in each case's `inputs_case/switches.csv`. Within each pair, this is the only switch that differs, so the runs are valid with their labels swapped. The cause is a bug in `runreeds.py`. With `-s`, `caseSwitches` and `caseList` stay in casefile order, but `casenames = single.split(',')` puts the folder names in the order given to `-s`. If the `-s` order differs from the casefile order, each folder gets another case's switches. The `-s` list for the rerun put cop28 before mck. Commit 97c8db39 fixed the bug.
 
 | Step | Result | Notes |
 |---|---|---|

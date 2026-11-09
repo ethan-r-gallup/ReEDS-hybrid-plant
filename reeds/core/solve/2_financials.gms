@@ -226,10 +226,10 @@ storage_hybrid_cost_s(i,t)$[storage_hybrid(i)$thermal_storage(i)] = (1 + bcr(i))
     + gridcharge_ratio(i) * sum{ii$[storage_hybrid_stortech(i,ii)$heater_char(ii,t,"capcost")], heater_char(ii,t,"capcost") };
 
 * Split TES costing: the turbine enlargement is gen-side equipment, the TES add-on is storage-side
-storage_hybrid_cost_p(i,t)$[storage_hybrid(i)$thermal_storage(i)$Sw_StorageHybrid_TESCostSplit] =
+storage_hybrid_cost_p(i,t)$[storage_hybrid(i)$thermal_storage(i)$(not geo_storage(i))$Sw_StorageHybrid_TESCostSplit] =
     cost_cap_storage_hybrid_p(i,t) + bcr(i) * powerblock_cost_storage_hybrid(i,t);
 
-storage_hybrid_cost_s(i,t)$[storage_hybrid(i)$thermal_storage(i)$Sw_StorageHybrid_TESCostSplit] =
+storage_hybrid_cost_s(i,t)$[storage_hybrid(i)$thermal_storage(i)$(not geo_storage(i))$Sw_StorageHybrid_TESCostSplit] =
     Sw_StorageHybrid_TESAddonMult * bcr(i) * Sw_StorageHybrid_TESStorShare * cost_cap_storage_hybrid_s(i,t)
     + gridcharge_ratio(i) * sum{ii$[storage_hybrid_stortech(i,ii)$heater_char(ii,t,"capcost")], heater_char(ii,t,"capcost") };
 

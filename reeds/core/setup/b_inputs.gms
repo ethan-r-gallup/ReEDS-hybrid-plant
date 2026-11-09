@@ -3872,11 +3872,11 @@ cost_fom_energy(i,v,r,t)$storage_hybrid(i) = sum{ii$ storage_hybrid_stortech(i,i
 
 * Split TES costing (Sw_StorageHybrid_TESCostSplit=1): the TES add-on multiplier scales only the
 * storage-specific share of the storage power FOM, and the storage energy FOM
-cost_fom(i,v,r,t)$[storage_hybrid(i)$thermal_storage(i)$valcap(i,v,r,t)$Sw_StorageHybrid_TESCostSplit] =
+cost_fom(i,v,r,t)$[storage_hybrid(i)$thermal_storage(i)$(not geo_storage(i))$valcap(i,v,r,t)$Sw_StorageHybrid_TESCostSplit] =
   cost_fom_storage_hybrid_p(i,v,r,t)
   + bcr(i) * cost_fom_storage_hybrid_s(i,v,r,t)
     * (1 - Sw_StorageHybrid_TESStorShare + Sw_StorageHybrid_TESAddonMult * Sw_StorageHybrid_TESStorShare) ;
-cost_fom_energy(i,v,r,t)$[storage_hybrid(i)$thermal_storage(i)$Sw_StorageHybrid_TESCostSplit] =
+cost_fom_energy(i,v,r,t)$[storage_hybrid(i)$thermal_storage(i)$(not geo_storage(i))$Sw_StorageHybrid_TESCostSplit] =
   Sw_StorageHybrid_TESAddonMult * cost_fom_energy(i,v,r,t) ;
 
 
@@ -5128,12 +5128,12 @@ cost_cap(i,t)$[storage_hybrid(i)$geo_storage(i)] = cost_cap_storage_hybrid_p(i,t
 * - storage discharge needs bcr more powerblock, priced at the gen tech's powerblock cost
 * - the TES add-on (storage-specific share of the storage power capex, and the storage energy
 *   capex) is scaled by Sw_StorageHybrid_TESAddonMult; the TES power cycle share is dropped
-cost_cap(i,t)$[storage_hybrid(i)$thermal_storage(i)$Sw_StorageHybrid_TESCostSplit] =
+cost_cap(i,t)$[storage_hybrid(i)$thermal_storage(i)$(not geo_storage(i))$Sw_StorageHybrid_TESCostSplit] =
     cost_cap_storage_hybrid_p(i,t)
     + bcr(i) * powerblock_cost_storage_hybrid(i,t)
     + Sw_StorageHybrid_TESAddonMult * bcr(i) * Sw_StorageHybrid_TESStorShare * cost_cap_storage_hybrid_s(i,t)
     + gridcharge_ratio(i) * sum{ii$[storage_hybrid_stortech(i,ii)$heater_char(ii,t,"capcost")], heater_char(ii,t,"capcost") } ;
-cost_cap_energy(i,t)$[storage_hybrid(i)$thermal_storage(i)$Sw_StorageHybrid_TESCostSplit] =
+cost_cap_energy(i,t)$[storage_hybrid(i)$thermal_storage(i)$(not geo_storage(i))$Sw_StorageHybrid_TESCostSplit] =
     Sw_StorageHybrid_TESAddonMult * cost_cap_energy(i,t) ;
 
 * Testing only: scale wrapper capital cost so a small case (the CI case) builds wrappers

@@ -97,6 +97,18 @@ def check_storage_hybrid(sw):
             "GSw_StorageHybrid_CostMult must be a number > 0 "
             f"but is {sw['GSw_StorageHybrid_CostMult']}"
         )
+    if int(sw.get('GSw_StorageHybrid_TESCostSplit', 0)):
+        # A zero add-on gives TES wrappers zero energy capex, which the input checks reject
+        addon = float(sw.get('GSw_StorageHybrid_TESAddonMult', 1))
+        if not addon > 0:
+            raise ValueError(
+                f"GSw_StorageHybrid_TESAddonMult must be > 0 but is {addon}"
+            )
+        share = float(sw.get('GSw_StorageHybrid_TESStorShare', 0.203))
+        if not 0 <= share <= 1:
+            raise ValueError(
+                f"GSw_StorageHybrid_TESStorShare must be between 0 and 1 but is {share}"
+            )
 
     ### Technologies
     canon = copy_files._storage_hybrid_canon_label
