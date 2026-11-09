@@ -13,7 +13,7 @@ The branch adds these commits on top of `storage-hybrid-pr` at `73cfa977`:
 | `8a148ad1` | `GSw_NuclearCapMandate`: a national floor on nuclear capacity (`eq_nuclear_cap_mandate`), with trajectories in `inputs/capacity_mandate/` |
 | `1338ca45` | `tes_threshold_modrte_{pct}pct.csv`: TES cost sensitivity files at 10–200% of ATB 2024 moderate |
 | `e2ee8679` | `hourly_load.py`: builds the load twice, compares the two builds, and validates the result before it writes `load.h5` |
-| `923f48c5`, `401e1622` | The v5 casefiles: core (18 cases), core OBBBA sensitivity (18) and broad TES sweep (63) |
+| `923f48c5`, `401e1622` | The v5 casefiles: core (18 cases), with wave 1 (36) added later |
 | (latest) | `GSw_NuclearFirstYear`: overrides the first year new nuclear can be built; the v5 casefiles set 2031 |
 
 ## Setup
@@ -140,16 +140,22 @@ if 'min_floor_slack_GW' in df:
 print('checks passed')
 ```
 
-## Step 3: the full batch
+## Step 3: wave 1, the broad TES cost sweep
 
-After Step 2 passes, run the OBBBA sensitivity and the sweep:
+The paper runs in three waves:
+1. A broad sweep of TES cost at 20, 40, 60, 80 and 100% of ATB 2024 moderate, for all nine mandate levels.
+2. A fine sweep around each mandate's breakeven TES cost, designed from the wave 1 results.
+3. Sensitivities around the breakeven, including OBBBA incentives, designed after wave 2.
+
+After Step 2 passes, run wave 1:
 
 ```
-python runreeds.py -b v5obbba -c nuclearstor_paper_v5_core_obbba
-python runreeds.py -b v5sweep -c nuclearstor_paper_v5_sweep
+python runreeds.py -b v5w1 -c nuclearstor_paper_v5_wave1 -r 3
 ```
 
-The OBBBA file uses upstream `incentives_obbba.csv` without changes. That file gives full credit to projects that start construction through 2032. It leaves out the statutory 2033–2035 phase-down. This is a known limitation, and the paper's Methods section states it.
+The wave 1 file has 36 cases (`ts_mr{20,40,60,80}_{base,n15,n20,n25,n50}` and `capm_{atb,mck,cop28,eo25}_mr{20,40,60,80}`), all with hybrids on and no incentives. The 100% points are the `main_test_*` and `capm_*_base` cases of the core file, and the core file's controls serve every wave.
+
+The earlier `nuclearstor_paper_v5_core_obbba` and `nuclearstor_paper_v5_sweep` files are withdrawn. The sweep's 120–200% points can't build hybrids, because none build at 100%, and the OBBBA cases move to wave 3. If NLR received the earlier files, NLR runs the wave 1 file in their place.
 
 ## Results
 
@@ -170,4 +176,4 @@ Run 2026-10-30 to 2026-11-04 on a 24-core, 253 GB machine. Step 2 first ran as b
 | 2.6 Hybrids only in test cases | Pass | No control case builds a wrapper. **No test case builds one either**: wrapper capacity is 0 GW in 2050 in all 9 cases with hybrids on. Each `main_test_*` and `capm_*_base` case matches its control in 2050 nuclear capacity and generation share. |
 | 2.7 No demo plants | Pass | None of the 18 cases has demo-plant capacity. |
 | 3a. Sweep smoke test `ts_mr20_n50` | Pass | Batch `ntpsmoke`, 12 optimal solves to 2050. At 20% TES cost the nuclear wrapper costs 3.44 M$/MW in 2035, less than plain nuclear at 3.55. At 100% it costs 4.47, which is why the core cases build none. From 2038 on, all new nuclear is built as nuclear-SMR+TES wrappers: 32.7 GW in 2038 and 337 GW of 433 GW total nuclear in 2050 (types 1/2/3: 253.7/11.4/71.8). Before 2038 the mandate is met by existing nuclear, so little new nuclear is built. 2050 nuclear share 0.501. PRAS ran with the wrapper GeneratorStorage units, and NEUE is 0 in 2050. Post-processing logs 6 tracebacks (`retail_rate_calculations.py`, `reeds_to_rev.py` on an NREL network path, `single_case_plots.py`). The core runs log the same 6, so they come from upstream and don't affect outputs. |
-| 3b. OBBBA and sweep batches | Not run here | Sent to NLR. Step 3 has 81 cases (18 OBBBA + 63 sweep). |
+| 3b. Wave 1 (36 cases) | Not run | For NLR. It replaces the earlier 81-case OBBBA and sweep batches. |
