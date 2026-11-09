@@ -191,6 +191,16 @@ The rules differ by storage tech for these reasons:
 
 Storage energy capacity costs `cost_cap_energy`, the storage tech's energy capex, per MWh of `INV_ENERGY`.
 
+**Split TES costing (`GSw_StorageHybrid_TESCostSplit=1`).** This option separates the TES power cost into the power cycle and the storage-specific equipment. The gen tech keeps its own powerblock, so a TES wrapper costs, per MW of `CAP`:
+
+> gen capex + BCR × powerblock cost + m × BCR × s × storage power capex + grid-charging ratio × heater capex
+
+- BCR × powerblock cost is the turbine enlargement that storage discharge needs, priced at the gen tech's powerblock cost.
+- s (`GSw_StorageHybrid_TESStorShare`, default 0.203) is the storage-specific share of the TES power capex: heat exchange and charging equipment, steam-system BOP, and EIC. The default comes from the 100 MW single-cycle steam molten-salt case in PNNL-33283 (*Energy Storage Grand Challenge Cost and Performance Assessment 2022*, section 4.8.1). The rest of the TES power capex is the TES power cycle, which the gen tech's powerblock replaces.
+- m (`GSw_StorageHybrid_TESAddonMult`, default 1) scales only the TES add-on: the storage-specific power capex, the storage energy capex, the storage energy FOM, and the share s of the storage power FOM. A TES cost sweep varies m, so the turbine enlargement keeps the gen tech's cost at every sweep point.
+
+The financing multiplier treats the turbine enlargement as gen-side cost and the TES add-on as storage-side cost.
+
 **Battery refurbishment:** upstream adds one discounted battery energy refurbishment to `battery_li`'s energy capex. A battery wrapper lives as long as its gen tech, so it needs one refurbishment every `batt_years_until_refurb` years over the gen tech's `maxage`. `plantcostprep.py` writes the discounted cost of the extra refurbishments to `storage_hybrid_refurb_energy.csv`, and GAMS adds it to the wrapper's energy capex.
 
 ### Operating costs
