@@ -14,6 +14,7 @@ The branch adds these commits on top of `storage-hybrid-pr` at `73cfa977`:
 | `1338ca45` | `tes_threshold_modrte_{pct}pct.csv`: TES cost sensitivity files at 10–200% of ATB 2024 moderate |
 | `e2ee8679` | `hourly_load.py`: builds the load twice, compares the two builds, and validates the result before it writes `load.h5` |
 | `923f48c5`, `401e1622` | The v5 core casefile (18 cases); the wave 0 casefiles (2 × 24) were added later |
+| (latest) | `GSw_NuclearLarge`: turns off new large nuclear only; the v5 casefiles set 0 |
 | (latest) | `GSw_StorageHybrid_TESCostSplit`, `_TESStorShare` and `_TESAddonMult`: split TES wrapper costing, with a multiplier on the TES add-on only |
 | `3e4a1fc4` | `GSw_NuclearFirstYear`: overrides the first year new nuclear can be built; the v5 casefiles set 2031 |
 
@@ -143,7 +144,7 @@ print('checks passed')
 
 ## Step 3: wave 0, the time-resolution test
 
-The paper runs in waves. Every wave uses the same wrapper set: nuclear-SMR with molten-salt TES at BCR 0.1, 0.25, 0.5, 0.75 and 1.0 (wrapper types 1 to 5). Large nuclear gets no wrapper. The core file above used an older set of 6 types and the older costing, so its test cases are not part of any wave.
+The paper runs in waves. Every wave uses the same wrapper set: nuclear-SMR with molten-salt TES at BCR 0.1, 0.25, 0.5, 0.75 and 1.0 (wrapper types 1 to 5). New large nuclear is off in every case, controls included (`GSw_NuclearLarge=0`), so the SMR is the only new reactor option; existing large nuclear remains. The paper studies what onsite TES adds to an SMR, not which reactor size gets built. The core file above used an older set of 6 types and the older costing, so its test cases are not part of any wave.
 
 1. **Wave 0** fixes the time resolution for all later waves. It is described below.
 2. **Wave 1** is a broad TES add-on cost sweep for all nine mandate levels, at the resolution wave 0 selects. Wave 0 already covers its n15, n50, atb and eo25 cases.
@@ -186,6 +187,7 @@ On HPC, `-r` is ignored, and `runreeds.py` asks for cases per node. Set it from 
 - All 48 cases solve to 2050, and every solve is optimal.
 - In the atb and eo25 cases, the capacity floor holds from 2032. In the n15 and n50 cases, the 2050 nuclear share of total generation is at least 0.13 or 0.48. The mandate's base is bus-bar load, so the share can sit up to about 2 points below the target.
 - No `_ctrl` case builds a wrapper. Hybrid cases build only `storage-hybrid-{1..5}-nuclear-smr`.
+- No case builds new large nuclear: `Nuclear` capacity never rises after 2026.
 - The check script below runs and writes `wave0_summary.csv`. Send that file back with the outputs.
 
 ### Wave 0 check script
@@ -234,6 +236,10 @@ for case in sorted(os.listdir('runs')):
     row['wrap_GW_2050'] = round(wrap[wrap.t == 2050].MW.sum() / 1e3, 2)
     row['wrap_first_year'] = int(wrap.t.min()) if len(wrap) else None
     row['nuc_GW_2050'] = round(cap[(cap.t == 2050) & cap.i.map(is_nuclear)].MW.sum() / 1e3, 1)
+    # New large nuclear is off, so Nuclear capacity never rises after 2026
+    large = cap[(cap.i.str.lower() == 'nuclear') & (cap.t >= 2026)].groupby('t').MW.sum()
+    row['large_nuc_GW_2050'] = round(large.get(2050, 0) / 1e3, 1)
+    row['large_nuc_rise_GW'] = round(max(large.diff().max(), 0) / 1e3, 2) if len(large) > 1 else 0.0
     g50 = gen[gen.t == 2050]
     row['nuc_share_2050'] = round(g50[g50.i.map(is_nuclear)].MWh.sum() / g50.MWh.sum(), 3)
     # Wrapper energy capacity in 2050
@@ -266,6 +272,7 @@ print(df.to_string())
 assert not missing, f'{len(missing)} cases have no outputs: {missing}'
 assert len(df) == 48, f'expected 48 cases but found {len(df)}'
 assert (df.loc[df.arm == 'ctrl', 'wrap_GW_2050'] == 0).all(), 'a control case built wrappers'
+assert (df['large_nuc_rise_GW'] <= 0.01).all(), 'a case built new large nuclear'
 if 'min_floor_slack_GW' in df:
     assert (df['min_floor_slack_GW'].dropna() >= -0.01).all(), 'a capacity floor was violated'
 if 'share_ok' in df:

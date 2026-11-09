@@ -7,6 +7,7 @@ plantchar_tes,TES cost and performance inputs (inputs\plant_characteristics\{pla
 plantchar_nuclear_smr,Small modular reactor (SMR) cost and performance characteristics (inputs\plant_characteristics\{plantchar_nuclear_smr}.csv). Options start with 'nuclear_smr' and the switch should be set to the entire file name (ex: nuclear-smr_ATB_2024_moderate),nuclear-smr_ATB_2024_moderate,,,,,,,,,,,,,,,,,,,,,,,,
 plantchar_battery,Battery cost and performance inputs (inputs\plant_characteristics\{plantchar_battery}.csv). The options for plantchar_battery start with 'battery_' and the switch should be set to the entire file name (ex: battery_ATB_2024_advanced),battery_ATB_2024_moderate,,,,,,,,,,,,,,,,,,,,,,,,
 GSw_Nuclear,Turn on/off new nuclear (existing nuclear still remains),1,,,,,,,,,,,,,,,,,,,,,,,,
+GSw_NuclearLarge,"Turn on [1] / off [0] new large nuclear (Nuclear). Existing large nuclear remains, and Nuclear-SMR is unaffected. Its storage-hybrid wrappers inherit the ban",0,,,,,,,,,,,,,,,,,,,,,,,,
 GSw_NuclearDemo,Turn on or off nuclear demonstration plants,0,,,,,,,,,,,,,,,,,,,,,,,,
 GSw_NuclearFirstYear,First year new nuclear and nuclear-smr (and their storage-hybrid wrappers) can be built. 0 = this_year + years_until_endogenous.csv (2034 for this_year 2026). Values below 2027 (this_year + years_until_min) are raised to 2027 in b_inputs.gms.,2031,,,,,,,,,,,,,,,,,,,,,,,,
 GSw_NukeStateBan,Switch to limit nuclear with state bans. [0] off / [1] full ban / [2] cost multiplier,1,,,,,,,,,,,,,,,,,,,,,,,,

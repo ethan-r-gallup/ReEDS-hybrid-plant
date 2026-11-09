@@ -247,6 +247,7 @@ GSw_NuclearCapMandate_Scale,"Fraction of the national trajectory applied to the 
 GSw_NuclearDemo,Turn on or off nuclear demonstration plants,0; 1,0,
 GSw_NuclearFirstYear,"First year new nuclear and nuclear-smr (and their storage-hybrid wrappers) can be built. 0 = this_year + years_until_endogenous.csv (2034 for this_year 2026). Values below 2027 (this_year + years_until_min) are raised to 2027 in b_inputs.gms.",0; 20[2-4]\d,0,
 GSw_NuclearSMR,Turn on [1] / off [0] Nuclear-SMR,0; 1,1,
+GSw_NuclearLarge,"Turn on [1] / off [0] new large nuclear (Nuclear). Existing large nuclear remains, and Nuclear-SMR is unaffected. Its storage-hybrid wrappers inherit the ban",0; 1,1,
 GSw_NukeCoalFOM,Turn on or off nuclear and coal FOM adders similar to NEMS,0; 1,1,
 GSw_NukeFlex,"Switch to enable more flexible nuclear operations (lower mingen, higher ramp rate)",0; 1,0,
 GSw_NukeNoRetire,Switch to prevent nuclear from retiring before the year in GSw_NukeNoRetireYear has passed,0; 1,1,

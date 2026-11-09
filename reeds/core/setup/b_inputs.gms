@@ -512,6 +512,11 @@ if(Sw_NuclearSMR = 0,
   ban("Nuclear-SMR") = yes ;
 ) ;
 
+* New large nuclear off: Nuclear-SMR and existing large nuclear are unaffected
+if(Sw_NuclearLarge = 0,
+  bannew("Nuclear") = yes ;
+) ;
+
 if(Sw_StorageHybrid = 0,
   ban(i)$i_subsets(i,'Storage-Hybrid') = yes ;
   bannew(i)$i_subsets(i,'Storage-Hybrid') = yes ;
