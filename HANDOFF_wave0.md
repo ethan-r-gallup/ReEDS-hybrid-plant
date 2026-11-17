@@ -68,6 +68,8 @@ Ethan and Wesley (NLR) made these decisions. Ethan confirmed them with Claude on
 5. **Incentives.** Use the OBBBA incentives (`incentives_suffix=obbba`, the upstream default) in every run, not `none`. OBBBA's battery credits affect how competitive hybrid nuclear is.
    - **The OBBBA phase-down must be modeled accurately.** See Phase C.
 6. **Clean Air Act.** Set `GSw_Clean_Air_Act=0` in every casefile. This turns off the Section 111 rules for existing coal and new gas. Leave `GSw_CSAPR` at its default of 1.
+   - Section 111: EPA's repeal of the 2024 power plant carbon rule took effect on 2026-11-16, and Wesley said the remaining provisions are ending.
+   - CSAPR: ReEDS models the 2011 CSAPR Phase 2 ozone-season NOx budgets, which are still in force. EPA's 2026 rollback proposal targets the 2023 Good Neighbor Plan, which the Supreme Court stayed in 2024 and ReEDS does not model.
 7. **Unchanged from v5.**
    - Wrapper set and costing:
      - five nuclear-SMR + molten-salt TES wrapper types at BCR 0.1, 0.25, 0.5, 0.75 and 1.0, with grid charging 0;
@@ -147,10 +149,10 @@ Ethan wants the statutory OBBBA phase-down in the runs, even if upstream's file 
 1. Before you fill anything in, settle these with Ethan:
    - the test level: the Pacific light test, or full-US Mid_Case and USA_decarb comparison reports against `main`, as `docs/source/developer_best_practices.md` describes;
    - the charge code;
-   - the reviewers. The template lists `@wesleyjcole` for nuclear, batteries and financial calculations, and `@aschleif` for hybrids. Confirm with Ethan that `@wesleyjcole` is the Wesley he works with;
+   - the reviewers. `@wesleyjcole` (Wesley) will review; ask Ethan whether to add `@aschleif`, whom the template lists for hybrids;
    - draft or ready;
    - whether the `-s` and pcm fixes go in this PR, a separate PR, or issues.
-   Ethan's own defaults: draft PR, Wesley as reviewer. Ask Ethan anyway.
+   Ethan's own default is a draft PR. Ask Ethan anyway.
 2. Fill in `.github/PULL_REQUEST_TEMPLATE.md`. Start from `HANDOFF_wave0_PR_draft.md`, an older draft written before the upstream merge, and update it to the merged code. Include the LLM-use section: Claude Code wrote most of the code under Ethan's direction.
 3. Run the tests at the agreed level.
 4. Open the PR from `storage-hybrid-pr` after Ethan approves the text.
