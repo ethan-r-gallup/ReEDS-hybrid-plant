@@ -45,7 +45,8 @@ To the Claude agent on the lab machine. Claude wrote this on Ethan's laptop on 2
 
 - **`runreeds.py -s` order bug.** Commit `97c8db39` is on the paper branch only. Before the fix, `runreeds.py -s` paired case names with switches by position.
 - **pcm path bug.** It is still present on upstream `main` at `3499d916`. `runreeds.py` writes `python reeds/postprocessing/run_pcm.py`, but the script is at `postprocessing/run_pcm.py`, so `pcm=1` fails. Keep `pcm=0`.
-- **TES credit mismatch.** On `storage-hybrid-pr`, `incentives_noira.csv` gives TES a 30% ITC through 2050, while BATTERY drops to 0 after 2024.
+
+**A bug in our own PR: the TES incentive rows.** Upstream has no `TES` rows in any incentives file. Commit `08ae42ac` on `storage-hybrid-pr` added them to `incentives_ira.csv`, `incentives_noira.csv` and `incentives_obbba.csv`. In `incentives_noira.csv` the TES rows give a 30% ITC through 2050, while `BATTERY` drops to 0 after 2024. Fix this in Phase A, as part of the PR. After the merge, compare the TES rows in each file with that file's `BATTERY` rows (TES and batteries are both energy storage), and propose the fix to Ethan before you make it.
 
 **Superseded.** No one ran the 48-case `cases_nuclearstor_paper_v5_wave0.csv`. Delete it in Phase D. Step 3 of `TESTS_nuclear_tes_paper.md` describes that superseded design, so rewrite Step 3.
 
@@ -93,9 +94,10 @@ Ethan and Wesley (NLR) made these decisions. Ethan confirmed them with Claude on
 ### Phase A: update `storage-hybrid-pr` to upstream `main`
 
 1. Merge upstream `main` into `storage-hybrid-pr`. Resolve conflicts so that upstream behavior is preserved and the storage-hybrid feature still works.
-2. Run the storage-hybrid regression test and the CI case. Step 1 of `TESTS_nuclear_tes_paper.md` describes them, and `docs/source/storage_hybrid.md` describes the feature.
-3. Check that the default case is unchanged with `GSw_StorageHybrid=0`.
-4. Report to Ethan. Push after he approves.
+2. Fix the TES incentive rows (section 2) after Ethan approves the fix.
+3. Run the storage-hybrid regression test and the CI case. Step 1 of `TESTS_nuclear_tes_paper.md` describes them, and `docs/source/storage_hybrid.md` describes the feature.
+4. Check that the default case is unchanged with `GSw_StorageHybrid=0`.
+5. Report to Ethan. Push after he approves.
 
 ### Phase B: update `nuclear-tes-paper`
 
@@ -107,7 +109,7 @@ Ethan and Wesley (NLR) made these decisions. Ethan confirmed them with Claude on
 
 Ethan wants the statutory OBBBA phase-down in the runs, even if upstream's file leaves it out.
 
-1. **Compare upstream's `inputs/financials/incentives_obbba.csv` with the statute.** At `3499d916`, the `NUCLEAR`, `BATTERY` and `TES` rows stop at 2032 construction starts with a flat 30% ITC.
+1. **Compare upstream's `inputs/financials/incentives_obbba.csv` with the statute.** At `3499d916`, the `NUCLEAR` and `BATTERY` rows stop at 2032 construction starts with a flat 30% ITC. The `TES` rows come from our PR, not upstream; keep them consistent with `BATTERY`.
    - As Claude understands the law, the technology-neutral credits (45Y and 48E) for these techs keep 100% for construction starting through 2033. They fall to 75% in 2034, 50% in 2035, and 0 after.
    - Check this against the statute and the documentation that NLR's file cites.
    - Check also the wind and solar termination dates, the safe-harbor and placed-in-service windows (`safe_harbor`, `t_max_online`), and how storage-hybrid wrappers inherit credits. Wrappers take their gen tech's credit, and the financing weights in `2_financials.gms` blend the gen and storage parts.
