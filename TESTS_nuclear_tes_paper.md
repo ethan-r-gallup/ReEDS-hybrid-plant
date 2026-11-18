@@ -29,14 +29,18 @@ The branch adds these commits on top of `storage-hybrid-pr` at `73cfa977`:
 ```
 python runreeds.py -b hybtest -c hybridtest -r 7
 python runreeds.py -b ntpci -c test -s github_StorageHybrid -r 1
+python -m pytest tests/test_storage_hybrid.py
 ```
 
-This step checks that the PR base still compiles and builds wrappers on this branch.
+This step checks that the merged code compiles, solves, and builds wrappers on this branch.
+
+`cases_hybridtest.csv` is paper-only. `storage-hybrid-pr` dropped it because upstream now rejects single-zone runs with PRAS on. Its small cases (`*_utnv`) use Utah and Nevada at z54, which is two zones joined by a transmission link. They use hierarchical clustering with 24 periods, so they pass upstream's checks without `-f`. The z54 cases cover the full US.
 
 Pass criteria:
 - All 7 `hybridtest` cases finish, and every solve is optimal.
-- The `hybridtest` results match the Phase 9c runs for `storage-hybrid-pr` (`p9c_*`). This branch does not change any input those cases use, so a difference points to a bug in the port. Since Phase 9b, the `hyb_*` cases build no wrappers. That is expected, and it is not a failure.
-- `github_StorageHybrid` (the CI case, `GSw_StorageHybrid_CostMult=0.5`) solves to 2030 and builds upv+battery wrappers: about 55 GW in 6 regions at Phase 9c. This is the case that checks wrapper builds. `pytest tests/test_outputs.py --casepath runs/ntpci_github_StorageHybrid` passes, except for the local plotting PNG.
+- No `hyb_*` case builds wrappers at default costs. That has been true since Phase 9b and is not a failure.
+- `github_StorageHybrid` (the CI case, `GSw_StorageHybrid_CostMult=0.5`) solves to 2030 and builds upv+battery wrappers: 55.8 GW in 8 regions after the 2026-11-17 upstream merge. This is the case that checks wrapper builds. `pytest tests/test_outputs.py --casepath runs/ntpci_github_StorageHybrid` passes, except for `bars_retirements_additions.png`, a local plotting failure that upstream `main` also has.
+- The unit tests pass.
 
 ## Step 2: v5 core smoke test
 
