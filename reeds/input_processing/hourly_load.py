@@ -802,6 +802,8 @@ def main(reeds_path, inputs_case):
     # note that this step occurs after peakload calculation so that the latter
     # includes a baseline estimate of industrial load captured by FINITO
     if int(sw.GSw_FINITO_Link):
+        ## scalars is read inside build_load(); main() needs its own copy here
+        scalars = reeds.io.get_scalars(inputs_case)
         regional_load_hourly = reeds.finito.remove_finito_load(
                 regional_load_hourly,
                 inputs_case,
