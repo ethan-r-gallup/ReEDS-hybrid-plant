@@ -176,7 +176,7 @@ Wrappers also join their gen tech's technology groups through `tg_i`, which gove
 ## Costs
 
 ### Capital cost
-Each wrapper's capital cost per MW of `CAP` is built from three component costs: the gen tech's capital cost (`cost_cap_storage_hybrid_p`), the storage tech's power capital cost (`cost_cap_storage_hybrid_s`), and the gen tech's powerblock cost. The powerblock cost is the gen tech's capital cost times the gen tech's powerblock share in `inputs/plant_characteristics/storage_hybrid_powerblock_share.csv`. The shares are 0.1024 for nuclear, 0.1332 for nuclear-SMR and 0.248 for the geothermal classes; all other gen techs get 0.
+Each wrapper's capital cost per MW of `CAP` is built from three component costs: the gen tech's capital cost (`cost_cap_storage_hybrid_p`), the storage tech's power capital cost (`cost_cap_storage_hybrid_s`), and the gen tech's powerblock cost. The powerblock cost is the gen tech's capital cost times the gen tech's powerblock share in `inputs/plant_characteristics/storage_hybrid_powerblock_share.csv`. The shares are 0.1024 for nuclear, 0.1332 for nuclear-SMR and 0.248 for the geothermal classes; all other gen techs get 0. The nuclear and nuclear-SMR shares add two accounts from the capital cost breakdown in Table 6 of the ATB 2024 nuclear page, which is based on {cite}`abou-jaoudeMetaAnalysisAdvancedNuclear2024`: account 23, energy conversion system (3.92% for large reactors, 3.86% for SMRs), and account 24, electrical equipment (6.32% and 9.46%).
 
 | Storage tech | `cost_cap` per MW of `CAP` |
 | --- | --- |
@@ -213,6 +213,8 @@ The financing multiplier treats the turbine enlargement as gen-side cost and the
 ### Financing
 - The generation side uses the gen tech's capital multiplier (`cost_cap_fin_mult_storage_hybrid_p`).
 - The storage side uses the storage tech's multiplier, rescaled to the gen tech's financing risk (`cost_cap_fin_mult_storage_hybrid_s`). The exception is in-reservoir geothermal storage, whose storage-side multiplier is 1, because its cost is a share of the powerblock rather than a standalone storage cost.
+  - The storage tech's multiplier includes its incentives. `TES` rows in `inputs/financials/incentives_*.csv` copy the `BATTERY` rows, because both are energy storage; `tests/test_storage_hybrid.py` checks that they stay equal.
+  - A wrapper is one facility with one construction start, so the storage side keeps the storage tech's ITC rate but is eligible over the larger of the gen and storage techs' safe-harbor windows. For example, the TES side of a nuclear wrapper is credited for as long as the reactor side (6 years after construction starts, not TES's 4), while the battery side of a upv wrapper keeps the battery's window when the upv window is shorter. `calc_financial_inputs.py` writes this ITC to `storage_hybrid_itc_storage.csv` (`itc_frac_monetized_storage_hybrid_s`), and the storage side uses the wrapper's phaseout multiplier, which is the gen tech's. `2_financials.gms` copies the `cost_cap_fin_mult` formula for the storage side and stops the run if the copy drifts from the original.
 - `cost_cap_fin_mult` for `INV` is the cost-weighted average of the two sides, weighted the same way as `cost_cap`.
 - `INV_ENERGY` uses the storage-side multiplier.
 - Wrappers on supply-curve gen techs pay their gen tech's `rsc_fin_mult`.
@@ -313,7 +315,6 @@ Bokeh maps wrappers to the `storage-hybrid` style through a wildcard row in `tec
 - The CI scenario `github_StorageHybrid` in `cases_test.csv` is `github_Pacific` with three wrapper types: nuclear+TES, gas-cc+battery with grid charging, and upv+battery. It sets `GSw_StorageHybrid_CostMult=0.5`, so it builds upv+battery wrappers by 2030. A CI step fails if `cap.csv` has no wrapper capacity.
   - The case ends in 2030, so the nuclear wrapper exercises only setup.
 - `tests/objective_function_params.yaml` lets `check_inputs.py` check the wrapper cost parameters, BCR and heat rate on every case. `gridcharge_ratio` is not checked, because 0 is a valid value that GAMS does not store.
-- `cases_hybridtest.csv` holds Utah and z54 verification cases.
 
 ## Changes to existing behavior
 
@@ -347,8 +348,6 @@ This feature changes some code that runs even when `GSw_StorageHybrid=0`.
    - LCOE includes energy capital and energy FOM for TES and wrappers.
    - `report.gms` no longer multiplies energy-capacity FOM by ILR.
 8. **Upstream bug fixes found while testing** (each is independent of wrappers):
-   - `reeds2pras` `make_pras_interfaces` raised `BoundsError` for a system with no lines (any single-region run). It now returns empty Lines and Interfaces.
-   - `report_calcs.py` raised `KeyError` when `FLOW` is empty (single-region runs). It now skips the transmission report.
    - `process_storages` in `reeds2pras` now looks up energy capacity by key, not by position.
    - `writecapdat.py` matched vintage rows by substring, so a wrapper named after upv or wind doubled that tech's prescribed builds. It now leaves wrapper rows out.
 
@@ -362,6 +361,7 @@ This feature changes some code that runs even when `GSw_StorageHybrid=0`.
   - hydrogen: the H2 balance.
 - **Rules that use net output.** Some rules count `GEN` (net output) for wrappers rather than `GEN_PLANT`: `eq_min_cf`, `eq_national_gen`, `eq_REC_launder`, `eq_h2_ptc_creditgen`, minimum loading (`eq_minloading`, `eq_mingen_lb`/`ub`) and the `GSw_StartCost` 5 and 6 ramps. Each is off by default or has a small effect.
 - **Water.** Water accounting (`GSw_WaterMain=1`) does not cover wrappers.
+- **FINITO.** The linked ReEDS-FINITO model (`FINITO=1`) is rejected, because its fuel accounting does not include wrapper fuel use.
 - **Off-default switches that skip wrappers.** `GSw_OffshoreZones=1` drops wind-ofs wrappers, flex-geo wrappers are never interday storage, and the stress-hour availability override excludes wrappers.
 - **Seasonal derate.** Wrappers apply the seasonal capacity change to storage discharge as well as to plant output. That is physical for TES, which discharges through the shared powerblock. It is approximate for batteries, and it only matters when `thermal_summer_cap_delta` is nonzero.
 - **Financing and growth.** The storage share is financed at the gen tech's risk multiplier, and the growth-penalty basis includes storage power capex.

@@ -1056,7 +1056,8 @@ set tmodel(t) "years to include in the model",
     tfix(t) "years to fix variables over when summing over previous years",
     tprev(t,tt) "previous modeled tt from year t",
     stfeas(st) "states to include in the model",
-    tsolved(t) "years that have solved" ;
+    tsolved(t) "years that have solved",
+    tfinito_all(t) "years to run with linkage to FINITO" ;
 
 *following parameters get re-defined when the solve years have been declared
 parameter mindiff(t) "minimum difference between t and all other tt that are in tmodel(t)" ;
@@ -1069,7 +1070,7 @@ tfix(t) = no ;
 stfeas(st) = no ;
 tprev(t,tt) = no ;
 tsolved(t) = no ;
-
+tfinito_all(t) = no ;
 
 *==============================
 * Year specification
@@ -1083,6 +1084,7 @@ tlast(t)$[ord(t) = smax{tt$tmodel_new(tt), ord(tt) }] = yes ;
 tprev(t,tt)$[tmodel_new(t)$tmodel_new(tt)$(tt.val<t.val)] = yes ;
 mindiff(t)$tmodel_new(t) = smin{tt$tprev(t,tt), t.val-tt.val} ;
 tprev(t,tt)$[tmodel_new(t)$tmodel_new(tt)$(t.val-tt.val<>mindiff(t))] = no ;
+
 
 * In order to fill all necessary dimensions of upgrade techs parameters, we require
 * Sw_UpgradeYear in ban(i) to be a modeled year and thus we compute as either
@@ -3708,7 +3710,7 @@ $offempty
 
 *Written in copy_files.py
 $onempty
-table fom_dr_shed(i,r,allt) "--$/MWh-- dr_shed vom costs over time"
+table fom_dr_shed(i,r,allt) "--$/MW-yr-- dr_shed fom costs over time"
 $offlisting
 $ondelim
 $include inputs_case%ds%plantchar_dr_shed_fom.csv
@@ -4351,6 +4353,20 @@ $onlisting
 * Storage-hybrid wrappers inherit financial multiplier components from their
 * underlying generation technology
 itc_frac_monetized(i,t)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), itc_frac_monetized(ii,t) } ;
+
+* The storage side keeps the storage tech's ITC rate but is eligible over the larger of
+* the gen and storage techs' windows, because a wrapper is one facility with one
+* construction start (written by calc_financial_inputs.py; used in 2_financials.gms)
+$onempty
+parameter itc_frac_monetized_storage_hybrid_s(i,allt) "--fraction-- monetized ITC on the storage side of storage-hybrid wrappers"
+/
+$offlisting
+$ondelim
+$include inputs_case%ds%storage_hybrid_itc_storage.csv
+$offdelim
+$onlisting
+/ ;
+$offempty
 itc_energy_comm_bonus(i,r)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), itc_energy_comm_bonus(ii,r) } ;
 degradation_adj(i,t)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), degradation_adj(ii,t) } ;
 financing_risk_mult(i,t)$storage_hybrid(i) = sum{ii$storage_hybrid_gentech(i,ii), financing_risk_mult(ii,t) } ;
@@ -5093,8 +5109,9 @@ resourcescaler(i)$csp(i) = CSP_SM(i) / csp_sm_baseline ;
 * gen tech without an explicit row (e.g., upv, wind-ons, gas-cc), which
 * yields no powerblock cost subtraction — appropriate when the gen tech and the
 * storage discharge do not share a common powerblock.
-* Fractions in the CSV reflect ATB 2024 Table 6, GN-COA breakdown
-* (Abou-Jaoude et al. 2024, INL/RPT-24-77048):
+* Nuclear fractions in the CSV come from Table 6 of the ATB 2024 nuclear page (GN-COA
+* breakdown), which is based on Abou-Jaoude et al. 2024, INL/RPT-24-77048-Rev001,
+* doi:10.2172/2371533:
 *   Code 23 (Energy Conversion System): nuclear=3.92%, nuclear-SMR=3.86%
 *   Code 24 (Electrical Equipment):     nuclear=6.32%, nuclear-SMR=9.46%
 *   Combined:                           nuclear=10.24%, nuclear-SMR=13.32%
@@ -5831,12 +5848,14 @@ cost_co2_spurline_cap(r,cs,t) =  %GSw_CO2_CostAdj% * cost_co2_spurline_cap(r,cs,
 * Parameter tracking for sequential solve
 parameter
     m_capacity_exog0(i,v,r,t) "--MW-- original value of m_capacity_exog used to make sure upgraded capacity isnt forced into retirement"
-    z_rep(t)      "--$-- objective function value by year"
-    z_rep_inv(t)  "--$-- investment component of objective function by year"
-    z_rep_op(t)   "--$-- operation component of objective function by year"
+    z_rep(t)                  "--$-- objective function value by year"
+    z_rep_inv(t)              "--$-- investment component of objective function by year"
+    z_rep_op(t)               "--$-- operation component of objective function by year"
+    z_rep_finito(t)           "--$-- FINITO component of objective function by year"
 ;
 z_rep_inv(t) = 0 ;
 z_rep_op(t) = 0 ;
+z_rep_finito(t) = 0 ;
 
 *====================================
 *     --- Employment Factors ---
