@@ -173,23 +173,17 @@ All waves set `GSw_StorageHybrid_TESCostSplit=1`. The SMR keeps its own powerblo
 
 Wave 0 runs the n25 generation-share mandate (`GSw_interpolate_mandates=2035-0.1_2050-0.25`) at three dispatch timeslice lengths. Each resolution has a control (`_ctrl`, hybrids off) and the TES add-on at 20, 40 and 60% (`_ta20`, `_ta40`, `_ta60`; `GSw_StorageHybrid_TESAddonMult` = 0.2, 0.4, 0.6). `GSw_HourlyChunkLengthRep` and `GSw_HourlyChunkLengthStress` are equal in every case.
 
-| Casefile | Cases | Where it runs |
-|---|---|---|
-| `cases_nuclearstor_paper_v6_wave0_lab.csv` | `w0_h3_n25_*` (4): 3-hour timeslices | lab machine |
-| `cases_nuclearstor_paper_v6_wave0_nlr.csv` | `w0_h2_n25_*` (4), then `w0_h1_n25_*` (4): 2-hour and 1-hour timeslices | NLR cluster |
+All 12 cases are in one casefile, `cases_nuclearstor_paper_v6_wave0.csv`, which NLR runs:
+- `w0_h3_n25_*` (first 4): 3-hour timeslices, the current setting.
+- `w0_h2_n25_*` (next 4): 2-hour timeslices.
+- `w0_h1_n25_*` (last 4): 1-hour timeslices.
 
 Interday linkage stays off, because TES wrappers can't use it. `pcm=0`, because the dispatch-mode rerun fails: `runreeds.py` calls `reeds/postprocessing/run_pcm.py`, but the script is at `postprocessing/run_pcm.py`.
 
 ### Run
 
-Lab machine:
 ```
-python runreeds.py -b v6w0 -c nuclearstor_paper_v6_wave0_lab -r 2
-```
-
-NLR:
-```
-python runreeds.py -b v6w0 -c nuclearstor_paper_v6_wave0_nlr
+python runreeds.py -b v6w0 -c nuclearstor_paper_v6_wave0
 ```
 
 Memory per case, **estimated, not measured**. The z54, 3-hour core runs peaked at about 60 GB. z90 has about 1.7 times as many zones, and the 2-hour and 1-hour cases have 1.5 and 3 times as many timeslices:
@@ -197,13 +191,13 @@ Memory per case, **estimated, not measured**. The z54, 3-hour core runs peaked a
 - `w0_h2_*`: about 150 GB.
 - `w0_h1_*`: about 300 GB or more. Their solves will also take several times longer.
 
-The lab machine (24 cores, 253 GB) runs 2 cases at a time. The first lab run's measured peak replaces the 3-hour estimate. On HPC, `runreeds.py` asks for cases per node; use one case per node, on big-memory nodes for the 1-hour cases. If you rerun a subset with `-s`, check `inputs_case/switches.csv` in each run folder afterward.
+On HPC, `runreeds.py` asks for cases per node; use one case per node, on big-memory nodes for the 1-hour cases. A workstation with 253 GB can run 2 of the 3-hour cases at a time. If you rerun a subset with `-s`, check `inputs_case/switches.csv` in each run folder afterward.
 
 If a run stops with "At least one resource adequacy metric failed to meet the required threshold(s) within 5 iterations", rerun that case with a higher `GSw_PRM_StressIterateMax`.
 
 ### Pass criteria
 
-- All 12 cases (4 lab, 8 NLR) solve to 2050, and every solve is optimal.
+- All 12 cases solve to 2050, and every solve is optimal.
 - The 2050 nuclear share of total generation is at least 0.23. The mandate's base is bus-bar load, so the share can sit up to about 2 points below the 0.25 target; the test is one-sided.
 - No `_ctrl` case builds a wrapper. Hybrid cases build only `storage-hybrid-{1..5}-nuclear-smr`.
 - No case builds new large nuclear: `Nuclear` capacity never rises after 2026.
@@ -211,7 +205,7 @@ If a run stops with "At least one resource adequacy metric failed to meet the re
 
 ### Wave 0 check script
 
-Run from the repo root in the `reeds` env. It reads the lab runs from `runs/` and the NLR runs from the `outputs.h5` files NLR posts. Put those files under `NLR_DIR`; each path must contain the case name (for example `wave0_nlr/v6w0_w0_h2_n25_ta20/outputs.h5` or `wave0_nlr/w0_h1_n25_ctrl.h5`).
+Run from the repo root in the `reeds` env. It reads each case's `outputs.h5`, either from a run folder under `runs/` or from the files NLR posts. Put the NLR files under `NLR_DIR`; each path must contain the case name (for example `wave0_nlr/v6w0_w0_h2_n25_ta20/outputs.h5` or `wave0_nlr/w0_h1_n25_ctrl.h5`).
 
 ```python
 import re
@@ -226,7 +220,7 @@ BCR = {'1': 0.1, '2': 0.25, '3': 0.5, '4': 0.75, '5': 1.0}
 CASE = re.compile(r'w0_(h[123])_(n25)_(ctrl|ta\d+)')
 EXPECTED = {'h3': 4, 'h2': 4, 'h1': 4}
 
-## Sources: lab run folders and NLR outputs.h5 files
+## Sources: local run folders and NLR outputs.h5 files
 sources = {}
 for d in sorted(Path('runs').glob(f'{BATCH}_w0_*')):
     m = CASE.search(d.name)
@@ -296,7 +290,7 @@ assert df['share_ok'].all(), 'a case missed the n25 share by more than 2 points'
 print('checks passed')
 ```
 
-`cases_nuclearstor_paper_v5_wave0.csv` (48 cases, never run) is withdrawn; v6 replaces it. If NLR received it, NLR runs `cases_nuclearstor_paper_v6_wave0_nlr.csv` instead.
+`cases_nuclearstor_paper_v5_wave0.csv` (48 cases, never run) is withdrawn; v6 replaces it. If NLR received it, NLR runs `cases_nuclearstor_paper_v6_wave0.csv` instead.
 
 ## Results
 

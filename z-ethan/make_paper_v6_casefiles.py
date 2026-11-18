@@ -26,11 +26,9 @@ rules off (GSw_Clean_Air_Act=0; GSw_CSAPR stays at its default), and up to 5
 stress-period iterations (upstream now stops a run whose RA thresholds are
 still unmet after the last iteration).
 
-Writes, at the repo root:
-- cases_nuclearstor_paper_v6_wave0_lab.csv: the 3-hour cases (4), run on the
-  lab machine.
-- cases_nuclearstor_paper_v6_wave0_nlr.csv: the 2-hour cases, then the
-  1-hour cases (8), run on the NLR cluster.
+Writes cases_nuclearstor_paper_v6_wave0.csv at the repo root: all 12 wave 0
+cases, which NLR runs. The 3-hour cases come first, then the 2-hour and the
+1-hour cases, so the fastest cases finish first.
 cases_nuclearstor_paper_v5_core.csv is the record of the first test batch
 (6-type ladder) and is not generated here.
 
@@ -127,8 +125,7 @@ CAPACITY = {
 WAVE0_MANDATE = 'n25'
 WAVE0_PCT = [20, 40, 60]
 WAVE0_FILES = {
-    'cases_nuclearstor_paper_v6_wave0_lab.csv': ['h3'],
-    'cases_nuclearstor_paper_v6_wave0_nlr.csv': ['h2', 'h1'],
+    'cases_nuclearstor_paper_v6_wave0.csv': ['h3', 'h2', 'h1'],
 }
 
 
