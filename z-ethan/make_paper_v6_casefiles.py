@@ -1,4 +1,4 @@
-"""Build the v5 nuclear+TES paper casefiles for the nuclear-tes-paper branch.
+"""Build the v6 nuclear+TES paper casefiles for the nuclear-tes-paper branch.
 
 The paper runs in waves. Every wave uses the same wrapper set: nuclear-SMR
 with molten-salt TES at BCR 0.1, 0.25, 0.5, 0.75 and 1.0. New large nuclear
@@ -8,25 +8,36 @@ nuclear remains.
   SMR keeps its powerblock, discharge adds BCR x the SMR powerblock, and the
   sweep scales only the TES add-on (storage-specific power share and energy)
   through GSw_StorageHybrid_TESAddonMult.
-- Wave 0 fixes the time resolution for all later waves. It runs two energy
-  mandates (n15, n50) and two capacity mandates (atb, eo25) at 3-hour and
-  1-hour dispatch timeslices, with the TES add-on at 20/40/60/80/100% of ATB
-  2024 moderate, and a control (hybrids off) for each mandate and resolution.
-- Wave 1 is the broad TES cost sweep (20-100%) for all nine mandate levels at
-  the resolution wave 0 selects. Wave 0 already covers its n15, n50, atb and
-  eo25 cases.
+- Wave 0 picks the time resolution for all later waves. It runs the n25
+  generation-share mandate (2035-0.1_2050-0.25) at 3-hour, 2-hour and 1-hour
+  dispatch timeslices, with a control (hybrids off) and the TES add-on at 20,
+  40 and 60% of ATB 2024 moderate at each resolution.
+- Wave 1 is a broad TES add-on sweep (20-100%) on the generation-share
+  mandates (base, n15, n20, n25, n50) at the resolution wave 0 selects.
 - Wave 2 is a fine sweep around each mandate's breakeven TES cost.
-- Wave 3 holds the sensitivities (including OBBBA) around the breakeven.
+- Wave 3 holds the sensitivities around the breakeven: a few capacity-mandate
+  runs (GSw_NuclearCapMandate), new large nuclear allowed (GSw_NuclearLarge=1),
+  and others to be chosen.
 
-Writes cases_nuclearstor_paper_v5_wave0.csv at the repo root (48 cases; the
-3-hour cases come first, so they finish first).
+v6 differs from v5 in the pins: the default zone set (z90 on current main)
+instead of z54, OBBBA incentives with the statutory 45Y/48E phase-down
+(incentives_obbba_phasedown) instead of none, the Clean Air Act Section 111
+rules off (GSw_Clean_Air_Act=0; GSw_CSAPR stays at its default), and up to 5
+stress-period iterations (upstream now stops a run whose RA thresholds are
+still unmet after the last iteration).
+
+Writes, at the repo root:
+- cases_nuclearstor_paper_v6_wave0_lab.csv: the 3-hour cases (4), run on the
+  lab machine.
+- cases_nuclearstor_paper_v6_wave0_nlr.csv: the 2-hour cases, then the
+  1-hour cases (8), run on the NLR cluster.
 cases_nuclearstor_paper_v5_core.csv is the record of the first test batch
-(6-type ladder) and is no longer generated here.
+(6-type ladder) and is not generated here.
 
 Every switch the paper fixes is pinned in the Default Value column (PINS);
 each case sets only the switches that define it. Descriptions come from this
 branch's cases.csv. Run from the repo root:
-    python z-ethan/make_paper_v5_casefiles.py
+    python z-ethan/make_paper_v6_casefiles.py
 """
 import csv
 
@@ -36,7 +47,6 @@ BCR_LADDER = ['0.1', '0.25', '0.5', '0.75', '1.0']
 # Switches fixed for the whole paper batch (Default Value column)
 PINS = {
     'ignore': '0',
-    'GSw_ZoneSet': 'z54',
     'timetype': 'seq',
     'yearset': '2010..2030..5_2032..2050..3',
     'plantchar_tes': 'tes_ATB_2024_moderate',
@@ -62,8 +72,9 @@ PINS = {
     'GSw_NuclearCapMandate': '0',
     'GSw_NuclearCapMandateScen': 'abou_jaoude',
     'GSw_StateRPS': '1',
-    'incentives_suffix': 'none',
+    'incentives_suffix': 'obbba_phasedown',
     'GSw_TCPhaseout': '1',
+    'GSw_Clean_Air_Act': '0',
     'GSw_AnnualCap': '0',
     'GSw_AnnualCapScen': 'default',
     'GSw_LoadProfiles': 'EER2025_IRAlow',
@@ -75,15 +86,20 @@ PINS = {
     'GSw_HourlyChunkLengthRep': '3',
     'GSw_HourlyChunkLengthStress': '3',
     'GSw_NewValCapShrink': '1',
-    'GSw_PRM_StressIterateMax': '3',
+    'GSw_PRM_StressIterateMax': '5',
     'reg_cap_cost_diff_suffix': 'default',
     'GSw_TransInvMaxLongTerm': '0',
     'pcm': '0',
 }
 
-# Time resolution: tag -> switches (representative and stress-period timeslice length)
+# Time resolution: tag -> switches. The representative and stress-period
+# timeslice lengths stay equal within each case.
 RESOLUTION = {
     'h3': {},
+    'h2': {
+        'GSw_HourlyChunkLengthRep': '2',
+        'GSw_HourlyChunkLengthStress': '2',
+    },
     'h1': {
         'GSw_HourlyChunkLengthRep': '1',
         'GSw_HourlyChunkLengthStress': '1',
@@ -99,15 +115,21 @@ ENERGY = {
     'n50': '2035-0.1_2050-0.5',
 }
 # Capacity mandates (total-fleet basis, floor mode): tag -> GSw_NuclearCapMandateScen
+# Used in the wave 3 sensitivities only.
 CAPACITY = {
     'atb': 'abou_jaoude',
     'mck': 'mckinsey',
     'cop28': 'cop28',
     'eo25': 'eo2025',
 }
-# TES add-on cost: percent of the ATB 2024 moderate add-on (GSw_StorageHybrid_TESAddonMult)
-SWEEP_PCT = [20, 40, 60, 80, 100]
-WAVE0_MANDATES = ['n15', 'n50', 'atb', 'eo25']
+# Wave 0: TES add-on cost as a percent of the ATB 2024 moderate add-on
+# (GSw_StorageHybrid_TESAddonMult)
+WAVE0_MANDATE = 'n25'
+WAVE0_PCT = [20, 40, 60]
+WAVE0_FILES = {
+    'cases_nuclearstor_paper_v6_wave0_lab.csv': ['h3'],
+    'cases_nuclearstor_paper_v6_wave0_nlr.csv': ['h2', 'h1'],
+}
 
 
 def mandate_switches(tag):
@@ -132,13 +154,12 @@ def case(tag, res, pct=None):
     return sw
 
 
-def wave0_cases():
+def wave0_cases(resolutions):
     cases = {}
-    for res in RESOLUTION:
-        for tag in WAVE0_MANDATES:
-            cases[f'w0_{res}_{tag}_ctrl'] = case(tag, res)
-            for pct in SWEEP_PCT:
-                cases[f'w0_{res}_{tag}_ta{pct}'] = case(tag, res, pct)
+    for res in resolutions:
+        cases[f'w0_{res}_{WAVE0_MANDATE}_ctrl'] = case(WAVE0_MANDATE, res)
+        for pct in WAVE0_PCT:
+            cases[f'w0_{res}_{WAVE0_MANDATE}_ta{pct}'] = case(WAVE0_MANDATE, res, pct)
     return cases
 
 
@@ -151,6 +172,9 @@ def write(path, cases, descriptions):
     for name, sw in cases.items():
         unpinned = set(sw) - set(PINS)
         assert not unpinned, f'{name}: switches missing from PINS: {unpinned}'
+        assert sw.get('GSw_HourlyChunkLengthRep', PINS['GSw_HourlyChunkLengthRep']) == sw.get(
+            'GSw_HourlyChunkLengthStress', PINS['GSw_HourlyChunkLengthStress']), (
+            f'{name}: representative and stress timeslice lengths differ')
     missing = [k for k in PINS if k != 'ignore' and k not in descriptions]
     assert not missing, f'pinned switches not in cases.csv: {missing}'
     with open(path, 'w', newline='', encoding='utf-8') as f:
@@ -164,7 +188,8 @@ def write(path, cases, descriptions):
 
 def main():
     descriptions = read_descriptions()
-    write('cases_nuclearstor_paper_v5_wave0.csv', wave0_cases(), descriptions)
+    for path, resolutions in WAVE0_FILES.items():
+        write(path, wave0_cases(resolutions), descriptions)
 
 
 if __name__ == '__main__':

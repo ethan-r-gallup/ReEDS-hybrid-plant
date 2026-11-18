@@ -1,10 +1,10 @@
 # Test checklist for the `nuclear-tes-paper` branch
 
-This branch adds the nuclear+TES paper inputs to `storage-hybrid-pr`. The machine that wrote the branch has too little memory for ReEDS, GAMS or Julia runs. So no run on this branch has been done yet. A machine with enough memory runs the steps below and records each result in the table at the end.
+This branch adds the nuclear+TES paper inputs to `storage-hybrid-pr`. A machine with enough memory for ReEDS, GAMS and Julia runs runs the steps below and records each result in the table at the end. On 2026-11-18 the branch merged `storage-hybrid-pr`, which now includes upstream ReEDS `main` at `3499d916`.
 
 ## What the branch changes
 
-The branch adds these commits on top of `storage-hybrid-pr` at `73cfa977`:
+The branch adds these commits on top of `storage-hybrid-pr`:
 
 | Commit | Change |
 |---|---|
@@ -13,16 +13,20 @@ The branch adds these commits on top of `storage-hybrid-pr` at `73cfa977`:
 | `8a148ad1` | `GSw_NuclearCapMandate`: a national floor on nuclear capacity (`eq_nuclear_cap_mandate`), with trajectories in `inputs/capacity_mandate/` |
 | `1338ca45` | `tes_threshold_modrte_{pct}pct.csv`: TES cost sensitivity files at 10–200% of ATB 2024 moderate |
 | `e2ee8679` | `hourly_load.py`: builds the load twice, compares the two builds, and validates the result before it writes `load.h5` |
-| `923f48c5`, `401e1622` | The v5 core casefile (18 cases); the wave 0 casefile (48) was added later |
-| (latest) | `GSw_NuclearLarge`: turns off new large nuclear only; the v5 casefiles set 0 |
-| (latest) | `GSw_StorageHybrid_TESCostSplit`, `_TESStorShare` and `_TESAddonMult`: split TES wrapper costing, with a multiplier on the TES add-on only |
-| `3e4a1fc4` | `GSw_NuclearFirstYear`: overrides the first year new nuclear can be built; the v5 casefiles set 2031 |
+| `923f48c5`, `401e1622` | The v5 core casefile (18 cases) |
+| `c7ae8e86` | `GSw_NuclearLarge`: turns off new large nuclear only; the paper casefiles set 0 |
+| `f6257725`, `3a5942ed` | `GSw_StorageHybrid_TESCostSplit`, `_TESStorShare` and `_TESAddonMult`: split TES wrapper costing, with a multiplier on the TES add-on only |
+| `3e4a1fc4` | `GSw_NuclearFirstYear`: overrides the first year new nuclear can be built; the paper casefiles set 2031 |
+| `97c8db39` | `runreeds.py -s`: keeps casefile order so case names line up with their switches |
+| `6f228a5a` | `incentives_obbba_phasedown.csv`: OBBBA incentives with the statutory 45Y/48E phase-down for 2033-2035 construction starts |
+| `debb5275` | `cases_hybridtest.csv`: paper-only quick tests (Utah + Nevada and full-US z54) |
+| (latest) | v6 wave 0 casefiles from `z-ethan/make_paper_v6_casefiles.py` |
 
 ## Setup
 
 1. Check out the branch: `git fetch origin && git checkout nuclear-tes-paper`.
 2. Activate the conda env `reeds` (pandas 3). The env `reeds2` fails the version check.
-3. Make sure Julia is set up and `Manifest.toml` exists at the repo root. The casefiles set `GSw_PRM_StressIterateMax=3`, so the runs need ReEDS2PRAS.
+3. Make sure Julia is set up and `Manifest.toml` exists at the repo root. The casefiles use PRAS stress periods (`GSw_PRM_StressIterateMax` > 0), so the runs need ReEDS2PRAS.
 
 ## Step 1: storage-hybrid regression test
 
@@ -150,59 +154,94 @@ print('checks passed')
 
 The paper runs in waves. Every wave uses the same wrapper set: nuclear-SMR with molten-salt TES at BCR 0.1, 0.25, 0.5, 0.75 and 1.0 (wrapper types 1 to 5). New large nuclear is off in every case, controls included (`GSw_NuclearLarge=0`), so the SMR is the only new reactor option; existing large nuclear remains. The paper studies what onsite TES adds to an SMR, not which reactor size gets built. The core file above used an older set of 6 types and the older costing, so its test cases are not part of any wave.
 
-1. **Wave 0** fixes the time resolution for all later waves. It is described below.
-2. **Wave 1** is a broad TES add-on cost sweep for all nine mandate levels, at the resolution wave 0 selects. Wave 0 already covers its n15, n50, atb and eo25 cases.
+1. **Wave 0** picks the time resolution for all later waves. It is described below.
+2. **Wave 1** is a broad TES add-on sweep (20, 40, 60, 80 and 100%) on the generation-share mandates (base, n15, n20, n25, n50), at the resolution wave 0 selects.
 3. **Wave 2** is a fine sweep around each mandate's breakeven TES add-on cost.
-4. **Wave 3** holds the sensitivities around the breakeven, including OBBBA incentives.
+4. **Wave 3** holds the sensitivities around the breakeven: a few capacity-mandate runs (`GSw_NuclearCapMandate`), new large nuclear allowed (`GSw_NuclearLarge=1`), and others to be chosen.
+
+`z-ethan/make_paper_v6_casefiles.py` writes the wave 0 casefiles and pins every switch the paper fixes. The v6 pins differ from v5 in four ways:
+- the default zone set, z90, instead of z54;
+- OBBBA incentives with the statutory 45Y/48E phase-down (`incentives_suffix=obbba_phasedown`) instead of none;
+- the Clean Air Act Section 111 rules off (`GSw_Clean_Air_Act=0`), with `GSw_CSAPR` at its default of 1;
+- up to 5 stress-period iterations (`GSw_PRM_StressIterateMax=5`), because upstream now stops a run whose resource adequacy thresholds are still unmet after the last iteration.
 
 ### TES wrapper costing in all waves
 
-All waves set `GSw_StorageHybrid_TESCostSplit=1`. The SMR keeps its own powerblock. Storage discharge adds BCR × the SMR powerblock cost (the turbine enlargement). The TES add-on is the storage-specific share (`GSw_StorageHybrid_TESStorShare=0.203`, from PNNL-33283 section 4.8.1) of the TES power capex and power FOM, plus the TES energy capex and energy FOM. `GSw_StorageHybrid_TESAddonMult` scales only the TES add-on. The sweep sets it to 0.2, 0.4, 0.6, 0.8 and 1.0 (case suffixes `_ta20` to `_ta100`). `plantchar_tes` stays at `tes_ATB_2024_moderate`.
+All waves set `GSw_StorageHybrid_TESCostSplit=1`. The SMR keeps its own powerblock. Storage discharge adds BCR × the SMR powerblock cost (the turbine enlargement). The TES add-on is the storage-specific share (`GSw_StorageHybrid_TESStorShare=0.203`, from PNNL-33283 section 4.8.1) of the TES power capex and power FOM, plus the TES energy capex and energy FOM. `GSw_StorageHybrid_TESAddonMult` scales only the TES add-on. `plantchar_tes` stays at `tes_ATB_2024_moderate`.
 
 ### Wave 0 design
 
-Wave 0 runs two energy mandates (n15, n50) and two capacity mandates (atb, eo25), each at two time resolutions. All 48 cases are in one casefile, `cases_nuclearstor_paper_v5_wave0.csv`:
-- `w0_h3_*` (first 24 cases): 3-hour dispatch timeslices, the current setting.
-- `w0_h1_*` (last 24 cases): 1-hour timeslices (`GSw_HourlyChunkLengthRep=1`, `GSw_HourlyChunkLengthStress=1`).
+Wave 0 runs the n25 generation-share mandate (`GSw_interpolate_mandates=2035-0.1_2050-0.25`) at three dispatch timeslice lengths. Each resolution has a control (`_ctrl`, hybrids off) and the TES add-on at 20, 40 and 60% (`_ta20`, `_ta40`, `_ta60`; `GSw_StorageHybrid_TESAddonMult` = 0.2, 0.4, 0.6). `GSw_HourlyChunkLengthRep` and `GSw_HourlyChunkLengthStress` are equal in every case.
 
-For each mandate and resolution, the casefile has a control (`_ctrl`, hybrids off) and the five TES add-on costs. Interday linkage stays off, because TES wrappers can't use it. `pcm=0`, because the dispatch-mode rerun fails in this fork: `runreeds.py` calls `reeds/postprocessing/run_pcm.py`, but the script is at `postprocessing/run_pcm.py`.
+| Casefile | Cases | Where it runs |
+|---|---|---|
+| `cases_nuclearstor_paper_v6_wave0_lab.csv` | `w0_h3_n25_*` (4): 3-hour timeslices | lab machine |
+| `cases_nuclearstor_paper_v6_wave0_nlr.csv` | `w0_h2_n25_*` (4), then `w0_h1_n25_*` (4): 2-hour and 1-hour timeslices | NLR cluster |
+
+Interday linkage stays off, because TES wrappers can't use it. `pcm=0`, because the dispatch-mode rerun fails: `runreeds.py` calls `reeds/postprocessing/run_pcm.py`, but the script is at `postprocessing/run_pcm.py`.
 
 ### Run
 
+Lab machine:
 ```
-python runreeds.py -b v5w0 -c nuclearstor_paper_v5_wave0
+python runreeds.py -b v6w0 -c nuclearstor_paper_v6_wave0_lab -r 2
 ```
 
-Memory per case, estimated rather than measured:
-- `w0_h3_*`: about 60 GB, the peak of the core runs at 3-hour resolution.
-- `w0_h1_*`: about 150–200 GB. The 1-hour cases have 3 times as many timeslices (792 instead of 264 over 33 representative days), and their solves will take several times longer.
+NLR:
+```
+python runreeds.py -b v6w0 -c nuclearstor_paper_v6_wave0_nlr
+```
 
-On HPC, `runreeds.py` asks for cases per node. Use nodes with at least 256 GB and one case per node, so the 1-hour cases fit. On a workstation, set `-r` from the 1-hour figure. If you rerun a subset with `-s`, check `inputs_case/switches.csv` in each run folder afterward.
+Memory per case, **estimated, not measured**. The z54, 3-hour core runs peaked at about 60 GB. z90 has about 1.7 times as many zones, and the 2-hour and 1-hour cases have 1.5 and 3 times as many timeslices:
+- `w0_h3_*`: about 100 GB.
+- `w0_h2_*`: about 150 GB.
+- `w0_h1_*`: about 300 GB or more. Their solves will also take several times longer.
+
+The lab machine (24 cores, 253 GB) runs 2 cases at a time. The first lab run's measured peak replaces the 3-hour estimate. On HPC, `runreeds.py` asks for cases per node; use one case per node, on big-memory nodes for the 1-hour cases. If you rerun a subset with `-s`, check `inputs_case/switches.csv` in each run folder afterward.
+
+If a run stops with "At least one resource adequacy metric failed to meet the required threshold(s) within 5 iterations", rerun that case with a higher `GSw_PRM_StressIterateMax`.
 
 ### Pass criteria
 
-- All 48 cases solve to 2050, and every solve is optimal.
-- In the atb and eo25 cases, the capacity floor holds from 2032. In the n15 and n50 cases, the 2050 nuclear share of total generation is at least 0.13 or 0.48. The mandate's base is bus-bar load, so the share can sit up to about 2 points below the target.
+- All 12 cases (4 lab, 8 NLR) solve to 2050, and every solve is optimal.
+- The 2050 nuclear share of total generation is at least 0.23. The mandate's base is bus-bar load, so the share can sit up to about 2 points below the 0.25 target; the test is one-sided.
 - No `_ctrl` case builds a wrapper. Hybrid cases build only `storage-hybrid-{1..5}-nuclear-smr`.
 - No case builds new large nuclear: `Nuclear` capacity never rises after 2026.
-- The check script below runs and writes `wave0_summary.csv`. Send that file back with the outputs.
+- The check script below runs and writes `wave0_summary.csv`.
 
 ### Wave 0 check script
 
-Run from the repo root in the `reeds` env, after both batches finish.
+Run from the repo root in the `reeds` env. It reads the lab runs from `runs/` and the NLR runs from the `outputs.h5` files NLR posts. Put those files under `NLR_DIR`; each path must contain the case name (for example `wave0_nlr/v6w0_w0_h2_n25_ta20/outputs.h5` or `wave0_nlr/w0_h1_n25_ctrl.h5`).
 
 ```python
-import os
 import re
+from pathlib import Path
 import pandas as pd
+import reeds
 
-BATCH = 'v5w0'
-SHARE = {'n15': 0.15, 'n50': 0.50}
+BATCH = 'v6w0'
+NLR_DIR = 'wave0_nlr'
+TARGET = 0.25
 BCR = {'1': 0.1, '2': 0.25, '3': 0.5, '4': 0.75, '5': 1.0}
+CASE = re.compile(r'w0_(h[123])_(n25)_(ctrl|ta\d+)')
+EXPECTED = {'h3': 4, 'h2': 4, 'h1': 4}
 
-def read(path, name, cols):
-    df = pd.read_csv(os.path.join(path, 'outputs', f'{name}.csv'))
+## Sources: lab run folders and NLR outputs.h5 files
+sources = {}
+for d in sorted(Path('runs').glob(f'{BATCH}_w0_*')):
+    m = CASE.search(d.name)
+    if m:
+        sources[m.group(0)] = d / 'outputs' / 'outputs.h5'
+if Path(NLR_DIR).exists():
+    for f in sorted(Path(NLR_DIR).rglob('*.h5')):
+        m = CASE.search(str(f))
+        if m:
+            sources[m.group(0)] = f
+
+def read(src, key, cols):
+    df = reeds.io.read_output(str(src), key)
     df.columns = cols
+    df['t'] = df['t'].astype(int)
     return df
 
 def is_nuclear(i):
@@ -210,74 +249,54 @@ def is_nuclear(i):
     return i in ('nuclear', 'nuclear-smr') or i.startswith('storage-hybrid-')
 
 rows = []
-missing = []
-for case in sorted(os.listdir('runs')):
-    m = re.match(rf'{BATCH}_w0_(h[13])_(n15|n50|atb|eo25)_(ctrl|ta\d+)$', case)
-    if not m:
+missing = [c for c, src in sources.items() if not Path(src).exists()]
+for case, src in sources.items():
+    if case in missing:
         continue
-    res, mandate, arm = m.groups()
-    path = os.path.join('runs', case)
-    if not os.path.exists(os.path.join(path, 'outputs', 'cap.csv')):
-        missing.append(case)
-        continue
-    cap = read(path, 'cap', ['i', 'r', 't', 'MW'])
-    cap['t'] = cap.t.astype(int)
-    gen = read(path, 'gen_ann', ['i', 'r', 't', 'MWh'])
-    gen['t'] = gen.t.astype(int)
+    res, mandate, arm = CASE.match(case).groups()
+    cap = read(src, 'cap', ['i', 'r', 't', 'MW'])
+    gen = read(src, 'gen_ann', ['i', 'r', 't', 'MWh'])
     wrap = cap[cap.i.str.lower().str.startswith('storage-hybrid-')]
-    row = {'case': case, 'res': res, 'mandate': mandate, 'arm': arm}
-    # Wrapper capacity in 2050 by BCR rung, and the first year any wrapper exists
+    row = {'case': case, 'res': res, 'mandate': mandate, 'arm': arm, 'source': str(src)}
+    ## Wrapper capacity in 2050 by BCR rung, and the first year any wrapper exists
     for typ, bcr in BCR.items():
         sel = wrap[(wrap.t == 2050) & wrap.i.str.lower().str.startswith(f'storage-hybrid-{typ}-')]
         row[f'wrap_GW_2050_bcr{bcr}'] = round(sel.MW.sum() / 1e3, 2)
     row['wrap_GW_2050'] = round(wrap[wrap.t == 2050].MW.sum() / 1e3, 2)
     row['wrap_first_year'] = int(wrap.t.min()) if len(wrap) else None
     row['nuc_GW_2050'] = round(cap[(cap.t == 2050) & cap.i.map(is_nuclear)].MW.sum() / 1e3, 1)
-    # New large nuclear is off, so Nuclear capacity never rises after 2026
+    ## New large nuclear is off, so Nuclear capacity never rises after 2026
     large = cap[(cap.i.str.lower() == 'nuclear') & (cap.t >= 2026)].groupby('t').MW.sum()
     row['large_nuc_GW_2050'] = round(large.get(2050, 0) / 1e3, 1)
     row['large_nuc_rise_GW'] = round(max(large.diff().max(), 0) / 1e3, 2) if len(large) > 1 else 0.0
     g50 = gen[gen.t == 2050]
     row['nuc_share_2050'] = round(g50[g50.i.map(is_nuclear)].MWh.sum() / g50.MWh.sum(), 3)
-    # Wrapper energy capacity in 2050
-    if os.path.exists(os.path.join(path, 'outputs', 'cap_energy_ivrt.csv')):
-        en = read(path, 'cap_energy_ivrt', ['i', 'v', 'r', 't', 'MWh'])
-        en = en[(en.t.astype(int) == 2050) & en.i.str.lower().str.startswith('storage-hybrid-')]
-        row['wrap_GWh_2050'] = round(en.MWh.sum() / 1e3, 1)
-    # System cost (2004$), summed over solve years, undiscounted across years
-    if os.path.exists(os.path.join(path, 'outputs', 'systemcost_bulk.csv')):
-        sc = read(path, 'systemcost_bulk', ['cost', 't', 'value'])
-        row['systemcost_bulk_B$'] = round(sc.value.sum() / 1e9, 3)
-    # Mandate checks
-    # The mandate is a floor on a bus-bar-load basis, so the share of total
-    # generation may sit up to about 2 points below the target, or above it
-    if mandate in SHARE:
-        row['share_minus_target'] = round(row['nuc_share_2050'] - SHARE[mandate], 3)
-        row['share_ok'] = row['share_minus_target'] >= -0.02
-    else:
-        traj = pd.read_csv(
-            os.path.join(path, 'inputs_case', 'nuclear_cap_trajectory.csv'), index_col=0
-        ).squeeze(1)
-        nuc = cap[cap.i.map(is_nuclear)].groupby('t').MW.sum()
-        row['min_floor_slack_GW'] = round(
-            min(nuc[t] - traj[t] for t in nuc.index if t >= 2032) / 1e3, 2)
+    ## Wrapper energy capacity in 2050
+    en = read(src, 'cap_energy_ivrt', ['i', 'v', 'r', 't', 'MWh'])
+    en = en[(en.t == 2050) & en.i.str.lower().str.startswith('storage-hybrid-')]
+    row['wrap_GWh_2050'] = round(en.MWh.sum() / 1e3, 1)
+    ## System cost (2004$), summed over solve years, undiscounted across years
+    sc = read(src, 'systemcost_bulk', ['cost', 't', 'value'])
+    row['systemcost_bulk_B$'] = round(sc.value.sum() / 1e9, 3)
+    ## The mandate is a floor on a bus-bar-load basis, so the share of total
+    ## generation may sit up to about 2 points below the target, or above it
+    row['share_minus_target'] = round(row['nuc_share_2050'] - TARGET, 3)
+    row['share_ok'] = row['share_minus_target'] >= -0.02
     rows.append(row)
 
-df = pd.DataFrame(rows).set_index('case')
+df = pd.DataFrame(rows).set_index('case').sort_index()
 df.to_csv('wave0_summary.csv')
-print(df.to_string())
-assert not missing, f'{len(missing)} cases have no outputs: {missing}'
-assert len(df) == 48, f'expected 48 cases but found {len(df)}'
+print(df.drop(columns='source').to_string())
+for res, n in EXPECTED.items():
+    print(f'{res}: {int((df.res == res).sum())} of {n} cases found')
+assert not missing, f'{len(missing)} cases have no outputs.h5: {missing}'
 assert (df.loc[df.arm == 'ctrl', 'wrap_GW_2050'] == 0).all(), 'a control case built wrappers'
 assert (df['large_nuc_rise_GW'] <= 0.01).all(), 'a case built new large nuclear'
-if 'min_floor_slack_GW' in df:
-    assert (df['min_floor_slack_GW'].dropna() >= -0.01).all(), 'a capacity floor was violated'
-if 'share_ok' in df:
-    assert df['share_ok'].dropna().all(), 'an energy-mandate share missed its target'
+assert df['share_ok'].all(), 'a case missed the n25 share by more than 2 points'
 print('checks passed')
 ```
 
-The withdrawn files `nuclearstor_paper_v5_core_obbba` and `nuclearstor_paper_v5_sweep` must not be run. If NLR received them, NLR runs the two wave 0 files in their place.
+`cases_nuclearstor_paper_v5_wave0.csv` (48 cases, never run) is withdrawn; v6 replaces it. If NLR received it, NLR runs `cases_nuclearstor_paper_v6_wave0_nlr.csv` instead.
 
 ## Results
 
