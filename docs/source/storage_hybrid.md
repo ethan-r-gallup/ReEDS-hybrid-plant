@@ -197,6 +197,8 @@ Storage energy capacity costs `cost_cap_energy`, the storage tech's energy capex
 
 - BCR × powerblock cost is the turbine enlargement that storage discharge needs, priced at the gen tech's powerblock cost.
 - s (`GSw_StorageHybrid_TESStorShare`, default 0.203) is the storage-specific share of the TES power capex: heat exchange and charging equipment, steam-system BOP, and EIC. The default comes from the 100 MW single-cycle steam molten-salt case in PNNL-33283 (*Energy Storage Grand Challenge Cost and Performance Assessment 2022*, section 4.8.1). The rest of the TES power capex is the TES power cycle, which the gen tech's powerblock replaces.
+  - The share is (steam-system BOP $121.5/kW + EIC $98.7/kW + heater $113.5/kW) / ($1,312/kW power block + those three).
+  - Open question: it is not yet confirmed whether PNNL's $113.5/kW "heater" is an electric heater or a steam-to-salt heat exchanger. A nuclear TES wrapper charges from reactor steam, so it needs the exchanger. If the item is an electric heater, the share stands in for an exchanger of similar cost.
 - m (`GSw_StorageHybrid_TESAddonMult`, default 1) scales only the TES add-on: the storage-specific power capex, the storage energy capex, the storage energy FOM, and the share s of the storage power FOM. A TES cost sweep varies m, so the turbine enlargement keeps the gen tech's cost at every sweep point.
 
 The financing multiplier treats the turbine enlargement as gen-side cost and the TES add-on as storage-side cost.
