@@ -52,6 +52,7 @@
   - `incentives_none.csv`: No incentives
   - `incentives_obbba_conservative.csv`: A more conservative interpretation of the One Big Beautiful Bill Act (OBBBA) incentives
   - `incentives_obbba.csv`: Incentives as defined by the One Big Beautiful Bill Act (OBBBA) of 2025
+  - `incentives_obbba_phasedown.csv`: `incentives_obbba.csv` plus the statutory 45Y/48E phase-down for technologies other than wind and solar: full-value rows for 2033-2035 construction starts, which `GSw_TCPhaseout` (trigger year 2032) scales to 100%, 75% and 50%
 
 - `inflation_default.csv`: Annual inflation factors from 1914 through 2200
   - historical values use the avg-avg values from [https://www.usinflationcalculator.com/inflation/consumer-price-index-and-annual-percent-changes-from-1913-to-2008/](https://www.usinflationcalculator.com/inflation/consumer-price-index-and-annual-percent-changes-from-1913-to-2008/)
