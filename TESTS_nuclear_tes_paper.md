@@ -186,10 +186,10 @@ Interday linkage stays off, because TES wrappers can't use it. `pcm=0`, because 
 python runreeds.py -b v6w0 -c nuclearstor_paper_v6_wave0
 ```
 
-Memory per case, **estimated, not measured**. The z54, 3-hour core runs peaked at about 60 GB. z90 has about 1.7 times as many zones, and the 2-hour and 1-hour cases have 1.5 and 3 times as many timeslices:
-- `w0_h3_*`: about 100 GB.
-- `w0_h2_*`: about 150 GB.
-- `w0_h1_*`: about 300 GB or more. Their solves will also take several times longer.
+Memory per case. Only the 3-hour figure is measured; the 2-hour and 1-hour figures are estimates:
+- `w0_h3_*`: about 80 GB, measured on a z90, 3-hour run on the lab machine.
+- `w0_h2_*`: about 110 GB (estimate).
+- `w0_h1_*`: more than 225 GB (estimate). Their solves will also take several times longer.
 
 On HPC, `runreeds.py` asks for cases per node; use one case per node, on big-memory nodes for the 1-hour cases. A workstation with 253 GB can run 2 of the 3-hour cases at a time. If you rerun a subset with `-s`, check `inputs_case/switches.csv` in each run folder afterward.
 
